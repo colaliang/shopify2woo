@@ -10,7 +10,7 @@ function parseFloatSafe(v?: string) {
   return isFinite(n) ? n : undefined;
 }
 
-export function computePriceFields(variant: ShopifyProduct["variants"][number]) {
+export function computePriceFields(variant: NonNullable<ShopifyProduct["variants"]>[number]) {
   const price = parseFloatSafe(variant?.price);
   const compare = parseFloatSafe(variant?.compare_at_price);
   return { regular_price: price ? String(price) : undefined, sale_price: compare && price && compare > price ? String(price) : undefined };
@@ -55,7 +55,7 @@ type WooVariationPartial = {
   attributes: WooAttribute[];
 };
 
-export function buildVariationFromShopifyVariant(variant: ShopifyProduct["variants"][number]): WooVariationPartial {
+export function buildVariationFromShopifyVariant(variant: NonNullable<ShopifyProduct["variants"]>[number]): WooVariationPartial {
   const attrs: Array<{ name?: string; option?: string }> = [];
   [variant.option1, variant.option2, variant.option3].forEach((opt, idx) => {
     if (!opt) return;
