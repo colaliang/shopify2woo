@@ -29,8 +29,40 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## 部署与发布（GitHub + Vercel）
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 同步到 GitHub
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. 初始化并提交（若已存在可跳过）：
+   ```bash
+   git init
+   git add .
+   git commit -m "init: shopify2woo-web"
+   ```
+2. 添加远程并推送（将 `<YOUR_REPO_URL>` 替换为你的 GitHub 仓库地址）：
+   ```bash
+   git remote add origin <YOUR_REPO_URL>
+   git branch -M main
+   git push -u origin main
+   ```
+
+### 部署到 Vercel（生产环境）
+
+1. 在 Vercel 控制台创建新项目，选择你刚推送的 GitHub 仓库。
+2. 在 `Project Settings → Environment Variables` 配置：
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - （可选）`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - （可选）`HTTP_PROXY`、`HTTPS_PROXY`（仅服务器端请求需要代理时）
+3. 触发一次部署（自动），完成后将获得生产域名，例如 `https://shopify2woo-web.vercel.app`。
+4. 更新 Chrome 扩展的 `background.js` 中的 URL 指向生产域名，并重新打包扩展。
+
+### 本地类型检查与构建
+
+```bash
+npm run build
+# 若本地路径包含中文/特殊字符导致 Turbopack 构建异常，可用：
+npx tsc -p tsconfig.json --noEmit
+```
+
+提示：Vercel 的构建环境不受本地路径影响，即使本地 `npm run build` 遇到 Turbopack 的中文路径问题，云端部署通常可正常完成。
