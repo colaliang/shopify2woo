@@ -10,7 +10,7 @@ type Job = {
   processed: number;
   successCount: number;
   errorCount: number;
-  status: "running" | "done" | "error";
+  status: "queued" | "running" | "done" | "error";
   createdAt: string;
   updatedAt: string;
 };

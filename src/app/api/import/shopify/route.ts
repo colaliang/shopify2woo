@@ -8,6 +8,8 @@ import { createJob, updateJob, finishJob } from "@/lib/progress";
 import { recordResult } from "@/lib/history";
 import { appendLog } from "@/lib/logs";
 
+export const runtime = "nodejs";
+
 function normalizeHandleOrLink(value: string) {
   try {
     const u = new URL(value);
@@ -63,52 +65,67 @@ export async function POST(req: Request) {
 
     const wooCfg = { url: wordpressUrl, consumerKey, consumerSecret };
 
-    // 确保分类与标签
-    const catTerms = await ensureTerms(wooCfg, "category", categories);
-    const tagTerms = await ensureTerms(wooCfg, "tag", tags);
-
-    const results: Array<{ handle: string; id?: number; name?: string; error?: string }> = [];
     const requestId = Math.random().toString(36).slice(2, 10);
-    await createJob(userId, "shopify", requestId, handles.length);
-    await appendLog(userId, requestId, "info", `start import from ${shopifyBaseUrl}, total ${handles.length}`);
-    for (const handle of handles) {
-      await appendLog(userId, requestId, "info", `fetch product handle=${handle}`);
-      const product = await fetchProductByHandle(shopifyBaseUrl, handle);
-      if (!product) {
-        results.push({ handle, error: "Shopify 产品未找到" });
-        await updateJob(userId, requestId, { processed: 1, error: 1 });
-        await appendLog(userId, requestId, "error", `not found handle=${handle}`);
-        continue;
-      }
-      await appendLog(userId, requestId, "info", `fetched handle=${handle} images=${(product.images||[]).length} variants=${(product.variants||[]).length}`);
-      const payload = buildWooProductPayload(product);
-      payload.categories = catTerms;
-      payload.tags = tagTerms;
-
-      const existing = await findProductBySkuOrSlug(wooCfg, undefined, product.handle);
-      let saved: { id?: number; name?: string };
-      if (existing) {
-        saved = await (await wooPut(wooCfg, `wp-json/wc/v3/products/${existing.id}`, payload)).json();
-      } else {
-        saved = await (await wooPost(wooCfg, "wp-json/wc/v3/products", { ...payload, slug: product.handle })).json();
-      }
-      await appendLog(userId, requestId, "info", `saved product id=${saved?.id} name=${saved?.name} variants=${(product.variants||[]).length} images=${(product.images||[]).length}`);
-
-      if (Array.isArray(product.variants) && product.variants.length > 1) {
-        for (const v of product.variants) {
-          const varPayload = buildVariationFromShopifyVariant(v);
-          await wooPost(wooCfg, `wp-json/wc/v3/products/${saved.id}/variations`, varPayload).then((r) => r.json());
-        }
-      }
-
-      results.push({ handle, id: saved?.id, name: saved?.name });
-      await updateJob(userId, requestId, { processed: 1, success: 1 });
-      await recordResult(userId, "shopify", requestId, product.handle, saved?.name, saved?.id, "success");
+    const supabase = getSupabaseServer();
+    if (supabase) {
+      const params = { shopifyBaseUrl, handles, categories, tags } as any;
+      await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "shopify", total: handles.length, processed: 0, success_count: 0, error_count: 0, status: "queued", params }, { onConflict: "request_id" });
+      await appendLog(userId, requestId, "info", `queued import from ${shopifyBaseUrl}, total ${handles.length}`);
+      return NextResponse.json({ success: true, requestId, count: handles.length }, { status: 202 });
     }
 
-    await finishJob(userId, requestId, "done");
-    await appendLog(userId, requestId, "info", `finish import total=${handles.length}`);
-    return NextResponse.json({ success: true, requestId, results, count: results.length });
+    await createJob(userId, "shopify", requestId, handles.length);
+    await appendLog(userId, requestId, "info", `queued import from ${shopifyBaseUrl}, total ${handles.length}`);
+
+    setTimeout(async () => {
+      try {
+        // 确保分类与标签
+        const catTerms = await ensureTerms(wooCfg, "category", categories);
+        const tagTerms = await ensureTerms(wooCfg, "tag", tags);
+        const results: Array<{ handle: string; id?: number; name?: string; error?: string }> = [];
+        for (const handle of handles) {
+          await appendLog(userId, requestId, "info", `fetch product handle=${handle}`);
+          const product = await fetchProductByHandle(shopifyBaseUrl, handle);
+          if (!product) {
+            results.push({ handle, error: "Shopify 产品未找到" });
+            await updateJob(userId, requestId, { processed: 1, error: 1 });
+            await appendLog(userId, requestId, "error", `not found handle=${handle}`);
+            continue;
+          }
+          await appendLog(userId, requestId, "info", `fetched handle=${handle} images=${(product.images||[]).length} variants=${(product.variants||[]).length}`);
+          const payload = buildWooProductPayload(product);
+          payload.categories = catTerms;
+          payload.tags = tagTerms;
+
+          const existing = await findProductBySkuOrSlug(wooCfg, undefined, product.handle);
+          let saved: { id?: number; name?: string };
+          if (existing) {
+            saved = await (await wooPut(wooCfg, `wp-json/wc/v3/products/${existing.id}`, payload)).json();
+          } else {
+            saved = await (await wooPost(wooCfg, "wp-json/wc/v3/products", { ...payload, slug: product.handle })).json();
+          }
+          await appendLog(userId, requestId, "info", `saved product id=${saved?.id} name=${saved?.name} variants=${(product.variants||[]).length} images=${(product.images||[]).length}`);
+
+          if (Array.isArray(product.variants) && product.variants.length > 1) {
+            for (const v of product.variants) {
+              const varPayload = buildVariationFromShopifyVariant(v);
+              await wooPost(wooCfg, `wp-json/wc/v3/products/${saved.id}/variations`, varPayload).then((r) => r.json());
+            }
+          }
+
+          results.push({ handle, id: saved?.id, name: saved?.name });
+          await updateJob(userId, requestId, { processed: 1, success: 1 });
+          await recordResult(userId, "shopify", requestId, product.handle, saved?.name, saved?.id, "success");
+        }
+        await finishJob(userId, requestId, "done");
+        await appendLog(userId, requestId, "info", `finish import total=${handles.length}`);
+      } catch (e: any) {
+        await appendLog(userId, requestId, "error", `job failed ${e?.message || e}`);
+        await finishJob(userId, requestId, "done");
+      }
+    }, 0);
+
+    return NextResponse.json({ success: true, requestId, count: handles.length }, { status: 202 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });

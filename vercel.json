@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/import/runner/shopify",  "schedule": "*/1 * * * *" },
+    { "path": "/api/import/runner/wordpress", "schedule": "*/2 * * * *" },
+    { "path": "/api/import/runner/wix",       "schedule": "*/3 * * * *" }
+  ]
+}

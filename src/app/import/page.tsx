@@ -19,6 +19,7 @@ export default function ImportPage() {
   const [debugOpen, setDebugOpen] = useState(process.env.NODE_ENV !== "production");
   const [logs, setLogs] = useState<Array<{ level: string; message: string; createdAt: string }>>([]);
   const [logPolling, setLogPolling] = useState<any>(null);
+  const [evt, setEvt] = useState<EventSource | null>(null);
   const [cap, setCap] = useState<number>(1000);
 
   async function onSubmit(e: React.FormEvent) {
@@ -52,31 +53,29 @@ export default function ImportPage() {
       setMessage(`已提交导入，请求ID ${data.requestId}，产品数 ${data.count ?? (data.results?.length || 0)}`);
       if (data.requestId) {
         setProgress({ requestId: data.requestId });
-        if (polling) clearInterval(polling);
-        const id = setInterval(async () => {
+        if (polling) { clearInterval(polling); setPolling(null); }
+        if (logPolling) { clearInterval(logPolling); setLogPolling(null); }
+        if (evt) { try { evt.close(); } catch {} setEvt(null); }
+        const url = `/api/import/sse?requestId=${encodeURIComponent(data.requestId)}${token ? `&token=${encodeURIComponent(token)}` : ""}`;
+        const es = new EventSource(url);
+        es.addEventListener("status", (ev: MessageEvent) => {
           try {
-            const r = await fetch(`/api/import/status?requestId=${data.requestId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-            const j = await r.json();
-            if (r.ok && j?.job) {
-              setProgress(j.job);
-              if (j.job?.status === "done") {
-                clearInterval(id);
-                setPolling(null);
-              }
+            const job = JSON.parse((ev as any).data);
+            setProgress(job);
+            if (job?.status === "done") {
+              try { es.close(); } catch {}
+              setEvt(null);
             }
           } catch {}
-        }, 1500);
-        setPolling(id);
-        if (logPolling) clearInterval(logPolling);
-        const lid = setInterval(async () => {
-          try {
-            if (!debugOpen) return;
-            const r = await fetch(`/api/import/logs?requestId=${data.requestId}&limit=5000`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-            const j = await r.json();
-            if (r.ok && Array.isArray(j.items)) setLogs(j.items);
-          } catch {}
-        }, 1500);
-        setLogPolling(lid);
+        });
+        es.addEventListener("logs", (ev: MessageEvent) => {
+          if (!debugOpen) return;
+          try { const arr = JSON.parse((ev as any).data); if (Array.isArray(arr)) setLogs(arr); } catch {}
+        });
+        es.addEventListener("history", (ev: MessageEvent) => {
+          try { const arr = JSON.parse((ev as any).data); if (Array.isArray(arr)) setHistory(arr); } catch {}
+        });
+        setEvt(es);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -111,7 +110,12 @@ export default function ImportPage() {
       if (e.ctrlKey && e.key.toLowerCase() === "k") setDebugOpen((v) => !v);
     }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (evt) { try { evt.close(); } catch {} }
+      if (polling) clearInterval(polling);
+      if (logPolling) clearInterval(logPolling);
+    };
   }, []);
 
   return (
