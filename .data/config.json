@@ -1,0 +1,12 @@
+{
+  "wordpressUrl": "https://yundianplus.com/",
+  "consumerKey": "ck_eb12cf0ae42392c2b260a71c13aafef331d001ee",
+  "consumerSecret": "cs_fa2c7779ae97d02ce861ebfbfbb327b1e93bbd80",
+  "users": {
+    "a5f05897-ae16-4348-9f74-543967453006": {
+      "wordpressUrl": "https://www.ydplus.cn/",
+      "consumerKey": "ck_f29acffe6f8d778b4e07e2eef76c0b2898149d5d",
+      "consumerSecret": "cs_6e2835105211d173fdf8aa0cfdcc13e11ee03d48"
+    }
+  }
+}

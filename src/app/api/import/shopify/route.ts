@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { getSupabaseServer, readLocalConfig } from "@/lib/supabaseServer";
+import { getSupabaseServer, getUserIdFromToken, readLocalConfig } from "@/lib/supabaseServer";
 import { fetchProductByHandle } from "@/lib/shopify";
 import { buildWooProductPayload, buildVariationFromShopifyVariant } from "@/lib/importMap";
+import { discoverShopifyHandles } from "@/lib/shopifyDiscover";
 import { ensureTerms, findProductBySkuOrSlug, wooPost, wooPut } from "@/lib/woo";
+import { createJob, updateJob, finishJob } from "@/lib/progress";
+import { recordResult } from "@/lib/history";
+import { appendLog } from "@/lib/logs";
 
 function normalizeHandleOrLink(value: string) {
   try {
@@ -16,43 +20,46 @@ function normalizeHandleOrLink(value: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { shopifyBaseUrl, productLinks, categories = [], tags = [] } = body || {};
+    const { shopifyBaseUrl, productLinks, categories = [], tags = [], mode, cap } = body || {};
     if (!shopifyBaseUrl) {
       return NextResponse.json({ error: "缺少 Shopify 站点网址" }, { status: 400 });
     }
-    const handles = (Array.isArray(productLinks) ? productLinks : []).map(normalizeHandleOrLink).filter(Boolean);
+    const maxCap = typeof cap === "number" && cap > 0 ? Math.min(cap, 5000) : 1000;
+    let handles = (Array.isArray(productLinks) ? productLinks : []).map(normalizeHandleOrLink).filter(Boolean);
+    if (mode === "all") {
+      handles = await discoverShopifyHandles(shopifyBaseUrl, maxCap);
+    }
     if (!handles.length) {
       return NextResponse.json({ error: "未提供产品链接或 handle" }, { status: 400 });
     }
 
-    // 读取 Woo 配置（Supabase 优先，本地回退）
+    const auth = req.headers.get("authorization") || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
     let wordpressUrl = "";
     let consumerKey = "";
     let consumerSecret = "";
-    try {
+    {
       const supabase = getSupabaseServer();
-      if (supabase) {
-        const { data } = await supabase
-          .from("user_configs")
-          .select("wordpress_url, consumer_key, consumer_secret")
-          .limit(1)
-          .maybeSingle();
-        if (data) {
-          wordpressUrl = data.wordpress_url || "";
-          consumerKey = data.consumer_key || "";
-          consumerSecret = data.consumer_secret || "";
-        }
+      if (!supabase) return NextResponse.json({ error: "服务未配置" }, { status: 500 });
+      const { data } = await supabase
+        .from("user_configs")
+        .select("wordpress_url, consumer_key, consumer_secret")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+      wordpressUrl = data?.wordpress_url || "";
+      consumerKey = data?.consumer_key || "";
+      consumerSecret = data?.consumer_secret || "";
+      if (!wordpressUrl && !consumerKey && !consumerSecret) {
+        const local = readLocalConfig(userId);
+        wordpressUrl = local?.wordpressUrl || "";
+        consumerKey = local?.consumerKey || "";
+        consumerSecret = local?.consumerSecret || "";
       }
-    } catch {}
-    if (!wordpressUrl || !consumerKey || !consumerSecret) {
-      const local = readLocalConfig();
-      wordpressUrl = wordpressUrl || local?.wordpressUrl || "";
-      consumerKey = consumerKey || local?.consumerKey || "";
-      consumerSecret = consumerSecret || local?.consumerSecret || "";
     }
-    if (!wordpressUrl || !consumerKey || !consumerSecret) {
-      return NextResponse.json({ error: "Woo 配置未设置" }, { status: 400 });
-    }
+    if (!wordpressUrl || !consumerKey || !consumerSecret) return NextResponse.json({ error: "Woo 配置未设置" }, { status: 400 });
 
     const wooCfg = { url: wordpressUrl, consumerKey, consumerSecret };
 
@@ -61,12 +68,19 @@ export async function POST(req: Request) {
     const tagTerms = await ensureTerms(wooCfg, "tag", tags);
 
     const results: Array<{ handle: string; id?: number; name?: string; error?: string }> = [];
+    const requestId = Math.random().toString(36).slice(2, 10);
+    await createJob(userId, "shopify", requestId, handles.length);
+    await appendLog(userId, requestId, "info", `start import from ${shopifyBaseUrl}, total ${handles.length}`);
     for (const handle of handles) {
+      await appendLog(userId, requestId, "info", `fetch product handle=${handle}`);
       const product = await fetchProductByHandle(shopifyBaseUrl, handle);
       if (!product) {
         results.push({ handle, error: "Shopify 产品未找到" });
+        await updateJob(userId, requestId, { processed: 1, error: 1 });
+        await appendLog(userId, requestId, "error", `not found handle=${handle}`);
         continue;
       }
+      await appendLog(userId, requestId, "info", `fetched handle=${handle} images=${(product.images||[]).length} variants=${(product.variants||[]).length}`);
       const payload = buildWooProductPayload(product);
       payload.categories = catTerms;
       payload.tags = tagTerms;
@@ -78,6 +92,7 @@ export async function POST(req: Request) {
       } else {
         saved = await (await wooPost(wooCfg, "wp-json/wc/v3/products", { ...payload, slug: product.handle })).json();
       }
+      await appendLog(userId, requestId, "info", `saved product id=${saved?.id} name=${saved?.name} variants=${(product.variants||[]).length} images=${(product.images||[]).length}`);
 
       if (Array.isArray(product.variants) && product.variants.length > 1) {
         for (const v of product.variants) {
@@ -87,10 +102,13 @@ export async function POST(req: Request) {
       }
 
       results.push({ handle, id: saved?.id, name: saved?.name });
+      await updateJob(userId, requestId, { processed: 1, success: 1 });
+      await recordResult(userId, "shopify", requestId, product.handle, saved?.name, saved?.id, "success");
     }
 
-    const requestId = Math.random().toString(36).slice(2, 10);
-    return NextResponse.json({ success: true, requestId, results });
+    await finishJob(userId, requestId, "done");
+    await appendLog(userId, requestId, "info", `finish import total=${handles.length}`);
+    return NextResponse.json({ success: true, requestId, results, count: results.length });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });

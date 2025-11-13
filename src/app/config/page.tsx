@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { getSupabaseBrowser } from "@/lib/supabaseClient";
 
 type Config = {
   wordpressUrl: string;
@@ -15,11 +16,17 @@ export default function ConfigPage() {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
+      const supabase = getSupabaseBrowser();
+      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } } as any;
+      const t = data.session?.access_token || null;
+      setToken(t);
+      
       try {
-        const res = await fetch("/api/config/get");
+        const res = await fetch("/api/config/get", { headers: t ? { Authorization: `Bearer ${t}` } : {} });
         const data = await res.json();
         if (res.ok) {
           const cfg = data?.data || data?.config;
@@ -34,14 +41,23 @@ export default function ConfigPage() {
     setLoading(true);
     setMessage(null);
     try {
+      let authToken = token;
+      if (!authToken) {
+        const supabase = getSupabaseBrowser();
+        const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } } as any;
+        authToken = data.session?.access_token || null;
+        setToken(authToken);
+      }
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
       const res = await fetch("/api/config/save", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(config),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "保存失败");
-      setMessage(data?.fallback ? "已保存配置（本地回退存储）" : "已保存配置");
+      setMessage("已保存配置");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setMessage(msg);
@@ -53,6 +69,7 @@ export default function ConfigPage() {
   return (
     <div className="max-w-3xl mx-auto p-6">
       <h1 className="text-2xl font-semibold mb-4">配置 WooCommerce</h1>
+      
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">WordPress 站点网址</label>

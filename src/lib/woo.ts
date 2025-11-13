@@ -28,6 +28,17 @@ type WooConfig = {
   consumerSecret: string;
 };
 
+function redact(url: string) {
+  try {
+    const u = new URL(url);
+    if (u.searchParams.has("consumer_key")) u.searchParams.set("consumer_key", "***");
+    if (u.searchParams.has("consumer_secret")) u.searchParams.set("consumer_secret", "***");
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 // 可选代理：从环境变量生成 undici 的 ProxyAgent
 let ProxyAgentRef: (new (proxy: string) => unknown) | null = null;
 try {
@@ -58,6 +69,7 @@ async function wooFetch(
   url.searchParams.set("consumer_key", cfg.consumerKey);
   url.searchParams.set("consumer_secret", cfg.consumerSecret);
   const dispatcher = getDispatcherFromEnv();
+  const started = Date.now();
   for (let i = 0; i <= retry; i++) {
     type UndiciRequestInit = RequestInit & { dispatcher?: unknown };
     const res = await fetch(url.toString(), {
@@ -69,6 +81,14 @@ async function wooFetch(
       // `dispatcher` 为 undici 的扩展选项，这里做类型兼容处理
       ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}),
     });
+    const ct = res.headers.get("content-type") || "";
+    const ms = Date.now() - started;
+    if (!res.ok) {
+      const body = await res.clone().text().catch(() => "");
+      try { console.error(JSON.stringify({ ts: new Date().toISOString(), level: "ERROR", event: "wp_response_error", method: init?.method || "GET", url: redact(url.toString()), status: res.status, contentType: ct, ms, body: body.slice(0,300) })); } catch {}
+    } else {
+      try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_response", method: init?.method || "GET", url: redact(url.toString()), status: res.status, contentType: ct, ms })); } catch {}
+    }
     if (res.status >= 500 || res.status === 429) {
       await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
       continue;
@@ -83,11 +103,17 @@ export async function wooGet(cfg: WooConfig, endpoint: string) {
 }
 
 export async function wooPost(cfg: WooConfig, endpoint: string, body: unknown) {
-  return wooFetch(cfg, endpoint, { method: "POST", body: JSON.stringify(body) });
+  let payload = "";
+  try { payload = JSON.stringify(body); } catch { payload = String(body || ""); }
+  try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "POST", endpoint, bodySize: payload.length })); } catch {}
+  return wooFetch(cfg, endpoint, { method: "POST", body: payload });
 }
 
 export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown) {
-  return wooFetch(cfg, endpoint, { method: "PUT", body: JSON.stringify(body) });
+  let payload = "";
+  try { payload = JSON.stringify(body); } catch { payload = String(body || ""); }
+  try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "PUT", endpoint, bodySize: payload.length })); } catch {}
+  return wooFetch(cfg, endpoint, { method: "PUT", body: payload });
 }
 
 export async function ensureTerms(
