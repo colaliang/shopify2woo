@@ -6,6 +6,7 @@ import { discoverShopifyHandles } from "@/lib/shopifyDiscover";
 import { ensureTerms, findProductBySkuOrSlug, wooPost, wooPut } from "@/lib/woo";
 import { createJob, updateJob, finishJob } from "@/lib/progress";
 import { recordResult } from "@/lib/history";
+import { pgmqQueueName, pgmqSendBatch } from "@/lib/pgmq";
 import { appendLog } from "@/lib/logs";
 
 export const runtime = "nodejs";
@@ -68,10 +69,22 @@ export async function POST(req: Request) {
     const requestId = Math.random().toString(36).slice(2, 10);
     const supabase = getSupabaseServer();
     if (supabase) {
-      const params = { shopifyBaseUrl, handles, categories, tags } as any;
-      await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "shopify", total: handles.length, processed: 0, success_count: 0, error_count: 0, status: "queued", params }, { onConflict: "request_id" });
-      await appendLog(userId, requestId, "info", `queued import from ${shopifyBaseUrl}, total ${handles.length}`);
-      return NextResponse.json({ success: true, requestId, count: handles.length }, { status: 202 });
+      if (process.env.USE_PGMQ === "1") {
+        await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "shopify", total: handles.length, processed: 0, success_count: 0, error_count: 0, status: "queued" }, { onConflict: "request_id" });
+        const queue = pgmqQueueName("shopify");
+        const msgs = handles.map((h: string) => ({ userId, requestId, source: "shopify", handle: h, shopifyBaseUrl, categories, tags }));
+        const chunk = 500;
+        for (let i = 0; i < msgs.length; i += chunk) {
+          await pgmqSendBatch(queue, msgs.slice(i, i + chunk));
+        }
+        await appendLog(userId, requestId, "info", `pgmq queued ${handles.length} from ${shopifyBaseUrl}`);
+        return NextResponse.json({ success: true, requestId, count: handles.length }, { status: 202 });
+      } else {
+        const params = { shopifyBaseUrl, handles, categories, tags } as any;
+        await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "shopify", total: handles.length, processed: 0, success_count: 0, error_count: 0, status: "queued", params }, { onConflict: "request_id" });
+        await appendLog(userId, requestId, "info", `queued import from ${shopifyBaseUrl}, total ${handles.length}`);
+        return NextResponse.json({ success: true, requestId, count: handles.length }, { status: 202 });
+      }
     }
 
     await createJob(userId, "shopify", requestId, handles.length);

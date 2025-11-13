@@ -19,6 +19,7 @@ export default function ImportPage() {
   const [debugOpen, setDebugOpen] = useState(process.env.NODE_ENV !== "production");
   const [logs, setLogs] = useState<Array<{ level: string; message: string; createdAt: string }>>([]);
   const [logPolling, setLogPolling] = useState<any>(null);
+  const [runnerPing, setRunnerPing] = useState<any>(null);
   const [evt, setEvt] = useState<EventSource | null>(null);
   const [cap, setCap] = useState<number>(1000);
 
@@ -65,6 +66,7 @@ export default function ImportPage() {
             if (job?.status === "done") {
               try { es.close(); } catch {}
               setEvt(null);
+              if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
             }
           } catch {}
         });
@@ -76,6 +78,15 @@ export default function ImportPage() {
           try { const arr = JSON.parse((ev as any).data); if (Array.isArray(arr)) setHistory(arr); } catch {}
         });
         setEvt(es);
+
+        if (process.env.NEXT_PUBLIC_ENABLE_CLIENT_RUNNER === "1") {
+          if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+          const src = importType;
+          const rid = setInterval(async () => {
+            try { await fetch(`/api/import/runner/${src}`, { method: "POST" }); } catch {}
+          }, 10000);
+          setRunnerPing(rid);
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -115,6 +126,7 @@ export default function ImportPage() {
       if (evt) { try { evt.close(); } catch {} }
       if (polling) clearInterval(polling);
       if (logPolling) clearInterval(logPolling);
+      if (runnerPing) clearInterval(runnerPing);
     };
   }, []);
 

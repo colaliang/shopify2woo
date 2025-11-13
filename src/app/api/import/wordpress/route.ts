@@ -33,6 +33,7 @@ import { createJob, updateJob, finishJob } from "@/lib/progress";
 import { recordResult } from "@/lib/history";
 import { appendLog } from "@/lib/logs";
 import { logInfo, logError } from "@/lib/terminal";
+import { pgmqQueueName, pgmqSendBatch } from "@/lib/pgmq";
 
 export const runtime = "nodejs";
 
@@ -93,10 +94,22 @@ export async function POST(req: Request) {
 
     const supabase = getSupabaseServer();
     if (supabase) {
-      const params = { sourceUrl, links } as any;
-      await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "wordpress", total: jobTotal, processed: 0, success_count: 0, error_count: 0, status: "queued", params }, { onConflict: "request_id" });
-      await appendLog(userId, requestId, "info", mode === "all" ? `queued ${jobTotal} links from ${sourceUrl}` : `queued ${jobTotal} links by request`);
-      return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
+      if (process.env.USE_PGMQ === "1") {
+        await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "wordpress", total: jobTotal, processed: 0, success_count: 0, error_count: 0, status: "queued" }, { onConflict: "request_id" });
+        const q = pgmqQueueName("wordpress");
+        const items = (mode === "all" ? discovered : links).map((l) => ({ userId, requestId, source: "wordpress", link: /^https?:\/\//.test(l) ? l : new URL(l, sourceUrl).toString(), sourceUrl }));
+        const chunk = 300;
+        for (let i = 0; i < items.length; i += chunk) {
+          await pgmqSendBatch(q, items.slice(i, i + chunk));
+        }
+        await appendLog(userId, requestId, "info", `pgmq queued ${jobTotal} links from ${sourceUrl}`);
+        return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
+      } else {
+        const params = { sourceUrl, links } as any;
+        await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "wordpress", total: jobTotal, processed: 0, success_count: 0, error_count: 0, status: "queued", params }, { onConflict: "request_id" });
+        await appendLog(userId, requestId, "info", mode === "all" ? `queued ${jobTotal} links from ${sourceUrl}` : `queued ${jobTotal} links by request`);
+        return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
+      }
     }
 
     await createJob(userId, "wordpress", requestId, jobTotal);
