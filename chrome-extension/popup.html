@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shopify2Woo 导入助手</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="popup">
+      <div class="toolbar">
+        <button id="home" class="icon" title="首页" aria-label="首页">
+          <!-- home icon -->
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+        </button>
+        <button id="guide" class="icon" title="功能引导" aria-label="功能引导">
+          <!-- guide icon (book) -->
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h10a4 4 0 0 1 4 4v12H8a4 4 0 0 0-4-4V4Z"/><path d="M8 20V8"/></svg>
+        </button>
+        <button id="settings" class="icon" title="设置" aria-label="设置">
+          <!-- pencil icon -->
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"/></svg>
+        </button>
+        <button id="help" class="icon" title="帮助" aria-label="帮助">
+          <!-- help icon (question) -->
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4"/><path d="M12 17h.01"/></svg>
+        </button>
+      </div>
+      <div class="content">
+        <iframe id="contentFrame" src="about:blank" title="Shopify2Woo 内容" frameborder="0"></iframe>
+      </div>
+    
+    <script src="popup.js"></script>
+  </body>
+</html>

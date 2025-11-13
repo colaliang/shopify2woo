@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Shopify2Woo 导入助手",
+  "version": "0.1.5",
+  "description": "打开导入工具站点（Next.js）以进行 Shopify → Woo 导入",
+  "action": {
+    "default_title": "打开导入工具",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["tabs", "activeTab", "scripting"],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://shopify2woo-n4k1mvrhg-kejieleungs-projects.vercel.app/*"
+  ]
+}
