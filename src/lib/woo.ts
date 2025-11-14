@@ -66,8 +66,6 @@ async function wooFetch(
   retry = 2
 ) {
   const url = new URL(endpoint, cfg.url.replace(/\/$/, ""));
-  url.searchParams.set("consumer_key", cfg.consumerKey);
-  url.searchParams.set("consumer_secret", cfg.consumerSecret);
   const dispatcher = getDispatcherFromEnv();
   const started = Date.now();
   for (let i = 0; i <= retry; i++) {
@@ -76,6 +74,7 @@ async function wooFetch(
       ...init,
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Basic ${Buffer.from(`${cfg.consumerKey}:${cfg.consumerSecret}`).toString("base64")}`,
         ...(init?.headers || {}),
       },
       // `dispatcher` 为 undici 的扩展选项，这里做类型兼容处理

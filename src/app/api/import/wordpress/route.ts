@@ -29,7 +29,7 @@ import {
   extractOgImages,
   extractContentImages,
 } from "@/lib/wordpressScrape";
-import { createJob, updateJob, finishJob } from "@/lib/progress";
+// import-jobs 相关逻辑已移除
 import { recordResult } from "@/lib/history";
 import { appendLog } from "@/lib/logs";
 import { logInfo, logError } from "@/lib/terminal";
@@ -389,7 +389,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+async function createJob(..._args: any[]) {}
+async function updateJob(..._args: any[]) {}
+async function finishJob(..._args: any[]) {}

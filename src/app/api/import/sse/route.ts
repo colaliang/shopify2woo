@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserIdFromToken } from "@/lib/supabaseServer";
-import { getJob } from "@/lib/progress";
 import { listLogs } from "@/lib/logs";
-import { listResults } from "@/lib/history";
+import { listResults, getResultCounts } from "@/lib/history";
 
 export const runtime = "nodejs";
 
@@ -28,8 +27,7 @@ export async function GET(req: Request) {
 
         const timer = setInterval(async () => {
           try {
-            const job = await getJob(userId, requestId);
-            if (job) write("status", job);
+            // import-jobs 相关逻辑已移除，不再推送 status
             const logs = await listLogs(userId, requestId, 200);
             // send only new logs by timestamp
             const filtered = logs.filter((l: any) => {
@@ -42,11 +40,8 @@ export async function GET(req: Request) {
             }
             const history = await listResults(userId, 1, 20);
             write("history", history);
-            if (job && job.status === "done") {
-              // keep open one more tick for client to receive
-              clearInterval(timer);
-              setTimeout(() => { try { controller.close(); } catch {} closed = true; }, 500);
-            }
+            const counts = await getResultCounts(userId, requestId);
+            write("counts", { requestId, ...counts });
           } catch (e) {
             write("error", { message: e instanceof Error ? e.message : String(e) });
           }
@@ -73,7 +68,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

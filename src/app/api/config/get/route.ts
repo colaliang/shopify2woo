@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     if (hasRemote) writeLocalConfig(cfg, userId);
     return NextResponse.json({ success: true, data: cfg, source: hasRemote ? "supabase" : "empty" });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -63,3 +63,27 @@ export async function listResults(userId: string, page = 1, pageSize = 20) {
   return arr.slice(from, from + pageSize);
 }
 
+export async function getResultCounts(userId: string, requestId: string) {
+  const supabase = getSupabaseServer();
+  if (supabase) {
+    const { count: succ } = await supabase
+      .from("import_results")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("request_id", requestId)
+      .eq("status", "success");
+    const { count: err } = await supabase
+      .from("import_results")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("request_id", requestId)
+      .eq("status", "error");
+    const successCount = typeof succ === "number" ? succ : 0;
+    const errorCount = typeof err === "number" ? err : 0;
+    return { successCount, errorCount, processed: successCount + errorCount };
+  }
+  const arr = readLocal().filter((r) => r.userId === userId && r.requestId === requestId);
+  const successCount = arr.filter((r) => r.status === "success").length;
+  const errorCount = arr.filter((r) => r.status === "error").length;
+  return { successCount, errorCount, processed: successCount + errorCount };
+}

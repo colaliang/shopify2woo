@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     writeLocalConfig({ wordpressUrl, consumerKey, consumerSecret }, userId);
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -12,9 +12,24 @@ export function pgmqQueueName(source: string) {
 export async function pgmqSendBatch(queue: string, messages: any[]) {
   const supabase = getSupabaseServer();
   if (!supabase) throw new Error("no supabase");
-  const { data, error } = await (supabase as any).rpc("pgmq_send_batch", { q: queue, payloads: messages });
-  if (error) throw error;
+  const { data, error } = await (supabase as any).rpc("pgmq_send_batch_json", { q: queue, payloads: messages });
+  if (error) {
+    const ids: number[] = [];
+    for (const msg of messages) {
+      const one = await pgmqSendOne(queue, msg);
+      ids.push(one);
+    }
+    return ids;
+  }
   return data as number[];
+}
+
+export async function pgmqSendOne(queue: string, message: any) {
+  const supabase = getSupabaseServer();
+  if (!supabase) throw new Error("no supabase");
+  const { data, error } = await (supabase as any).rpc("pgmq_send_one_json", { q: queue, payload: message });
+  if (error) throw error;
+  return Number(data);
 }
 
 export async function pgmqRead(queue: string, vtSeconds: number, limit: number) {
