@@ -4,11 +4,101 @@ import { appendLog } from "@/lib/logs";
 import { pgmqQueueName, pgmqRead, pgmqDelete, pgmqArchive, pgmqSetVt } from "@/lib/pgmq";
 // import-jobs 相关逻辑已移除
 import { recordResult } from "@/lib/history";
-import { ensureTerms, findProductBySkuOrSlug, wooPost, wooPut, wooGet } from "@/lib/woo";
+import { ensureTerms, findProductBySkuOrSlug, wooPost, wooPut, wooGet, wooDelete, type WooConfig } from "@/lib/woo";
 import { fetchProductByHandle } from "@/lib/shopify";
 import { buildWooProductPayload, buildVariationFromShopifyVariant } from "@/lib/importMap";
 import { fetchHtmlMeta, extractJsonLdProduct, extractProductVariations, extractFormAttributes, extractProductPrice, buildVariationsFromForm, extractBreadcrumbCategories, extractPostedInCategories, extractTags, extractDescriptionHtml, extractGalleryImages, extractOgImages, extractContentImages, extractSku } from "@/lib/wordpressScrape";
-import { normalizeWpSlugOrLink } from "@/lib/wordpress";
+import { normalizeWpSlugOrLink, type WooProduct } from "@/lib/wordpress";
+
+// WordPress 产品数据负载接口
+interface WordPressProductPayload {
+  name?: string;
+  slug?: string;
+  sku?: string;
+  description?: string;
+  short_description?: string;
+  images?: Array<{ src: string }>;
+  categories?: Array<{ id: number }>;
+  tags?: Array<{ id: number }>;
+}
+
+
+
+// 事务跟踪器 - 跟踪每个请求中创建或更新的产品
+interface TransactionTracker {
+  createdProducts: number[]; // 新创建的产品ID
+  updatedProducts: number[]; // 更新的产品ID
+  originalProducts: Map<number, WooProduct>; // 更新前的产品数据（用于回滚）
+}
+
+// PGMQ 消息类型定义
+interface PgmqMessage {
+  userId?: string;
+  requestId?: string;
+  source?: string;
+  handle?: string;
+  shopifyBaseUrl?: string;
+  categories?: string[];
+  tags?: string[];
+  link?: string;
+}
+
+const transactionStore = new Map<string, TransactionTracker>();
+
+// 获取或创建事务跟踪器
+function getTransactionTracker(requestId: string): TransactionTracker {
+  if (!transactionStore.has(requestId)) {
+    transactionStore.set(requestId, {
+      createdProducts: [],
+      updatedProducts: [],
+      originalProducts: new Map()
+    });
+  }
+  return transactionStore.get(requestId)!;
+}
+
+// 清理事务跟踪器
+function cleanupTransactionTracker(requestId: string) {
+  transactionStore.delete(requestId);
+}
+
+// 回滚事务 - 删除创建的产品，恢复更新的产品
+async function rollbackTransaction(requestId: string, dstCfg: WooConfig) {
+  const tracker = transactionStore.get(requestId);
+  if (!tracker) return;
+
+  try {
+    // 删除所有新创建的产品
+    for (const productId of tracker.createdProducts) {
+      try {
+        await wooDelete(dstCfg, `wp-json/wc/v3/products/${productId}?force=true`, {
+          userId: "system",
+          requestId,
+          productHandle: `id-${productId}`
+        });
+        console.log(`已回滚创建的产品: ${productId}`);
+      } catch (deleteError) {
+        console.error(`回滚删除产品失败: ${productId}`, deleteError);
+      }
+    }
+
+    // 恢复所有更新的产品到原始状态
+    for (const [productId, originalData] of tracker.originalProducts.entries()) {
+      try {
+        await wooPut(dstCfg, `wp-json/wc/v3/products/${productId}`, originalData, {
+          userId: "system", 
+          requestId,
+          productHandle: `id-${productId}`
+        });
+        console.log(`已回滚更新的产品: ${productId}`);
+      } catch (restoreError) {
+        console.error(`回滚恢复产品失败: ${productId}`, restoreError);
+      }
+    }
+  } finally {
+    cleanupTransactionTracker(requestId);
+  }
+}
 
 export const runtime = "nodejs";
 
@@ -28,8 +118,33 @@ async function authorize(req: Request) {
   return false;
 }
 
-async function updateJob(..._args: any[]) {}
-async function finishJob(..._args: any[]) {}
+async function updateJob(userId: string, requestId: string, updates: { processed?: number; success?: number }) {
+  const supabase = getSupabaseServer();
+  if (!supabase) return;
+  try {
+    await supabase
+      .from("import_jobs")
+      .update(updates)
+      .eq("request_id", requestId)
+      .eq("user_id", userId);
+  } catch (e) {
+    console.error("updateJob failed:", e);
+  }
+}
+
+async function finishJob(userId: string, requestId: string, status: "done" | "error") {
+  const supabase = getSupabaseServer();
+  if (!supabase) return;
+  try {
+    await supabase
+      .from("import_jobs")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("request_id", requestId)
+      .eq("user_id", userId);
+  } catch (e) {
+    console.error("finishJob failed:", e);
+  }
+}
 
 export async function POST(req: Request) {
   if (!(await authorize(req))) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -50,7 +165,7 @@ export async function POST(req: Request) {
         picked += msgs.length;
         const byReq = new Map<string, string>();
         for (const row of msgs) {
-          const msg = row.message || {};
+          const msg = (row.message || {}) as PgmqMessage;
           const userId = String(msg.userId || "");
           const requestId = String(msg.requestId || "");
           if (!userId || !requestId) { await pgmqArchive(q, row.msg_id).catch(()=>{}); continue; }
@@ -93,6 +208,22 @@ export async function POST(req: Request) {
             await finishJob(userId, requestId, "error").catch(()=>{});
             continue;
           }
+          
+          // 网址验证机制：检查WordPress网址格式是否正确
+          try {
+            const wpUrlObj = new URL(wordpressUrl);
+            if (!wpUrlObj.protocol.startsWith('http')) {
+              await appendLog(userId, requestId, "error", `WordPress网址协议无效: ${wordpressUrl}`);
+              await pgmqArchive(q, row.msg_id).catch(()=>{});
+              await finishJob(userId, requestId, "error").catch(()=>{});
+              continue;
+            }
+          } catch {
+            await appendLog(userId, requestId, "error", `WordPress网址格式无效: ${wordpressUrl}`);
+            await pgmqArchive(q, row.msg_id).catch(()=>{});
+            await finishJob(userId, requestId, "error").catch(()=>{});
+            continue;
+          }
           const dstCfg = { url: wordpressUrl, consumerKey, consumerSecret };
           try {
             if (s === "shopify") {
@@ -115,6 +246,23 @@ export async function POST(req: Request) {
                 const existing = await findProductBySkuOrSlug(dstCfg, undefined, product.handle);
                 await appendLog(userId, requestId, "info", `检查现有产品完成 handle=${String(product.handle||"")} 现有ID=${existing?.id || "无"}`);
                 let resp: Response;
+                
+                // 事务跟踪：如果是更新操作，先保存原始产品数据用于回滚
+                if (existing && existing.id) {
+                  const tracker = getTransactionTracker(requestId);
+                  if (!tracker.originalProducts.has(existing.id)) {
+                    try {
+                      const existingProductResp = await wooGet(dstCfg, `wp-json/wc/v3/products/${existing.id}`);
+                      if (existingProductResp.ok) {
+                        const existingProduct = await existingProductResp.json();
+                        tracker.originalProducts.set(existing.id, existingProduct);
+                      }
+                    } catch (e) {
+                      console.error("获取原始产品数据失败:", e);
+                    }
+                  }
+                }
+                
                 if (existing) {
                   await appendLog(userId, requestId, "info", `开始更新现有产品 handle=${String(product.handle||"")} ID=${existing.id}`);
                   resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
@@ -125,9 +273,28 @@ export async function POST(req: Request) {
                 const ct = resp.headers.get("content-type") || "";
                 if (!resp.ok || !ct.includes("application/json")) {
                   await appendLog(userId, requestId, "error", `WooCommerce API请求失败 handle=${String(product.handle||"")} 状态=${resp.status}`);
+                  // API请求失败时触发事务回滚
+                  try {
+                    await rollbackTransaction(requestId, dstCfg);
+                    await appendLog(userId, requestId, "error", `WooCommerce API请求失败，已执行事务回滚 handle=${String(product.handle||"")}`);
+                  } catch (rollbackError: unknown) {
+                    const errorMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError || "未知错误");
+                    await appendLog(userId, requestId, "error", `事务回滚失败: ${errorMessage}`);
+                  }
                   // 只在失败时记录日志，不写入import_results
                 } else {
-                  const saved: any = await resp.json().catch(()=>({}));
+                  const saved = await resp.json().catch(()=>({})) as WooProduct;
+                  
+                  // 事务跟踪：记录成功创建或更新的产品
+                  if (saved?.id) {
+                    const tracker = getTransactionTracker(requestId);
+                    if (existing) {
+                      tracker.updatedProducts.push(saved.id);
+                    } else {
+                      tracker.createdProducts.push(saved.id);
+                    }
+                  }
+                  
                   await appendLog(userId, requestId, "info", `WooCommerce产品${existing ? '更新' : '创建'}成功 handle=${String(product.handle||"")} ID=${saved?.id || "未知"}`);
                   if (Array.isArray(product.variants) && product.variants.length > 1 && typeof saved?.id === 'number') {
                     await appendLog(userId, requestId, "info", `开始处理变体 handle=${String(product.handle||"")} 变体数量=${product.variants.length}`);
@@ -147,6 +314,12 @@ export async function POST(req: Request) {
               await appendLog(userId, requestId, "info", `开始处理WordPress产品 link=${link}`);
               const meta = await fetchHtmlMeta(link);
               const html = meta.html;
+              
+              // 检测并记录网址不匹配
+              if (meta.urlMismatch && meta.finalUrl !== link) {
+                await appendLog(userId, requestId, "info", `网址重定向检测: 原始URL=${link} 最终URL=${meta.finalUrl}`);
+              }
+              
               await appendLog(userId, requestId, "info", `获取HTML内容完成 link=${link} 长度=${html.length}`);
               const ld = extractJsonLdProduct(html);
               await appendLog(userId, requestId, "info", `提取JSON-LD数据完成 link=${link} 产品名称=${ld?.name || "无"}`);
@@ -180,7 +353,7 @@ export async function POST(req: Request) {
               }
               const descHtml = extractDescriptionHtml(html) || ld?.description;
               await appendLog(userId, requestId, "info", `提取描述完成 link=${link} 描述长度=${descHtml?.length || 0}`);
-              const payload: any = { name: ld?.name || slug, slug, sku, description: descHtml || "", short_description: descHtml || "", images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
+              const payload: WordPressProductPayload = { name: ld?.name || slug, slug, sku, description: descHtml || "", short_description: descHtml || "", images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
               await appendLog(userId, requestId, "info", `构建产品数据完成 link=${link} 名称=${payload.name}`);
               const catTerms = await ensureTerms(dstCfg, "category", allCats);
               const tagTerms = await ensureTerms(dstCfg, "tag", tags);
@@ -202,7 +375,7 @@ export async function POST(req: Request) {
                 await appendLog(userId, requestId, "error", `WooCommerce API请求失败 link=${link} 状态=${resp.status}`);
                 // 只在失败时记录日志，不写入import_results
               } else {
-                const saved: any = await resp.json().catch(()=>({}));
+                const saved = await resp.json().catch(()=>({})) as WooProduct;
                 await appendLog(userId, requestId, "info", `WooCommerce产品${existing ? '更新' : '创建'}成功 link=${link} ID=${saved?.id || "未知"}`);
                 await updateJob(userId, requestId, { processed: 1, success: 1 });
                 await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
@@ -213,6 +386,12 @@ export async function POST(req: Request) {
               await appendLog(userId, requestId, "info", `开始处理Wix产品 link=${link}`);
               const meta = await fetchHtmlMeta(link);
               const html = meta.html;
+              
+              // 检测并记录网址不匹配
+              if (meta.urlMismatch && meta.finalUrl !== link) {
+                await appendLog(userId, requestId, "info", `网址重定向检测: 原始URL=${link} 最终URL=${meta.finalUrl}`);
+              }
+              
               await appendLog(userId, requestId, "info", `获取HTML内容完成 link=${link} 长度=${html.length}`);
               const ld = extractJsonLdProduct(html);
               await appendLog(userId, requestId, "info", `提取JSON-LD数据完成 link=${link} 产品名称=${ld?.name || "无"}`);
@@ -228,7 +407,7 @@ export async function POST(req: Request) {
                 images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
                 await appendLog(userId, requestId, "info", `从OG和内容图片补充完成 link=${link} 总图片数量=${images.length}`);
               }
-              const payload: any = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
+              const payload: WordPressProductPayload = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
               await appendLog(userId, requestId, "info", `构建产品数据完成 link=${link} 名称=${payload.name}`);
               const existing = await findProductBySkuOrSlug(dstCfg, undefined, slug);
               await appendLog(userId, requestId, "info", `检查现有产品完成 link=${link} 现有ID=${existing?.id || "无"}`);
@@ -245,7 +424,7 @@ export async function POST(req: Request) {
                 await appendLog(userId, requestId, "error", `WooCommerce API请求失败 目标站点=${wordpressUrl} 源网址=${link} 状态=${resp.status}`);
                 // 只在失败时记录日志，不写入import_results
               } else {
-                const saved: any = await resp.json().catch(()=>({}));
+                const saved = await resp.json().catch(()=>({})) as WooProduct;
                 await appendLog(userId, requestId, "info", `WooCommerce产品${existing ? '更新' : '创建'}成功 目标站点=${wordpressUrl} 源网址=${link} ID=${saved?.id || "未知"}`);
                 await updateJob(userId, requestId, { processed: 1, success: 1 });
                 await recordResult(userId, "wix", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
@@ -255,14 +434,33 @@ export async function POST(req: Request) {
             try {
               await pgmqDelete(q, row.msg_id);
               try { await appendLog(userId, requestId, "info", `pgmq delete mid=${row.msg_id}`); } catch {}
-            } catch (delErr: any) {
-              try { await appendLog(userId, requestId, "error", `pgmqDelete failed mid=${row.msg_id} err=${delErr?.message || delErr}`); } catch {}
+            } catch (delErr: unknown) {
+              const errorMessage = delErr instanceof Error ? delErr.message : String(delErr || "未知错误");
+              try { await appendLog(userId, requestId, "error", `pgmqDelete failed mid=${row.msg_id} err=${errorMessage}`); } catch {}
               try { await pgmqArchive(q, row.msg_id); } catch {}
             }
-          } catch (e: any) {
+          } catch (e: unknown) {
             const maxRetry = parseInt(process.env.RUNNER_MAX_READ_RETRIES || "5", 10) || 5;
-            if ((row.read_ct || 0) + 1 >= maxRetry) await pgmqArchive(q, row.msg_id).catch(()=>{});
-            else await pgmqSetVt(q, row.msg_id, vt * Math.min(10, (row.read_ct || 0) + 1)).catch(()=>{});
+            if ((row.read_ct || 0) + 1 >= maxRetry) {
+              await pgmqArchive(q, row.msg_id).catch(()=>{});
+              // 在最大重试次数达到时执行事务回滚
+              try {
+                const dstCfg = {
+                  url: cfg?.wordpress_url || "",
+                  consumerKey: cfg?.consumer_key || "",
+                  consumerSecret: cfg?.consumer_secret || ""
+                };
+                await rollbackTransaction(requestId, dstCfg);
+                const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+            await appendLog(userId, requestId, "error", `获取原始产品数据失败: ${errorMessage}`);
+              } catch (rollbackError: unknown) {
+                const rollbackErrorMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError || "未知错误");
+              await appendLog(userId, requestId, "error", `事务回滚失败: ${rollbackErrorMessage}`);
+              }
+              await finishJob(userId, requestId, "error");
+            } else {
+              await pgmqSetVt(q, row.msg_id, vt * Math.min(10, (row.read_ct || 0) + 1)).catch(()=>{});
+            }
             // 只在异常时记录日志，不写入import_results
           }
           byReq.set(requestId, userId);
@@ -279,14 +477,14 @@ export async function POST(req: Request) {
         }
     }
       if (picked === 0 && process.env.RUNNER_STRICT_PGMQ !== "1") {
-        const q2 = supabase
+        let q2 = supabase
           .from("import_jobs")
           .select("request_id,user_id,source,total,processed,status,params,created_at")
           .eq("status", "queued")
           .order("created_at", { ascending: true })
           .limit(maxJobs);
-        if (src) (q2 as any).eq("source", src);
-        const { data: jobs2 } = await q2 as any;
+        if (src) q2 = q2.eq("source", src);
+        const { data: jobs2 } = await q2;
         if (jobs2 && jobs2.length) {
           let handled2 = 0;
           for (const job of jobs2) {
@@ -336,7 +534,7 @@ export async function POST(req: Request) {
                 try {
                   await appendLog(userId, requestId, "info", `fetch product handle=${handle}`);
                   const product = await fetchProductByHandle(shopifyBaseUrl, handle);
-                  if (!product) { await updateJob(userId, requestId, { processed: 1, error: 1 }); continue; }
+                  if (!product) { await updateJob(userId, requestId, { processed: 1 }); continue; }
                   const payload = buildWooProductPayload(product);
                   payload.categories = catTerms;
                   payload.tags = tagTerms;
@@ -352,9 +550,19 @@ export async function POST(req: Request) {
                   }
                   await updateJob(userId, requestId, { processed: 1, success: 1 });
                   await recordResult(userId, "shopify", requestId, String(product.handle||""), String(saved?.name || ""), (typeof saved?.id === 'number' ? saved?.id : undefined), "success");
-                } catch (e: any) {
-                  await appendLog(userId, requestId, "error", `job error ${e?.message || e}`);
-                  await updateJob(userId, requestId, { processed: 1, error: 1 });
+                } catch (e: unknown) {
+                  const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+                  await appendLog(userId, requestId, "error", `job error ${errorMessage}`);
+                  // 执行事务回滚
+                  try {
+                    await rollbackTransaction(requestId, dstCfg);
+                    const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+                  await appendLog(userId, requestId, "error", `导入失败: ${errorMessage}`);
+                  } catch (rollbackError: unknown) {
+                const errorMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError || "未知错误");
+                await appendLog(userId, requestId, "error", `事务回滚失败: ${errorMessage}`);
+              }
+                  await updateJob(userId, requestId, { processed: 1 });
                 }
               }
             } else if (source === "wordpress") {
@@ -366,6 +574,12 @@ export async function POST(req: Request) {
                 try {
                   const meta = await fetchHtmlMeta(link);
                   const html = meta.html;
+                  
+                  // 检测并记录网址不匹配
+                  if (meta.urlMismatch && meta.finalUrl !== link) {
+                    await appendLog(userId, requestId, "info", `网址重定向检测: 原始URL=${link} 最终URL=${meta.finalUrl}`);
+                  }
+                  
                   const ld = extractJsonLdProduct(html);
                   let vars = extractProductVariations(html);
                   if (!vars.length) {
@@ -388,7 +602,7 @@ export async function POST(req: Request) {
                     images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
                   }
                   const descHtml = extractDescriptionHtml(html) || ld?.description;
-                  const payload: any = { name: ld?.name || slug, slug, sku, description: descHtml || "", short_description: descHtml || "", images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
+                  const payload: WordPressProductPayload = { name: ld?.name || slug, slug, sku, description: descHtml || "", short_description: descHtml || "", images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
                   const catTerms = await ensureTerms(dstCfg, "category", allCats);
                   const tagTerms = await ensureTerms(dstCfg, "tag", tags);
                   payload.categories = catTerms;
@@ -398,13 +612,23 @@ export async function POST(req: Request) {
                   if (existing) resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
                   else resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
                   const ct = resp.headers.get("content-type") || "";
-                  if (!resp.ok || !ct.includes("application/json")) { await updateJob(userId, requestId, { processed: 1, error: 1 }); continue; }
-                  const saved: any = await resp.json().catch(() => ({}));
+                  if (!resp.ok || !ct.includes("application/json")) { await updateJob(userId, requestId, { processed: 1 }); continue; }
+                  const saved = await resp.json().catch(() => ({})) as WooProduct;
                   await updateJob(userId, requestId, { processed: 1, success: 1 });
                   await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
-                } catch (e: any) {
-                  await appendLog(userId, requestId, "error", `job error ${e?.message || e}`);
-                  await updateJob(userId, requestId, { processed: 1, error: 1 });
+                } catch (e: unknown) {
+                  const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+            await appendLog(userId, requestId, "error", `job error ${errorMessage}`);
+                  // 执行事务回滚
+                  try {
+                    await rollbackTransaction(requestId, dstCfg);
+                    const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+                  await appendLog(userId, requestId, "error", `导入失败: ${errorMessage}`);
+                  } catch (rollbackError: unknown) {
+                    const errorMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError || "未知错误");
+                    await appendLog(userId, requestId, "error", `事务回滚失败: ${errorMessage}`);
+                  }
+                  await updateJob(userId, requestId, { processed: 1 });
                 }
               }
             } else if (source === "wix") {
@@ -416,6 +640,12 @@ export async function POST(req: Request) {
                 try {
                   const meta = await fetchHtmlMeta(link);
                   const html = meta.html;
+                  
+                  // 检测并记录网址不匹配
+                  if (meta.urlMismatch && meta.finalUrl !== link) {
+                    await appendLog(userId, requestId, "info", `网址重定向检测: 原始URL=${link} 最终URL=${meta.finalUrl}`);
+                  }
+                  
                   const ld = extractJsonLdProduct(html);
                   const slug = normalizeWpSlugOrLink(link);
                   const descHtml = extractDescriptionHtml(html) || ld?.description || "";
@@ -425,19 +655,29 @@ export async function POST(req: Request) {
                     const contents = extractContentImages(html);
                     images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
                   }
-                  const payload: any = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
+                  const payload: WordPressProductPayload = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
                   const existing = await findProductBySkuOrSlug(dstCfg, undefined, slug);
                   let resp: Response;
                   if (existing) resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
                   else resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
                   const ct = resp.headers.get("content-type") || "";
-                  if (!resp.ok || !ct.includes("application/json")) { await updateJob(userId, requestId, { processed: 1, error: 1 }); continue; }
-                  const saved: any = await resp.json().catch(() => ({}));
+                  if (!resp.ok || !ct.includes("application/json")) { await updateJob(userId, requestId, { processed: 1 }); continue; }
+                  const saved = await resp.json().catch(() => ({})) as WooProduct;
                   await updateJob(userId, requestId, { processed: 1, success: 1 });
                   await recordResult(userId, "wix", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
-                } catch (e: any) {
-                  await appendLog(userId, requestId, "error", `job error ${e?.message || e}`);
-                  await updateJob(userId, requestId, { processed: 1, error: 1 });
+                } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+            await appendLog(userId, requestId, "error", `job error ${errorMessage}`);
+            // 执行事务回滚
+            try {
+              await rollbackTransaction(requestId, dstCfg);
+              const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+            await appendLog(userId, requestId, "error", `导入失败: ${errorMessage}`);
+            } catch (rollbackError: unknown) {
+              const rollbackErrorMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError || "未知错误");
+              await appendLog(userId, requestId, "error", `事务回滚失败: ${rollbackErrorMessage}`);
+            }
+            await updateJob(userId, requestId, { processed: 1 });
                 }
               }
             }
@@ -456,14 +696,14 @@ export async function POST(req: Request) {
       }
       return NextResponse.json({ ok: true, picked });
     }
-    const q = supabase
+    let q = supabase
       .from("import_jobs")
       .select("request_id,user_id,source,total,processed,status,params,created_at")
       .eq("status", "queued")
       .order("created_at", { ascending: true })
       .limit(maxJobs);
-    if (src) (q as any).eq("source", src);
-    const { data: jobs } = await q as any;
+    if (src) q = q.eq("source", src);
+    const { data: jobs } = await q;
     if (!jobs || !jobs.length) return NextResponse.json({ ok: true, picked: 0 });
 
     let handled = 0;
@@ -519,7 +759,7 @@ export async function POST(req: Request) {
             await appendLog(userId, requestId, "info", `fetch product handle=${handle}`);
             const product = await fetchProductByHandle(shopifyBaseUrl, handle);
             if (!product) {
-              await updateJob(userId, requestId, { processed: 1, error: 1 });
+              await updateJob(userId, requestId, { processed: 1 });
               await appendLog(userId, requestId, "error", `not found handle=${handle}`);
               continue;
             }
@@ -538,22 +778,29 @@ export async function POST(req: Request) {
             }
             await updateJob(userId, requestId, { processed: 1, success: 1 });
             await recordResult(userId, "shopify", requestId, String(product.handle||""), String(saved?.name || ""), (typeof saved?.id === 'number' ? saved?.id : undefined), "success");
-          } catch (e: any) {
-            await appendLog(userId, requestId, "error", `job error ${e?.message || e}`);
-            await updateJob(userId, requestId, { processed: 1, error: 1 });
+          } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+            await appendLog(userId, requestId, "error", `job error ${errorMessage}`);
+            await updateJob(userId, requestId, { processed: 1 });
           }
         }
       }
 
       if (source === "wordpress") {
         const links: string[] = params.links || [];
-        const base: string = params.sourceUrl || "";
+
         const start = processed;
         const slice = links.slice(start, start + batchSize);
         await appendLog(userId, requestId, "info", `start batch ${start + 1}-${start + slice.length} of ${total}`);
         for (const link of slice) {
           try {
             const meta = await fetchHtmlMeta(link);
+            
+            // 检测并记录网址不匹配
+            if (meta.urlMismatch && meta.finalUrl !== link) {
+              await appendLog(userId, requestId, "info", `网址重定向检测: 原始URL=${link} 最终URL=${meta.finalUrl}`);
+            }
+            
             await appendLog(userId, requestId, "info", `fetch ${link} status=${meta.status} type=${meta.contentType}`);
             const html = meta.html;
             const ld = extractJsonLdProduct(html);
@@ -578,7 +825,7 @@ export async function POST(req: Request) {
               images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
             }
             const descHtml = extractDescriptionHtml(html) || ld?.description;
-            const payload: any = {
+            const payload: WordPressProductPayload = {
               name: ld?.name || slug,
               slug,
               sku,
@@ -596,30 +843,30 @@ export async function POST(req: Request) {
             else resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
             const ct = resp.headers.get("content-type") || "";
             if (!resp.ok || !ct.includes("application/json")) {
-              await updateJob(userId, requestId, { processed: 1, error: 1 });
+              await updateJob(userId, requestId, { processed: 1 });
               continue;
             }
-            const savedProd: any = await resp.json().catch(() => ({}));
+            const savedProd = await resp.json().catch(() => ({})) as WooProduct;
             try {
               const remotes = images.map((u) => new URL(u, meta.finalUrl || link).toString());
               const maxImages = parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10;
               const toUpload = remotes.slice(0, maxImages);
-              let base: any[] = [];
+              let base: Array<{ id?: number }> = [];
               if (typeof savedProd?.id === "number") {
                 const cur = await (await wooGet(dstCfg, `wp-json/wc/v3/products/${savedProd.id}`)).json().catch(()=>({}));
-                base = Array.isArray(cur?.images) ? (cur.images as any[]).map((ii: any) => ({ id: ii?.id })) : [];
+                base = Array.isArray(cur?.images) ? cur.images.map((ii: { id?: number }) => ({ id: ii?.id })) : [];
                 const maxRetryImg = parseInt(process.env.IMAGE_UPLOAD_RETRY || "2", 10) || 2;
                 const backoffImg = parseInt(process.env.IMAGE_RETRY_BACKOFF || "2000", 10) || 2000;
                 for (const src of toUpload) {
-                  let done = false;
+
                   for (let ai = 0; ai <= maxRetryImg; ai++) {
                     await new Promise((r)=>setTimeout(r, backoffImg * (ai + 1)));
                     const up = await wooPut(dstCfg, `wp-json/wc/v3/products/${savedProd.id}`, { images: [...base, { src }] });
                     const ct2 = up.headers.get("content-type") || "";
                     if (up.ok && ct2.includes("application/json")) {
                       const j = await up.json().catch(()=>({}));
-                      base = Array.isArray(j?.images) ? (j.images as any[]).map((ii: any) => ({ id: ii?.id })) : base;
-                      done = true;
+                      base = Array.isArray(j?.images) ? j.images.map((ii: { id?: number }) => ({ id: ii?.id })) : base;
+
                       break;
                     } else {
                       const txt = await up.text().catch(()=>"");
@@ -631,9 +878,10 @@ export async function POST(req: Request) {
             } catch {}
             await updateJob(userId, requestId, { processed: 1, success: 1 });
             await recordResult(userId, "wordpress", requestId, slug, (savedProd?.name || payload?.name), (typeof savedProd?.id === 'number' ? savedProd?.id : existing?.id), "success");
-          } catch (e: any) {
-            await appendLog(userId, requestId, "error", `job error ${e?.message || e}`);
-            await updateJob(userId, requestId, { processed: 1, error: 1 });
+          } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+            await appendLog(userId, requestId, "error", `job error ${errorMessage}`);
+            await updateJob(userId, requestId, { processed: 1 });
           }
         }
       }
@@ -647,6 +895,12 @@ export async function POST(req: Request) {
           try {
             const meta = await fetchHtmlMeta(link);
             const html = meta.html;
+            
+            // 检测并记录网址不匹配
+            if (meta.urlMismatch && meta.finalUrl !== link) {
+              await appendLog(userId, requestId, "info", `网址重定向检测: 原始URL=${link} 最终URL=${meta.finalUrl}`);
+            }
+            
             const ld = extractJsonLdProduct(html);
             const slug = normalizeWpSlugOrLink(link);
             const descHtml = extractDescriptionHtml(html) || ld?.description || "";
@@ -656,37 +910,37 @@ export async function POST(req: Request) {
               const contents = extractContentImages(html);
               images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
             }
-            const payload: any = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: [] };
+            const payload: WordPressProductPayload = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: [] };
             const existing = await findProductBySkuOrSlug(dstCfg, undefined, slug);
             let resp: Response;
             if (existing) resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
             else resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
             const ct = resp.headers.get("content-type") || "";
             if (!resp.ok || !ct.includes("application/json")) {
-              await updateJob(userId, requestId, { processed: 1, error: 1 });
+              await updateJob(userId, requestId, { processed: 1 });
               continue;
             }
-            const saved: any = await resp.json().catch(() => ({}));
+            const saved = await resp.json().catch(() => ({})) as WooProduct;
             try {
               const remotes = images.map((u) => new URL(u, meta.finalUrl || link).toString());
               const maxImages = parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10;
               const toUpload = remotes.slice(0, maxImages);
-              let base: any[] = [];
+              let base: Array<{ id?: number }> = [];
               if (typeof saved?.id === "number") {
                 const cur = await (await wooGet(dstCfg, `wp-json/wc/v3/products/${saved.id}`)).json().catch(()=>({}));
-                base = Array.isArray(cur?.images) ? (cur.images as any[]).map((ii: any) => ({ id: ii?.id })) : [];
+                base = Array.isArray(cur?.images) ? cur.images.map((ii: { id?: number }) => ({ id: ii?.id })) : [];
                 const maxRetryImg2 = parseInt(process.env.IMAGE_UPLOAD_RETRY || "2", 10) || 2;
                 const backoffImg2 = parseInt(process.env.IMAGE_RETRY_BACKOFF || "2000", 10) || 2000;
                 for (const src of toUpload) {
-                  let done = false;
+
                   for (let ai = 0; ai <= maxRetryImg2; ai++) {
                     await new Promise((r)=>setTimeout(r, backoffImg2 * (ai + 1)));
                     const up = await wooPut(dstCfg, `wp-json/wc/v3/products/${saved.id}`, { images: [...base, { src }] });
                     const ct2 = up.headers.get("content-type") || "";
                     if (up.ok && ct2.includes("application/json")) {
                       const j = await up.json().catch(()=>({}));
-                      base = Array.isArray(j?.images) ? (j.images as any[]).map((ii: any) => ({ id: ii?.id })) : base;
-                      done = true;
+                      base = Array.isArray(j?.images) ? j.images.map((ii: { id?: number }) => ({ id: ii?.id })) : base;
+
                       break;
                     } else {
                       const txt = await up.text().catch(()=>"");
@@ -698,9 +952,10 @@ export async function POST(req: Request) {
             } catch {}
             await updateJob(userId, requestId, { processed: 1, success: 1 });
             await recordResult(userId, "wix", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
-          } catch (e: any) {
-            await appendLog(userId, requestId, "error", `job error ${e?.message || e}`);
-            await updateJob(userId, requestId, { processed: 1, error: 1 });
+          } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+            await appendLog(userId, requestId, "error", `job error ${errorMessage}`);
+            await updateJob(userId, requestId, { processed: 1 });
           }
         }
       }

@@ -21,7 +21,7 @@ export default function ConfigPage() {
   useEffect(() => {
     (async () => {
       const supabase = getSupabaseBrowser();
-      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } } as any;
+      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
       const t = data.session?.access_token || null;
       setToken(t);
       
@@ -44,7 +44,7 @@ export default function ConfigPage() {
       let authToken = token;
       if (!authToken) {
         const supabase = getSupabaseBrowser();
-        const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } } as any;
+        const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
         authToken = data.session?.access_token || null;
         setToken(authToken);
       }

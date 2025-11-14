@@ -13,6 +13,15 @@ type Result = {
   createdAt: string;
 };
 
+type DbResultRow = {
+  request_id: string;
+  source: string;
+  item_key: string;
+  name?: string;
+  product_id?: number;
+  created_at: string;
+};
+
 const dataDir = path.join(process.cwd(), ".data");
 const resultsFile = path.join(dataDir, "import-results.json");
 
@@ -56,7 +65,7 @@ export async function listResults(userId: string, page = 1, pageSize = 20) {
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .range(from, to);
-    return (data || []).map((d: any) => ({ requestId: d.request_id, source: d.source, itemKey: d.item_key, name: d.name, productId: d.product_id, createdAt: d.created_at }));
+    return (data || []).map((d: DbResultRow) => ({ requestId: d.request_id, source: d.source, itemKey: d.item_key, name: d.name, productId: d.product_id, createdAt: d.created_at }));
   }
   const arr = readLocal().filter((r) => r.userId === userId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const from = (page - 1) * pageSize;

@@ -4,6 +4,12 @@ import path from "path";
 
 type LogItem = { userId: string; requestId: string; level: "info" | "error"; message: string; createdAt: string };
 
+type DbLogRow = {
+  level: "info" | "error";
+  message: string;
+  created_at: string;
+};
+
 const dataDir = path.join(process.cwd(), ".data");
 const logsFile = path.join(dataDir, "import-logs.json");
 
@@ -46,7 +52,7 @@ export async function listLogs(userId: string, requestId: string, limit = 200) {
       .eq("request_id", requestId)
       .order("created_at", { ascending: false })
       .limit(limit);
-    return (data || []).map((d: any) => ({ level: d.level, message: d.message, createdAt: d.created_at }));
+    return (data || []).map((d: DbLogRow) => ({ level: d.level, message: d.message, createdAt: d.created_at }));
   }
   return readLocal()
     .filter((l) => l.userId === userId && l.requestId === requestId)

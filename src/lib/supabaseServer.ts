@@ -33,11 +33,12 @@ export function readLocalConfig(userId?: string) {
 }
 
 type LocalConfig = { wordpressUrl: string; consumerKey: string; consumerSecret: string };
+type LocalConfigStore = { users?: Record<string, LocalConfig> } & Partial<LocalConfig>;
 
 export function writeLocalConfig(cfg: LocalConfig, userId?: string) {
   try {
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
-    let out: any = {};
+    let out: LocalConfigStore = {};
     if (fs.existsSync(configFile)) {
       try {
         out = JSON.parse(fs.readFileSync(configFile, "utf-8"));

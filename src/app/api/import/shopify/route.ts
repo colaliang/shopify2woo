@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer, getUserIdFromToken, readLocalConfig } from "@/lib/supabaseServer";
-import { fetchProductByHandle } from "@/lib/shopify";
-import { buildWooProductPayload, buildVariationFromShopifyVariant } from "@/lib/importMap";
 import { discoverShopifyHandles } from "@/lib/shopifyDiscover";
 // import-jobs 相关逻辑已移除，仅保留 PGMQ 队列处理
-import { recordResult } from "@/lib/history";
 import { pgmqQueueName, pgmqSendBatch } from "@/lib/pgmq";
 import { appendLog } from "@/lib/logs";
 
@@ -62,8 +59,6 @@ export async function POST(req: Request) {
       }
     }
     if (!wordpressUrl || !consumerKey || !consumerSecret) return NextResponse.json({ error: "Woo 配置未设置" }, { status: 400 });
-
-    const wooCfg = { url: wordpressUrl, consumerKey, consumerSecret };
 
     const requestId = Math.random().toString(36).slice(2, 10);
     const supabase = getSupabaseServer();

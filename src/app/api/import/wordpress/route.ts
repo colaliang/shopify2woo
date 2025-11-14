@@ -11,7 +11,6 @@ import {
   normalizeWpSlugOrLink,
 } from "@/lib/wordpress";
 import {
-  fetchHtml,
   fetchHtmlMeta,
   extractJsonLdProduct,
   extractProductVariations,
@@ -34,6 +33,36 @@ import { recordResult } from "@/lib/history";
 import { appendLog } from "@/lib/logs";
 import { logInfo, logError } from "@/lib/terminal";
 import { pgmqQueueName, pgmqSendBatch } from "@/lib/pgmq";
+
+interface WordPressImportParams {
+  sourceUrl: string;
+  links: string[];
+}
+
+type VariationPost = {
+  sku?: string;
+  regular_price?: string;
+  sale_price?: string;
+  image?: { src?: string } | null;
+  attributes?: Array<{ name?: string; option?: string }>;
+};
+
+interface WordPressProductPayload {
+  id?: number;
+  name?: string;
+  slug?: string;
+  sku?: string;
+  type?: string;
+  description?: string;
+  short_description?: string;
+  regular_price?: string;
+  images?: Array<{ src: string }>;
+  attributes?: Array<{ name: string; visible: boolean; variation: boolean; options: string[] }>;
+  default_attributes?: Array<{ name: string; option: string }>;
+  categories?: Array<{ name: string }>;
+  tags?: Array<{ name: string }>;
+  _scraped?: { variations?: VariationPost[] };
+}
 
 export const runtime = "nodejs";
 
@@ -105,7 +134,7 @@ export async function POST(req: Request) {
         await appendLog(userId, requestId, "info", `pgmq queued ${jobTotal} links from ${sourceUrl}`);
         return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
       } else {
-        const params = { sourceUrl, links } as any;
+        const params: WordPressImportParams = { sourceUrl, links };
         await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "wordpress", total: jobTotal, processed: 0, success_count: 0, error_count: 0, status: "queued", params }, { onConflict: "request_id" });
         await appendLog(userId, requestId, "info", mode === "all" ? `queued ${jobTotal} links from ${sourceUrl}` : `queued ${jobTotal} links by request`);
         return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
@@ -118,7 +147,7 @@ export async function POST(req: Request) {
     setTimeout(async () => {
       try {
         const results: Array<{ slug?: string; id?: number; name?: string; error?: string }> = [];
-        const sourceProducts = [] as Awaited<ReturnType<typeof fetchSourceProductsAll>>;
+        const sourceProducts = [] as (Awaited<ReturnType<typeof fetchSourceProductsAll>>[number] & { _scraped?: { variations?: VariationPost[] } })[];
 
         if (mode === "all") {
           for (const link of discovered) {
@@ -143,14 +172,16 @@ export async function POST(req: Request) {
               })();
               const tags = extractTags(html);
               const slug = normalizeWpSlugOrLink(link);
-              let absImages = (((mapped.payload as any)?.images || []) as Array<{ src: string }>).map((i) => ({ src: new URL(i.src, link).toString() }));
+              const payloadImages = (mapped.payload?.images || []) as Array<{ src: string }>;
+              let absImages = payloadImages.map((i) => ({ src: new URL(i.src, link).toString() }));
               if (!absImages.length) {
                 const ogs = extractOgImages(html);
                 const contents = extractContentImages(html);
                 const merged = Array.from(new Set([...ogs, ...contents])).map((u) => ({ src: new URL(u, link).toString() }));
                 absImages = merged;
               }
-              await appendLog(userId, requestId, "info", `parsed ${link} imgs=${absImages.length} attrs=${((mapped.payload as any)?.attributes || []).length} desc=${(ld?.description || extractDescriptionHtml(html) || "").length} sku=${ld?.sku || extractSku(html) || ""}`);
+              const payloadAttributes = (mapped.payload?.attributes || []) as Array<{ name: string; visible: boolean; variation: boolean; options: string[] }>;
+              await appendLog(userId, requestId, "info", `parsed ${link} imgs=${absImages.length} attrs=${payloadAttributes.length} desc=${(ld?.description || extractDescriptionHtml(html) || "").length} sku=${ld?.sku || extractSku(html) || ""}`);
               sourceProducts.push({
                 id: undefined,
                 name: String(ld?.name || slug),
@@ -160,12 +191,12 @@ export async function POST(req: Request) {
                 description: ld?.description || extractDescriptionHtml(html) || "",
                 short_description: extractDescriptionHtml(html) || undefined,
                 images: absImages.length ? absImages : extractGalleryImages(html).map((src) => ({ src: new URL(src, link).toString() })),
-                attributes: (mapped.payload as any)?.attributes || [],
-                default_attributes: (mapped.payload as any)?.default_attributes || [],
+                attributes: payloadAttributes,
+                default_attributes: (mapped.payload?.default_attributes || []) as Array<{ name: string; option: string }>,
                 categories: cats.map((n) => ({ name: n })),
                 tags: tags.map((n) => ({ name: n })),
-              } as any);
-              (sourceProducts as any)[sourceProducts.length - 1]._scraped = mapped;
+              } as WordPressProductPayload);
+              sourceProducts[sourceProducts.length - 1]._scraped = mapped;
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : String(e);
               results.push({ slug: normalizeWpSlugOrLink(link), error: msg });
@@ -201,14 +232,14 @@ export async function POST(req: Request) {
                   return Array.from(new Set([...arr, ...fromLd, ...postedIn].map((x) => String(x).trim()).filter(Boolean)));
                 })();
                 const tags = extractTags(html);
-                let absImages2 = (((mapped.payload as any)?.images || []) as Array<{ src: string }>).map((i) => ({ src: new URL(i.src, linkUrl).toString() }));
+                let absImages2 = ((mapped.payload?.images || []) as Array<{ src: string }>).map((i) => ({ src: new URL(i.src, linkUrl).toString() }));
                 if (!absImages2.length) {
                   const ogs = extractOgImages(html);
                   const contents = extractContentImages(html);
                   const merged = Array.from(new Set([...ogs, ...contents])).map((u) => ({ src: new URL(u, linkUrl).toString() }));
                   absImages2 = merged;
                 }
-                await appendLog(userId, requestId, "info", `parsed ${linkUrl} imgs=${absImages2.length} attrs=${((mapped.payload as any)?.attributes || []).length} desc=${(ld?.description || extractDescriptionHtml(html) || "").length} sku=${ld?.sku || extractSku(html) || ""}`);
+                await appendLog(userId, requestId, "info", `parsed ${linkUrl} imgs=${absImages2.length} attrs=${((mapped.payload?.attributes || []) as Array<{ name: string; visible: boolean; variation: boolean; options: string[] }>).length} desc=${(ld?.description || extractDescriptionHtml(html) || "").length} sku=${ld?.sku || extractSku(html) || ""}`);
                 sourceProducts.push({
                   id: undefined,
                   name: String(ld?.name || slug),
@@ -218,12 +249,12 @@ export async function POST(req: Request) {
                   description: ld?.description || extractDescriptionHtml(html) || "",
                   short_description: extractDescriptionHtml(html) || undefined,
                   images: absImages2.length ? absImages2 : extractGalleryImages(html).map((src) => ({ src: new URL(src, linkUrl).toString() })),
-                  attributes: (mapped.payload as any)?.attributes || [],
-                  default_attributes: (mapped.payload as any)?.default_attributes || [],
+                  attributes: (mapped.payload?.attributes || []) as Array<{ name: string; visible: boolean; variation: boolean; options: string[] }>,
+                  default_attributes: (mapped.payload?.default_attributes || []) as Array<{ name: string; option: string }>,
                   categories: cats.map((n) => ({ name: n })),
                   tags: tags.map((n) => ({ name: n })),
-                } as any);
-                (sourceProducts as any)[sourceProducts.length - 1]._scraped = mapped;
+                } as WordPressProductPayload);
+                sourceProducts[sourceProducts.length - 1]._scraped = mapped;
               } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : String(e);
                 results.push({ slug, error: msg });
@@ -243,9 +274,9 @@ export async function POST(req: Request) {
             const catTerms = await ensureTerms(dstCfg, "category", categories);
             const tagTerms = await ensureTerms(dstCfg, "tag", tags);
 
-            let payload = buildWooPayloadFromWooProduct(p);
-            (payload as any).categories = catTerms;
-            (payload as any).tags = tagTerms;
+            const payload = buildWooPayloadFromWooProduct(p);
+            payload.categories = catTerms;
+            payload.tags = tagTerms;
 
             const existing = await findProductBySkuOrSlug(dstCfg, p.sku, p.slug);
             let saved: { id?: number; name?: string } = {};
@@ -255,12 +286,12 @@ export async function POST(req: Request) {
                 requestId,
                 op: "update",
                 slug: p.slug,
-                name: (payload as any)?.name,
-                type: (payload as any)?.type,
-                sku: (p as any)?.sku,
-                categories: catTerms.map((c: any) => c.name || c.id),
-                tags: tagTerms.map((t: any) => t.name || t.id),
-                imagesCount: ((payload as any)?.images || []).length,
+                name: payload?.name,
+                type: payload?.type,
+                sku: p?.sku,
+                categories: catTerms.map((c: { name?: string; id?: number }) => c.name || c.id),
+                tags: tagTerms.map((t: { name?: string; id?: number }) => t.name || t.id),
+                imagesCount: Array.isArray(payload?.images) ? payload.images.length : 0,
               });
               const resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
               const ct = resp.headers.get("content-type") || "";
@@ -274,9 +305,10 @@ export async function POST(req: Request) {
               }
               try {
                 saved = await resp.json();
-              } catch (e: any) {
+              } catch (e: unknown) {
                 const txt = await resp.text().catch(() => "");
-                logError("wp_write_parse_failed", { requestId, op: "update", slug: p.slug, error: e?.message || String(e), body: txt.slice(0, 300) });
+                const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+                logError("wp_write_parse_failed", { requestId, op: "update", slug: p.slug, error: errorMessage, body: txt.slice(0, 300) });
                 results.push({ slug: p.slug, error: `wooPut parse` });
                 await updateJob(userId, requestId, { processed: 1, error: 1 });
                 continue;
@@ -288,12 +320,12 @@ export async function POST(req: Request) {
                 requestId,
                 op: "create",
                 slug: p.slug,
-                name: (payload as any)?.name,
-                type: (payload as any)?.type,
-                sku: (p as any)?.sku,
-                categories: catTerms.map((c: any) => c.name || c.id),
-                tags: tagTerms.map((t: any) => t.name || t.id),
-                imagesCount: ((payload as any)?.images || []).length,
+                name: payload?.name,
+                type: payload?.type,
+                sku: p?.sku,
+                categories: catTerms.map((c: { name?: string; id?: number }) => c.name || c.id),
+                tags: tagTerms.map((t: { name?: string; id?: number }) => t.name || t.id),
+                imagesCount: Array.isArray(payload?.images) ? payload.images.length : 0,
               });
               const resp = await wooPost(dstCfg, "wp-json/wc/v3/products", { ...payload, slug: p.slug });
               const ct = resp.headers.get("content-type") || "";
@@ -307,23 +339,24 @@ export async function POST(req: Request) {
               }
               try {
                 saved = await resp.json();
-              } catch (e: any) {
+              } catch (e: unknown) {
                 const txt = await resp.text().catch(() => "");
-                logError("wp_write_parse_failed", { requestId, op: "create", slug: p.slug, error: e?.message || String(e), body: txt.slice(0, 300) });
+                const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+                logError("wp_write_parse_failed", { requestId, op: "create", slug: p.slug, error: errorMessage, body: txt.slice(0, 300) });
                 results.push({ slug: p.slug, error: `wooPost parse` });
                 await updateJob(userId, requestId, { processed: 1, error: 1 });
                 continue;
               }
               logInfo("wp_write_success", { requestId, op: "create", slug: p.slug, id: saved?.id, name: saved?.name });
             }
-            if (((payload as any)?.images || []).length === 0) {
+            if (((payload?.images || []) as Array<{ src: string }>).length === 0) {
               await appendLog(userId, requestId, "error", `no images parsed for ${p.slug}`);
               logError("wp_write_no_images", { requestId, slug: p.slug });
             }
             await appendLog(userId, requestId, "info", `saved product id=${saved?.id} name=${saved?.name} categories=${catTerms.length} tags=${tagTerms.length}`);
             logInfo("wp_write_saved_summary", { requestId, slug: p.slug, id: saved?.id, name: saved?.name, categories: catTerms.length, tags: tagTerms.length });
 
-            const scraped = (p as any)._scraped;
+            const scraped = (p as WordPressProductPayload & { _scraped?: { variations?: VariationPost[] } })._scraped;
             if (scraped && saved?.id) {
               for (const v of scraped.variations || []) {
                 const resp = await wooPost(dstCfg, `wp-json/wc/v3/products/${saved.id}/variations`, v);
@@ -335,9 +368,10 @@ export async function POST(req: Request) {
                 }
                 try {
                   await resp.json();
-                } catch (e: any) {
+                } catch (e: unknown) {
                   const txt = await resp.text().catch(() => "");
-                  await appendLog(userId, requestId, "error", `create variation parse failed product=${saved.id} err=${e?.message || e} body=${txt.slice(0, 300)}`);
+                  const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+                  await appendLog(userId, requestId, "error", `create variation parse failed product=${saved.id} err=${errorMessage} body=${txt.slice(0, 300)}`);
                 }
               }
             } else if ((p.type || "simple") === "variable" && typeof p.id === "number" && saved?.id) {
@@ -359,9 +393,10 @@ export async function POST(req: Request) {
                 }
                 try {
                   await resp.json();
-                } catch (e: any) {
+                } catch (e: unknown) {
                   const txt = await resp.text().catch(() => "");
-                  await appendLog(userId, requestId, "error", `create variation parse failed product=${saved.id} err=${e?.message || e} body=${txt.slice(0, 300)}`);
+                  const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+                  await appendLog(userId, requestId, "error", `create variation parse failed product=${saved.id} err=${errorMessage} body=${txt.slice(0, 300)}`);
                 }
               }
             }
@@ -381,8 +416,9 @@ export async function POST(req: Request) {
         const okCnt = results.filter((r) => !r.error).length;
         const failCnt = results.filter((r) => r.error).length;
         await appendLog(userId, requestId, "info", `finish import total=${jobTotal} ok=${okCnt} fail=${failCnt}`);
-      } catch (e: any) {
-        await appendLog(userId, requestId, "error", `job failed ${e?.message || e}`);
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
+        await appendLog(userId, requestId, "error", `job failed ${errorMessage}`);
         await finishJob(userId, requestId, "done");
       }
     }, 0);
@@ -393,6 +429,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-async function createJob(..._args: any[]) {}
-async function updateJob(..._args: any[]) {}
-async function finishJob(..._args: any[]) {}
+async function createJob(userId: string, source: string, requestId: string, total: number) {
+  const supabase = getSupabaseServer();
+  if (!supabase) return;
+  try {
+    await supabase
+      .from("import_jobs")
+      .upsert({ 
+        request_id: requestId, 
+        user_id: userId, 
+        source, 
+        total, 
+        processed: 0, 
+        success_count: 0, 
+        error_count: 0, 
+        status: "processing" 
+      });
+  } catch {}
+}
+async function updateJob(_userId: string, _requestId: string, _updates: { processed?: number; success?: number; error?: number }) {
+  void _userId; void _requestId; void _updates;
+}
+async function finishJob(_userId: string, _requestId: string, _status: "done" | "error") {
+  void _userId; void _requestId; void _status;
+}

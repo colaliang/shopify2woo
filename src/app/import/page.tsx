@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
 
 export default function ImportPage() {
@@ -18,12 +18,12 @@ export default function ImportPage() {
   const [page, setPage] = useState(1);
   const [debugOpen, setDebugOpen] = useState(process.env.NODE_ENV !== "production");
   const [logs, setLogs] = useState<Array<{ level: string; message: string; createdAt: string }>>([]);
-  const [runnerPing, setRunnerPing] = useState<any>(null);
+  const [runnerPing, setRunnerPing] = useState<NodeJS.Timeout | null>(null);
   const [evt, setEvt] = useState<EventSource | null>(null);
   const [cap, setCap] = useState<number>(1000);
   const isRunning = !!rid;
 
-  function startTracking(r: string) {
+  const startTracking = useCallback((r: string) => {
     try { localStorage.setItem("importRequestId", r); } catch {}
     const storedSrc = (() => { try { return localStorage.getItem("importSource") || ""; } catch { return ""; } })();
     setRid(r);
@@ -33,7 +33,7 @@ export default function ImportPage() {
     const es = new EventSource(url);
     es.addEventListener("logs", (ev: MessageEvent) => {
       try {
-        const arr = JSON.parse((ev as any).data);
+        const arr = JSON.parse(ev.data);
         if (Array.isArray(arr)) {
           const latest = arr.slice(Math.max(0, arr.length - 30));
           setLogs(latest);
@@ -41,11 +41,11 @@ export default function ImportPage() {
       } catch {}
     });
     es.addEventListener("history", (ev: MessageEvent) => {
-      try { const arr = JSON.parse((ev as any).data); if (Array.isArray(arr)) setHistory(arr); } catch {}
+      try { const arr = JSON.parse(ev.data); if (Array.isArray(arr)) setHistory(arr); } catch {}
     });
     es.addEventListener("counts", (ev: MessageEvent) => {
       try {
-        const obj = JSON.parse((ev as any).data);
+        const obj = JSON.parse(ev.data);
         if (obj && typeof obj.processed === 'number') {
           setCounts({ processed: obj.processed || 0, successCount: obj.successCount || 0, errorCount: obj.errorCount || 0 });
           const totalKey = `importTotal:${r}`;
@@ -73,7 +73,7 @@ export default function ImportPage() {
       }, 10000);
       setRunnerPing(rid2);
     }
-  }
+  }, [evt, importType, runnerPing, setEvt, setRid, setRunnerPing, token]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -142,11 +142,11 @@ export default function ImportPage() {
           const pl = localStorage.getItem("form_productLinks");
           const m = localStorage.getItem("form_wpMode");
           const c = localStorage.getItem("form_cap");
-          if (t === "shopify" || t === "wordpress" || t === "wix") setImportType(t as any);
+          if (t === "shopify" || t === "wordpress" || t === "wix") setImportType(t);
           if (typeof s1 === "string") setShopifyBaseUrl(s1);
           if (typeof s2 === "string") setSourceUrl(s2);
           if (typeof pl === "string") setProductLinks(pl);
-          if (m === "all" || m === "links") setWpMode(m as any);
+          if (m === "all" || m === "links") setWpMode(m);
           if (c && !Number.isNaN(parseInt(c, 10))) setCap(parseInt(c, 10));
         } catch {}
       } else {
@@ -159,7 +159,7 @@ export default function ImportPage() {
     }
     (async () => {
       const supabase = getSupabaseBrowser();
-      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } } as any;
+      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
       setToken(data.session?.access_token || null);
       try {
         const r = await fetch(`/api/import/history?page=${page}`, { headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : {} });
@@ -206,7 +206,7 @@ export default function ImportPage() {
     if (typeof window === "undefined") return;
     const r0 = (() => { try { return localStorage.getItem("importRequestId") || ""; } catch { return ""; }})();
     if (r0 && token) startTracking(r0);
-  }, [token]);
+  }, [token, startTracking]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -218,14 +218,14 @@ export default function ImportPage() {
       if (evt) { try { evt.close(); } catch {} }
       if (runnerPing) clearInterval(runnerPing);
     };
-  }, []);
+  }, [evt, runnerPing]);
 
   useEffect(() => {
     const active = !!rid;
     if (!active) {
       if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
     }
-  }, [rid]);
+  }, [rid, runnerPing]);
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -234,7 +234,7 @@ export default function ImportPage() {
         <label className="mr-4 text-sm font-medium">来源</label>
         <select
           value={importType}
-          onChange={(e) => setImportType(e.target.value as any)}
+          onChange={(e) => setImportType(e.target.value as "shopify" | "wordpress" | "wix")}
           className="border rounded px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={isRunning}
         >
@@ -260,7 +260,7 @@ export default function ImportPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">导入模式</label>
-              <select value={wpMode} onChange={(e) => setWpMode(e.target.value as any)} className="border rounded px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isRunning}>
+              <select value={wpMode} onChange={(e) => setWpMode(e.target.value as "all" | "links")} className="border rounded px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isRunning}>
                 <option value="links">指定链接</option>
                 <option value="all">全站</option>
               </select>
@@ -300,7 +300,7 @@ export default function ImportPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">导入模式</label>
-              <select value={wpMode} onChange={(e) => setWpMode(e.target.value as any)} className="border rounded px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isRunning}>
+              <select value={wpMode} onChange={(e) => setWpMode(e.target.value as "all" | "links")} className="border rounded px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isRunning}>
                 <option value="links">指定链接</option>
                 <option value="all">全站</option>
               </select>

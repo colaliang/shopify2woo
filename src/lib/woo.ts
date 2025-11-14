@@ -22,7 +22,7 @@
 //    - 优先在服务端保存和使用密钥（如 Supabase），前端仅触发后端调用，避免泄露。
 //    - 若必须使用代理，请确保代理信道可信，避免中间人攻击。
 
-type WooConfig = {
+export type WooConfig = {
   url: string;
   consumerKey: string;
   consumerSecret: string;
@@ -69,12 +69,33 @@ async function wooFetch(
   const dispatcher = getDispatcherFromEnv();
   const started = Date.now();
   for (let i = 0; i <= retry; i++) {
+    // 使用查询参数进行 WooCommerce API 认证（而不是 Basic Auth）
+    const apiUrl = new URL(url.toString());
+    apiUrl.searchParams.set("consumer_key", cfg.consumerKey);
+    apiUrl.searchParams.set("consumer_secret", cfg.consumerSecret);
+    
+    // 详细的请求日志记录
+    try {
+      const requestLogData = {
+        ts: new Date().toISOString(),
+        level: "INFO",
+        event: "wp_request_start",
+        method: init?.method || "GET",
+        url: redact(apiUrl.toString()),
+        retryAttempt: i,
+        bodySize: init?.body ? String(init.body).length : 0,
+        hasDispatcher: !!dispatcher
+      };
+      console.log(JSON.stringify(requestLogData));
+    } catch (logError) {
+      console.error(`请求日志记录失败: ${logError}`);
+    }
+    
     type UndiciRequestInit = RequestInit & { dispatcher?: unknown };
-    const res = await fetch(url.toString(), {
+    const res = await fetch(apiUrl.toString(), {
       ...init,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Basic ${Buffer.from(`${cfg.consumerKey}:${cfg.consumerSecret}`).toString("base64")}`,
         ...(init?.headers || {}),
       },
       // `dispatcher` 为 undici 的扩展选项，这里做类型兼容处理
@@ -82,11 +103,46 @@ async function wooFetch(
     });
     const ct = res.headers.get("content-type") || "";
     const ms = Date.now() - started;
-    if (!res.ok) {
-      const body = await res.clone().text().catch(() => "");
-      try { console.error(JSON.stringify({ ts: new Date().toISOString(), level: "ERROR", event: "wp_response_error", method: init?.method || "GET", url: redact(url.toString()), status: res.status, contentType: ct, ms, body: body.slice(0,300) })); } catch {}
-    } else {
-      try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_response", method: init?.method || "GET", url: redact(url.toString()), status: res.status, contentType: ct, ms })); } catch {}
+    
+    // 详细的响应日志记录
+    try {
+      const logData = {
+        ts: new Date().toISOString(),
+        level: res.ok ? "INFO" : "ERROR",
+        event: res.ok ? "wp_response" : "wp_response_error",
+        method: init?.method || "GET",
+        url: redact(apiUrl.toString()), // 使用实际的请求URL（包含认证参数）
+        status: res.status,
+        contentType: ct,
+        responseTimeMs: ms,
+        retryAttempt: i
+      };
+      
+      if (!res.ok) {
+        const body = await res.clone().text().catch(() => "");
+        const errorLogData = {
+          ...logData,
+          bodyPreview: body.slice(0, 500),
+          bodyLength: body.length
+        };
+        console.error(JSON.stringify(errorLogData));
+      } else {
+        console.log(JSON.stringify(logData));
+        
+        // 对于成功的响应，也记录响应体信息（调试用）
+        if (process.env.DEBUG_WOO_RESPONSE === "1") {
+          const body = await res.clone().text().catch(() => "");
+          const debugLogData = {
+            ...logData,
+            bodyPreview: body.slice(0, 200),
+            bodyLength: body.length
+          };
+          console.log(JSON.stringify(debugLogData));
+        }
+      }
+    } catch (logError) {
+      // 日志记录失败时不中断主流程
+      console.error(`日志记录失败: ${logError}`);
     }
     if (res.status >= 500 || res.status === 429) {
       await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
@@ -149,6 +205,18 @@ export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown, lo
   }
   try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "PUT", endpoint, bodySize: payload.length })); } catch {}
   return wooFetch(cfg, endpoint, { method: "PUT", body: payload });
+}
+
+export async function wooDelete(cfg: WooConfig, endpoint: string, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
+  if (logContext?.userId && logContext?.requestId) {
+    try { 
+      const { appendLog } = await import('./logs');
+      await appendLog(logContext.userId, logContext.requestId, "info", 
+        `WooCommerce DELETE请求 endpoint=${endpoint} handle=${logContext.productHandle || ""}`);
+    } catch {}
+  }
+  try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "DELETE", endpoint })); } catch {}
+  return wooFetch(cfg, endpoint, { method: "DELETE" });
 }
 
 export async function ensureTerms(

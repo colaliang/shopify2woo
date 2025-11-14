@@ -9,7 +9,7 @@ export default function AuthBar() {
     const supabase = getSupabaseBrowser()
     let mounted = true
     ;(async () => {
-      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } } as any
+      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } }
       if (!mounted) return
       setEmail(data.session?.user?.email || null)
     })()

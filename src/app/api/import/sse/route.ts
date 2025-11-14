@@ -30,7 +30,7 @@ export async function GET(req: Request) {
             // import-jobs 相关逻辑已移除，不再推送 status
             const logs = await listLogs(userId, requestId, 200);
             // send only new logs by timestamp
-            const filtered = logs.filter((l: any) => {
+            const filtered = logs.filter((l: { createdAt: string }) => {
               const ts = new Date(l.createdAt).getTime();
               return ts > lastLogStamp;
             });
@@ -47,14 +47,13 @@ export async function GET(req: Request) {
           }
         }, 1000);
 
-        const abort = (e?: unknown) => {
+        const abort = () => {
           if (closed) return;
           clearInterval(timer);
           try { controller.close(); } catch {}
           closed = true;
         };
-        // @ts-ignore - next provides signal via request
-        const signal: AbortSignal | undefined = (req as any).signal;
+        const signal: AbortSignal | undefined = (req as unknown as { signal?: AbortSignal }).signal;
         signal?.addEventListener("abort", abort);
       },
     });

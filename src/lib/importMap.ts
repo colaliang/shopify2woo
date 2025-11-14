@@ -27,21 +27,21 @@ export function createAttributes(product: ShopifyProduct) {
   return attrs;
 }
 
-export function buildDefaultAttributes(product: ShopifyProduct) {
-  const defaults: Array<{ id?: number; name?: string; option: string }> = [];
+export function buildDefaultAttributes(product: ShopifyProduct): Array<{ name: string; option: string }> {
+  const defaults: Array<{ name: string; option: string }> = [];
   if (!product.options || !product.options.length) return defaults;
   const firstVariant = product.variants?.[0];
   if (!firstVariant) return defaults;
   const optVals = [firstVariant.option1, firstVariant.option2, firstVariant.option3].filter(Boolean);
   product.options.forEach((opt, idx) => {
     const val = optVals[idx];
-    if (val) defaults.push({ name: opt.name, option: val });
+    if (val && opt.name) defaults.push({ name: opt.name, option: val });
   });
   return defaults;
 }
 
 export function buildImages(product: ShopifyProduct) {
-  const imgs = (product.images || []).map((im) => ({ src: cleanImageUrl(im?.src) })).filter((x) => x.src);
+  const imgs = (product.images || []).map((im) => ({ src: cleanImageUrl(im?.src) })).filter((x): x is { src: string } => !!x.src);
   return imgs;
 }
 
@@ -54,6 +54,22 @@ type WooVariationPartial = {
   image?: WooImage;
   attributes: WooAttribute[];
 };
+
+export interface WooProductPayload {
+  name?: string;
+  slug?: string;
+  type?: string;
+  description?: string;
+  short_description?: string;
+  images?: WooImage[];
+  attributes?: Array<{ name: string; visible: boolean; variation: boolean; options: string[] }>;
+  default_attributes?: Array<{ name: string; option: string }>;
+  sku?: string;
+  regular_price?: string;
+  sale_price?: string;
+  categories?: Array<{ id?: number; name?: string }>;
+  tags?: Array<{ id?: number; name?: string }>;
+}
 
 export function buildVariationFromShopifyVariant(variant: NonNullable<ShopifyProduct["variants"]>[number]): WooVariationPartial {
   const attrs: Array<{ name?: string; option?: string }> = [];
@@ -71,9 +87,9 @@ export function buildVariationFromShopifyVariant(variant: NonNullable<ShopifyPro
   };
 }
 
-export function buildWooProductPayload(product: ShopifyProduct) {
+export function buildWooProductPayload(product: ShopifyProduct): WooProductPayload {
   const isVariable = (product.options || []).length > 0 && (product.variants || []).length > 1;
-  const payload: Record<string, unknown> = {
+  const payload: WooProductPayload = {
     name: product.title,
     type: isVariable ? "variable" : "simple",
     description: product.body_html || "",
@@ -83,7 +99,14 @@ export function buildWooProductPayload(product: ShopifyProduct) {
   };
   if (!isVariable) {
     const v = product.variants?.[0];
-    if (v) Object.assign(payload, buildVariationFromShopifyVariant(v));
+    if (v) {
+      const variation = buildVariationFromShopifyVariant(v);
+      Object.assign(payload, {
+        sku: variation.sku,
+        regular_price: variation.regular_price,
+        sale_price: variation.sale_price
+      });
+    }
   }
   return payload;
 }

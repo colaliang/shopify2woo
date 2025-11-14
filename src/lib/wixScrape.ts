@@ -10,6 +10,17 @@ type LdProduct = {
   offers?: { price?: string | number } | { [k: string]: unknown }[];
 };
 
+type WixOptionValue = {
+  value?: string;
+  name?: string;
+  [k: string]: unknown;
+};
+
+type WixOffer = {
+  price?: string | number;
+  [k: string]: unknown;
+};
+
 function toArray<T>(v: T | T[] | undefined) {
   return Array.isArray(v) ? v : v ? [v] : [];
 }
@@ -26,7 +37,7 @@ export function extractWixOptions(html: string) {
       if (Array.isArray(options)) {
         for (const o of options) {
           const name = String(o?.name || o?.title || "").trim();
-          const values = toArray(o?.choices || o?.options || o?.values).map((x: any) => String(x?.value || x?.name || x || "").trim()).filter(Boolean);
+          const values = toArray(o?.choices || o?.options || o?.values).map((x: WixOptionValue) => String(x?.value || x?.name || x || "").trim()).filter(Boolean);
           if (name && values.length) opts.push({ name, options: Array.from(new Set(values)) });
         }
       }
@@ -39,10 +50,10 @@ export function extractWixPrice(html: string) {
   const ld = extractJsonLdProduct(html) as LdProduct | null;
   if (ld?.offers) {
     if (Array.isArray(ld.offers)) {
-      const first = ld.offers.find((o: any) => o?.price);
+      const first = ld.offers.find((o: WixOffer) => o?.price);
       if (first?.price) return String(first.price);
     } else {
-      const o: any = ld.offers;
+      const o = ld.offers as { price?: string | number };
       if (o?.price) return String(o.price);
     }
   }

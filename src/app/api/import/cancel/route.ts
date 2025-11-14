@@ -27,20 +27,20 @@ export async function POST(req: Request) {
       if (source) {
         const queue = pgmqQueueName(source);
         for (let i = 0; i < 50; i++) {
-          const rows = await pgmqRead(queue, 10, 100).catch(() => [] as any);
+          const rows = await pgmqRead(queue, 10, 100).catch(() => [] as { msg_id: number; message: unknown }[]);
           if (!rows || rows.length === 0) break;
           for (const row of rows) {
-            const msg = row && (row as any).message;
+            const msg = row && row.message;
             let rid = "";
             if (msg && typeof msg === "object" && "requestId" in msg) {
               const v = (msg as Record<string, unknown>).requestId;
               rid = typeof v === "string" ? v : "";
             }
             if (rid === requestId) {
-              await pgmqDelete(queue, (row as any).msg_id).catch(() => {});
+              await pgmqDelete(queue, row.msg_id).catch(() => {});
               removed++;
             } else {
-              await pgmqSetVt(queue, (row as any).msg_id, 0).catch(() => {});
+              await pgmqSetVt(queue, row.msg_id, 0).catch(() => {});
             }
           }
           if (rows.length < 100) break;

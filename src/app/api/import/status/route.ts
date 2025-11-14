@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUserIdFromToken } from "@/lib/supabaseServer";
 
-export async function GET(req: Request) {
+export async function GET() {
   return NextResponse.json({ error: "不支持" }, { status: 404 });
 }

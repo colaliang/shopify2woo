@@ -5,10 +5,22 @@ import { appendLog } from "@/lib/logs";
 import { recordResult } from "@/lib/history";
 import { ensureTerms, findProductBySkuOrSlug, wooPost, wooPut, wooGet } from "@/lib/woo";
 import { fetchProductByHandle } from "@/lib/shopify";
-import { buildWooProductPayload, buildVariationFromShopifyVariant } from "@/lib/importMap";
+import { buildWooProductPayload, buildVariationFromShopifyVariant, type WooProductPayload } from "@/lib/importMap";
 import { fetchHtmlMeta, extractJsonLdProduct, extractProductVariations, extractFormAttributes, extractProductPrice, buildVariationsFromForm, extractBreadcrumbCategories, extractPostedInCategories, extractTags, extractDescriptionHtml, extractGalleryImages, extractOgImages, extractContentImages, extractSku } from "@/lib/wordpressScrape";
-import { normalizeWpSlugOrLink } from "@/lib/wordpress";
+import { normalizeWpSlugOrLink, WooProduct } from "@/lib/wordpress";
 import { pgmqQueueName, pgmqRead, pgmqDelete, pgmqArchive, pgmqSetVt } from "@/lib/pgmq";
+
+// PGMQ 消息类型定义
+interface PgmqMessage {
+  userId?: string;
+  requestId?: string;
+  source?: string;
+  handle?: string;
+  shopifyBaseUrl?: string;
+  categories?: string[];
+  tags?: string[];
+  link?: string;
+}
 
 export const runtime = "nodejs";
 
@@ -28,8 +40,12 @@ async function authorize(req: Request) {
   return false;
 }
 
-async function updateJob(..._args: any[]) {}
-async function finishJob(..._args: any[]) {}
+async function updateJob(_userId: string, _requestId: string, _data: { processed?: number; success?: number; error?: number }) {
+  void _userId; void _requestId; void _data;
+}
+async function finishJob(_userId: string, _requestId: string, _status: string) {
+  void _userId; void _requestId; void _status;
+}
 
 async function runForSource(source: string) {
   const supabase = getSupabaseServer();
@@ -45,7 +61,7 @@ async function runForSource(source: string) {
     if (!msgs.length) return NextResponse.json({ ok: true, picked: 0 });
     const byReq = new Map<string, string>();
     for (const row of msgs) {
-      const msg = row.message || {};
+      const msg = (row.message || {}) as PgmqMessage;
       const userId = String(msg.userId || "");
       const requestId = String(msg.requestId || "");
       if (!userId || !requestId) { await pgmqArchive(q, row.msg_id).catch(()=>{}); continue; }
@@ -142,7 +158,7 @@ async function runForSource(source: string) {
             images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
           }
           const descHtml = extractDescriptionHtml(html) || ld?.description;
-          const payload: any = { name: ld?.name || slug, slug, sku, description: descHtml || "", short_description: descHtml || "", images: [] };
+          const payload: WooProductPayload = { name: ld?.name || slug, slug, sku, description: descHtml || "", short_description: descHtml || "", images: [] };
           const catTerms = await ensureTerms(dstCfg, "category", allCats);
           const tagTerms = await ensureTerms(dstCfg, "tag", tags);
           payload.categories = catTerms;
@@ -155,27 +171,27 @@ async function runForSource(source: string) {
           if (!resp.ok || !ct.includes("application/json")) {
             await recordResult(userId, "wordpress", requestId, slug, payload?.name, existing?.id, "error");
           } else {
-            const saved: any = await resp.json().catch(()=>({}));
+            const saved = await resp.json().catch(()=>({})) as WooProduct;
             try {
               const remotes = images.map((u) => new URL(u, meta.finalUrl || link).toString());
               const maxImages = parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10;
               const toUpload = remotes.slice(0, maxImages);
-              let base: any[] = [];
+              let base: Array<{ id?: number }> = [];
               if (typeof saved?.id === "number") {
                 const cur = await (await wooGet(dstCfg, `wp-json/wc/v3/products/${saved.id}`)).json().catch(()=>({}));
-                base = Array.isArray(cur?.images) ? (cur.images as any[]).map((ii: any) => ({ id: ii?.id })) : [];
+                base = Array.isArray(cur?.images) ? cur.images.map((ii: { id?: number }) => ({ id: ii?.id })) : [];
               const maxRetryImg = parseInt(process.env.IMAGE_UPLOAD_RETRY || "2", 10) || 2;
               const backoffImg = parseInt(process.env.IMAGE_RETRY_BACKOFF || "2000", 10) || 2000;
               for (const src of toUpload) {
-                let done = false;
+
                 for (let ai = 0; ai <= maxRetryImg; ai++) {
                   await new Promise((r)=>setTimeout(r, backoffImg * (ai + 1)));
                   const up = await wooPut(dstCfg, `wp-json/wc/v3/products/${saved.id}`, { images: [...base, { src }] });
                   const ct2 = up.headers.get("content-type") || "";
                   if (up.ok && ct2.includes("application/json")) {
                     const j = await up.json().catch(()=>({}));
-                    base = Array.isArray(j?.images) ? (j.images as any[]).map((ii: any) => ({ id: ii?.id })) : base;
-                    done = true;
+                    base = Array.isArray(j?.images) ? j.images.map((ii: { id?: number }) => ({ id: ii?.id })) : base;
+                    // done = true;
                     break;
                   }
                 }
@@ -198,7 +214,7 @@ async function runForSource(source: string) {
             const contents = extractContentImages(html);
             images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
           }
-          const payload: any = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: [] };
+          const payload: WooProductPayload = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: [] };
           const existing = await findProductBySkuOrSlug(dstCfg, undefined, slug);
           let resp: Response;
           if (existing) resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
@@ -207,7 +223,7 @@ async function runForSource(source: string) {
           if (!resp.ok || !ct.includes("application/json")) {
             await recordResult(userId, "wix", requestId, slug, payload?.name, existing?.id, "error");
           } else {
-            const saved: any = await resp.json().catch(()=>({}));
+            const saved = await resp.json().catch(()=>({}));
             await updateJob(userId, requestId, { processed: 1, success: 1 });
             await recordResult(userId, "wix", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
           }
@@ -215,11 +231,11 @@ async function runForSource(source: string) {
       try {
         await pgmqDelete(q, row.msg_id);
         try { await appendLog(userId, requestId, "info", `pgmq delete mid=${row.msg_id}`); } catch {}
-      } catch (delErr: any) {
-        try { await appendLog(userId, requestId, "error", `pgmqDelete failed mid=${row.msg_id} err=${delErr?.message || delErr}`); } catch {}
+      } catch (delErr) {
+        try { await appendLog(userId, requestId, "error", `pgmqDelete failed mid=${row.msg_id} err=${(delErr as Error)?.message || delErr}`); } catch {}
         try { await pgmqArchive(q, row.msg_id); } catch {}
       }
-      } catch (e: any) {
+      } catch {
         const maxRetry = parseInt(process.env.RUNNER_MAX_READ_RETRIES || "5", 10) || 5;
         if ((row.read_ct || 0) + 1 >= maxRetry) await pgmqArchive(q, row.msg_id).catch(()=>{});
         else await pgmqSetVt(q, row.msg_id, vt * Math.min(10, (row.read_ct || 0) + 1)).catch(()=>{});
@@ -315,8 +331,8 @@ async function runForSource(source: string) {
           }
           await updateJob(userId, requestId, { processed: 1, success: 1 });
           await recordResult(userId, "shopify", requestId, product.handle, saved?.name, saved?.id, "success");
-        } catch (e: any) {
-          await appendLog(userId, requestId, "error", `job error ${e?.message || e}`);
+        } catch (e) {
+          await appendLog(userId, requestId, "error", `job error ${(e as Error)?.message || e}`);
           await updateJob(userId, requestId, { processed: 1, error: 1 });
         }
       }
@@ -351,7 +367,7 @@ async function runForSource(source: string) {
             images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
           }
           const descHtml = extractDescriptionHtml(html) || ld?.description;
-          const payload: any = {
+          const payload: WooProductPayload = {
             name: ld?.name || slug,
             slug,
             sku,
@@ -369,11 +385,12 @@ async function runForSource(source: string) {
           else resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
           const ct = resp.headers.get("content-type") || "";
           if (!resp.ok || !ct.includes("application/json")) { await updateJob(userId, requestId, { processed: 1, error: 1 }); continue; }
-          const saved: any = await resp.json().catch(() => ({}));
+          const saved = await resp.json().catch(() => ({}));
           await updateJob(userId, requestId, { processed: 1, success: 1 });
           await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
-        } catch (e: any) {
-          await appendLog(userId, requestId, "error", `job error ${e?.message || e}`);
+        } catch (e) {
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          await appendLog(userId, requestId, "error", `job error ${errorMessage}`);
           await updateJob(userId, requestId, { processed: 1, error: 1 });
         }
       }
@@ -395,34 +412,34 @@ async function runForSource(source: string) {
             const contents = extractContentImages(html);
             images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
           }
-          const payload: any = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
+          const payload = { name: ld?.name || slug, slug, description: descHtml, short_description: descHtml, images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
           const existing = await findProductBySkuOrSlug(dstCfg, undefined, slug);
           let resp: Response;
           if (existing) resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
           else resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
           const ct = resp.headers.get("content-type") || "";
           if (!resp.ok || !ct.includes("application/json")) { await updateJob(userId, requestId, { processed: 1, error: 1 }); continue; }
-          const savedWix: any = await resp.json().catch(() => ({}));
+          const savedWix = await resp.json().catch(() => ({}));
           try {
             const remotes = images.map((u) => new URL(u, meta.finalUrl || link).toString());
             const maxImages = parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10;
             const toUpload = remotes.slice(0, maxImages);
-            let base: any[] = [];
+            let base: Array<{ id?: number }> = [];
             if (typeof savedWix?.id === "number") {
               const cur = await (await wooGet(dstCfg, `wp-json/wc/v3/products/${savedWix.id}`)).json().catch(()=>({}));
-              base = Array.isArray(cur?.images) ? (cur.images as any[]).map((ii: any) => ({ id: ii?.id })) : [];
+              base = Array.isArray(cur?.images) ? cur.images.map((ii: { id?: number }) => ({ id: ii?.id })) : [];
               const maxRetryImg2 = parseInt(process.env.IMAGE_UPLOAD_RETRY || "2", 10) || 2;
               const backoffImg2 = parseInt(process.env.IMAGE_RETRY_BACKOFF || "2000", 10) || 2000;
               for (const src of toUpload) {
-                let done = false;
+
                 for (let ai = 0; ai <= maxRetryImg2; ai++) {
                   await new Promise((r)=>setTimeout(r, backoffImg2 * (ai + 1)));
                   const up = await wooPut(dstCfg, `wp-json/wc/v3/products/${savedWix.id}`, { images: [...base, { src }] });
                   const ct2 = up.headers.get("content-type") || "";
                   if (up.ok && ct2.includes("application/json")) {
                     const j = await up.json().catch(()=>({}));
-                    base = Array.isArray(j?.images) ? (j.images as any[]).map((ii: any) => ({ id: ii?.id })) : base;
-                    done = true;
+                    base = Array.isArray(j?.images) ? j.images.map((ii: { id?: number }) => ({ id: ii?.id })) : base;
+
                     break;
                   }
                 }
@@ -431,8 +448,9 @@ async function runForSource(source: string) {
           } catch {}
           await updateJob(userId, requestId, { processed: 1, success: 1 });
           await recordResult(userId, "wix", requestId, slug, (savedWix?.name || payload?.name), (typeof savedWix?.id === 'number' ? savedWix?.id : existing?.id), "success");
-        } catch (e: any) {
-          await appendLog(userId, requestId, "error", `job error ${e?.message || e}`);
+        } catch (e) {
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          await appendLog(userId, requestId, "error", `job error ${errorMessage}`);
           await updateJob(userId, requestId, { processed: 1, error: 1 });
         }
       }

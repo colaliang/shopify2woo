@@ -9,6 +9,21 @@ type LdProduct = {
   offers?: { price?: string | number } | { [k: string]: unknown }[];
 };
 
+type LdOffer = {
+  price?: string | number;
+  [k: string]: unknown;
+};
+
+type BreadcrumbListItem = {
+  name?: string;
+  [k: string]: unknown;
+};
+
+type BreadcrumbList = {
+  itemListElement?: BreadcrumbListItem[];
+  [k: string]: unknown;
+};
+
 function htmlUnescape(s: string) {
   return s
     .replace(/&quot;/g, '"')
@@ -32,7 +47,7 @@ export async function fetchHtml(url: string) {
   let lastErr: unknown;
   for (let i = 0; i < 3; i++) {
     try {
-      const res = await fetch(url, { headers: defaultHeaders as any });
+      const res = await fetch(url, { headers: defaultHeaders });
       if (res.status === 404) throw new Error(`无法获取页面 404`);
       if (!res.ok) throw new Error(`无法获取页面 ${res.status}`);
       return await res.text();
@@ -48,9 +63,21 @@ export async function fetchHtmlMeta(url: string) {
   let lastErr: unknown;
   for (let i = 0; i < 3; i++) {
     try {
-      const res = await fetch(url, { headers: defaultHeaders as any, redirect: "follow" as any });
+      const res = await fetch(url, { headers: defaultHeaders, redirect: "follow" });
       const text = await res.text();
-      return { html: text, status: res.status, contentType: res.headers.get("content-type") || "", finalUrl: (res as any).url || url };
+      const finalUrl = res.url || url;
+      
+      // 检测网址不匹配：如果最终URL与原始URL不同，说明发生了重定向
+      const urlMismatch = finalUrl !== url;
+      
+      return { 
+        html: text, 
+        status: res.status, 
+        contentType: res.headers.get("content-type") || "", 
+        finalUrl,
+        urlMismatch,
+        originalUrl: url
+      };
     } catch (e) {
       lastErr = e;
       await new Promise((r) => setTimeout(r, 500 * (i + 1)));
@@ -80,6 +107,14 @@ export type ScrapedVariation = {
   image?: { src?: string } | null;
 };
 
+interface RawVariation {
+  display_regular_price?: string | number;
+  regular_price?: string | number;
+  display_price?: string | number;
+  image?: { src?: string; url?: string };
+  attributes?: Record<string, string>;
+}
+
 export function extractProductVariations(html: string): ScrapedVariation[] {
   const attrMatch = html.match(/data-product_variations="([\s\S]*?)"/i);
   if (!attrMatch) return [];
@@ -87,7 +122,7 @@ export function extractProductVariations(html: string): ScrapedVariation[] {
   try {
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) return [];
-    return arr.map((v: any) => {
+    return arr.map((v: RawVariation) => {
       const rp = v?.display_regular_price ?? v?.regular_price;
       const sp = v?.display_price && rp && v.display_price < rp ? v.display_price : undefined;
       const img = v?.image?.src || v?.image?.url || undefined;
@@ -124,11 +159,11 @@ export function buildPayloadFromScraped(url: string, ld: LdProduct | null, vars:
     const price = (() => {
       if (!ld?.offers) return undefined;
       if (Array.isArray(ld.offers)) {
-        const first = ld.offers.find((o: any) => o?.price);
+        const first = (ld.offers as LdOffer[]).find((o: LdOffer) => o?.price);
         return first?.price ? String(first.price) : undefined;
       }
-      const anyOffer = ld.offers as any;
-      return anyOffer?.price ? String(anyOffer.price) : undefined;
+      const offer = ld.offers as LdOffer;
+      return offer?.price ? String(offer.price) : undefined;
     })();
     Object.assign(payload, { sku, regular_price: price });
   } else {
@@ -164,9 +199,9 @@ export function extractBreadcrumbCategories(html: string) {
       const obj = JSON.parse(m[1].trim());
       const arr = Array.isArray(obj) ? obj : [obj];
       const bl = arr.find((x) => x && x["@type"] === "BreadcrumbList");
-      if (bl && Array.isArray((bl as any).itemListElement)) {
-        const list = (bl as any).itemListElement.map((it: any) => it?.name).filter(Boolean);
-        names.push(...list);
+      if (bl && Array.isArray((bl as BreadcrumbList).itemListElement)) {
+        const list = (bl as BreadcrumbList).itemListElement!.map((it: BreadcrumbListItem) => it?.name).filter(Boolean);
+        names.push(...(list as string[]));
         break;
       }
     } catch {}
@@ -204,10 +239,10 @@ export function extractProductPrice(html: string) {
   const json = extractJsonLdProduct(html);
   if (json?.offers) {
     if (Array.isArray(json.offers)) {
-      const first = json.offers.find((o: any) => o?.price);
+      const first = (json.offers as LdOffer[]).find((o: LdOffer) => o?.price);
       if (first?.price) return String(first.price);
     } else {
-      const o: any = json.offers;
+      const o = json.offers as { price?: string | number };
       if (o?.price) return String(o.price);
     }
   }
@@ -388,7 +423,7 @@ export function extractContentImages(html: string) {
   const out: string[] = [];
   const blocks = html.match(/<div[^>]*class="[^"]*(entry-content|product)[^"]*"[\s\S]*?<\/div>/gi) || [];
   for (const b of blocks) {
-    const imgRe = /<img[^>]+(srcset|data-src|src)="([^"]+)"[^>]*>/gi as any;
+    const imgRe = /<img[^>]+(srcset|data-src|src)="([^"]+)"[^>]*>/gi;
     let m: RegExpExecArray | null;
     while ((m = imgRe.exec(b))) {
       const attr = m[1];
