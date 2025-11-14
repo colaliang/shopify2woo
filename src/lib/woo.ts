@@ -101,16 +101,52 @@ export async function wooGet(cfg: WooConfig, endpoint: string) {
   return wooFetch(cfg, endpoint, { method: "GET" });
 }
 
-export async function wooPost(cfg: WooConfig, endpoint: string, body: unknown) {
+export async function wooPost(cfg: WooConfig, endpoint: string, body: unknown, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
   let payload = "";
-  try { payload = JSON.stringify(body); } catch { payload = String(body || ""); }
+  try { 
+    payload = JSON.stringify(body); 
+    if (logContext?.userId && logContext?.requestId) {
+      try { 
+        const { appendLog } = await import('./logs');
+        await appendLog(logContext.userId, logContext.requestId, "info", 
+          `WooCommerce POST请求预处理完成 endpoint=${endpoint} handle=${logContext.productHandle || ""} 数据大小=${payload.length}`);
+      } catch {}
+    }
+  } catch (e) { 
+    payload = String(body || ""); 
+    if (logContext?.userId && logContext?.requestId) {
+      try { 
+        const { appendLog } = await import('./logs');
+        await appendLog(logContext.userId, logContext.requestId, "error", 
+          `WooCommerce POST请求JSON序列化失败 endpoint=${endpoint} handle=${logContext.productHandle || ""} 错误=${String(e)}`);
+      } catch {}
+    }
+  }
   try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "POST", endpoint, bodySize: payload.length })); } catch {}
   return wooFetch(cfg, endpoint, { method: "POST", body: payload });
 }
 
-export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown) {
+export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
   let payload = "";
-  try { payload = JSON.stringify(body); } catch { payload = String(body || ""); }
+  try { 
+    payload = JSON.stringify(body); 
+    if (logContext?.userId && logContext?.requestId) {
+      try { 
+        const { appendLog } = await import('./logs');
+        await appendLog(logContext.userId, logContext.requestId, "info", 
+          `WooCommerce PUT请求预处理完成 endpoint=${endpoint} handle=${logContext.productHandle || ""} 数据大小=${payload.length}`);
+      } catch {}
+    }
+  } catch (e) { 
+    payload = String(body || ""); 
+    if (logContext?.userId && logContext?.requestId) {
+      try { 
+        const { appendLog } = await import('./logs');
+        await appendLog(logContext.userId, logContext.requestId, "error", 
+          `WooCommerce PUT请求JSON序列化失败 endpoint=${endpoint} handle=${logContext.productHandle || ""} 错误=${String(e)}`);
+      } catch {}
+    }
+  }
   try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "PUT", endpoint, bodySize: payload.length })); } catch {}
   return wooFetch(cfg, endpoint, { method: "PUT", body: payload });
 }
@@ -118,34 +154,154 @@ export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown) {
 export async function ensureTerms(
   cfg: WooConfig,
   kind: "category" | "tag",
-  names: string[]
+  names: string[],
+  logContext?: { userId?: string; requestId?: string; productHandle?: string }
 ) {
   const result: { id: number }[] = [];
   const endpoint = kind === "category" ? "wp-json/wc/v3/products/categories" : "wp-json/wc/v3/products/tags";
+  const kindName = kind === "category" ? "分类" : "标签";
+  
+  if (logContext?.userId && logContext?.requestId) {
+    try { 
+      const { appendLog } = await import('./logs');
+      await appendLog(logContext.userId, logContext.requestId, "info", 
+        `开始处理${kindName}术语 names=${JSON.stringify(names)} handle=${logContext.productHandle || ""}`);
+    } catch {}
+  }
+  
   for (const nm of names) {
     const nameStr = String(nm || "").trim();
     if (!nameStr) continue;
-    const q = await (await wooGet(cfg, `${endpoint}?search=${encodeURIComponent(nameStr)}`)).json();
-    type WooTerm = { id?: number; name?: string };
-    let found = Array.isArray(q)
-      ? q.find((t: WooTerm) => String(t?.name || "").trim().toLowerCase() === nameStr.toLowerCase())
-      : null;
-    if (!found) {
-      found = await (await wooPost(cfg, endpoint, { name: nameStr })).json();
+    
+    try {
+      const searchResponse = await wooGet(cfg, `${endpoint}?search=${encodeURIComponent(nameStr)}`);
+      if (!searchResponse.ok) {
+        if (logContext?.userId && logContext?.requestId) {
+          try { 
+            const { appendLog } = await import('./logs');
+            await appendLog(logContext.userId, logContext.requestId, "error", 
+              `${kindName}搜索请求失败 name=${nameStr} handle=${logContext.productHandle || ""} 状态=${searchResponse.status}`);
+          } catch {}
+        }
+        continue;
+      }
+      
+      const q = await searchResponse.json();
+      type WooTerm = { id?: number; name?: string };
+      let found = Array.isArray(q)
+        ? q.find((t: WooTerm) => String(t?.name || "").trim().toLowerCase() === nameStr.toLowerCase())
+        : null;
+        
+      if (!found) {
+        if (logContext?.userId && logContext?.requestId) {
+          try { 
+            const { appendLog } = await import('./logs');
+            await appendLog(logContext.userId, logContext.requestId, "info", 
+              `创建新${kindName} name=${nameStr} handle=${logContext.productHandle || ""}`);
+          } catch {}
+        }
+        
+        const createResponse = await wooPost(cfg, endpoint, { name: nameStr }, logContext);
+        if (!createResponse.ok) {
+          if (logContext?.userId && logContext?.requestId) {
+            try { 
+              const { appendLog } = await import('./logs');
+              await appendLog(logContext.userId, logContext.requestId, "error", 
+                `${kindName}创建失败 name=${nameStr} handle=${logContext.productHandle || ""} 状态=${createResponse.status}`);
+            } catch {}
+          }
+          continue;
+        }
+        found = await createResponse.json();
+      }
+      
+      const id = found?.id;
+      if (typeof id === "number") {
+        result.push({ id });
+        if (logContext?.userId && logContext?.requestId) {
+          try { 
+            const { appendLog } = await import('./logs');
+            await appendLog(logContext.userId, logContext.requestId, "info", 
+              `${kindName}处理完成 name=${nameStr} id=${id} handle=${logContext.productHandle || ""}`);
+          } catch {}
+        }
+      }
+    } catch (e) {
+      if (logContext?.userId && logContext?.requestId) {
+        try { 
+          const { appendLog } = await import('./logs');
+          await appendLog(logContext.userId, logContext.requestId, "error", 
+            `${kindName}处理异常 name=${nameStr} handle=${logContext.productHandle || ""} 错误=${String(e)}`);
+        } catch {}
+      }
     }
-    const id = found?.id;
-    if (typeof id === "number") result.push({ id });
   }
+  
+  if (logContext?.userId && logContext?.requestId) {
+    try { 
+      const { appendLog } = await import('./logs');
+      await appendLog(logContext.userId, logContext.requestId, "info", 
+        `${kindName}处理完成 总数=${result.length} handle=${logContext.productHandle || ""}`);
+    } catch {}
+  }
+  
   return result;
 }
 
-export async function findProductBySkuOrSlug(cfg: WooConfig, sku?: string, slug?: string) {
+export async function findProductBySkuOrSlug(cfg: WooConfig, sku?: string, slug?: string, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
   let res;
-  if (sku) {
-    res = await wooGet(cfg, `wp-json/wc/v3/products?sku=${encodeURIComponent(sku)}`);
-  } else if (slug) {
-    res = await wooGet(cfg, `wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`);
+  try {
+    if (sku) {
+      if (logContext?.userId && logContext?.requestId) {
+        try { 
+          const { appendLog } = await import('./logs');
+          await appendLog(logContext.userId, logContext.requestId, "info", 
+            `按SKU查找产品 sku=${sku} handle=${logContext.productHandle || ""}`);
+        } catch {}
+      }
+      res = await wooGet(cfg, `wp-json/wc/v3/products?sku=${encodeURIComponent(sku)}`);
+    } else if (slug) {
+      if (logContext?.userId && logContext?.requestId) {
+        try { 
+          const { appendLog } = await import('./logs');
+          await appendLog(logContext.userId, logContext.requestId, "info", 
+            `按slug查找产品 slug=${slug} handle=${logContext.productHandle || ""}`);
+        } catch {}
+      }
+      res = await wooGet(cfg, `wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`);
+    }
+    
+    if (!res || !res.ok) {
+      if (logContext?.userId && logContext?.requestId) {
+        try { 
+          const { appendLog } = await import('./logs');
+          await appendLog(logContext.userId, logContext.requestId, "error", 
+            `产品查找请求失败 sku=${sku || ""} slug=${slug || ""} handle=${logContext.productHandle || ""} 状态=${res?.status || "无响应"}`);
+        } catch {}
+      }
+      return null;
+    }
+    
+    const arr = (await res.json()) || [];
+    const result = Array.isArray(arr) && arr.length ? arr[0] : null;
+    
+    if (logContext?.userId && logContext?.requestId) {
+      try { 
+        const { appendLog } = await import('./logs');
+        await appendLog(logContext.userId, logContext.requestId, "info", 
+          `产品查找完成 sku=${sku || ""} slug=${slug || ""} handle=${logContext.productHandle || ""} 结果=${result ? "找到" : "未找到"}`);
+      } catch {}
+    }
+    
+    return result;
+  } catch (e) {
+    if (logContext?.userId && logContext?.requestId) {
+      try { 
+        const { appendLog } = await import('./logs');
+        await appendLog(logContext.userId, logContext.requestId, "error", 
+          `产品查找异常 sku=${sku || ""} slug=${slug || ""} handle=${logContext.productHandle || ""} 错误=${String(e)}`);
+      } catch {}
+    }
+    return null;
   }
-  const arr = (await res?.json()) || [];
-  return Array.isArray(arr) && arr.length ? arr[0] : null;
 }
