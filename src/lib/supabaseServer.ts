@@ -1,4 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
+const userCache = new Map<string, { uid: string | null; exp: number }>();
+let failCount = 0;
+let lastFail = 0;
 
 export function getSupabaseServer() {
   const url = process.env.SUPABASE_URL;
@@ -9,50 +12,36 @@ export function getSupabaseServer() {
   return null;
 }
 
-// 本地文件回退：开发环境无 Supabase 时使用
-import fs from "fs";
-import path from "path";
-
-const dataDir = path.join(process.cwd(), ".data");
-const configFile = path.join(dataDir, "config.json");
-
+// 本地配置缓存（Edge/浏览器安全实现，无文件系统）
+type LocalConfig = { wordpressUrl: string; consumerKey: string; consumerSecret: string };
+type LocalConfigStore = { users?: Record<string, LocalConfig> } & Partial<LocalConfig>;
+const globalAny = globalThis as any;
+function getMemStore(): LocalConfigStore {
+  if (!globalAny.__localConfigStore) globalAny.__localConfigStore = {};
+  return globalAny.__localConfigStore as LocalConfigStore;
+}
 export function readLocalConfig(userId?: string) {
   try {
-    if (!fs.existsSync(configFile)) return null;
-    const raw = fs.readFileSync(configFile, "utf-8");
-    const data = JSON.parse(raw);
+    const data = getMemStore();
     if (userId) {
       if (data && typeof data === "object" && data.users && data.users[userId]) return data.users[userId];
-      if (data && data.wordpressUrl) return data;
+      if (data && (data as LocalConfig).wordpressUrl) return data as LocalConfig;
       return null;
     }
-    return data;
+    return (data && (data as LocalConfig).wordpressUrl) ? (data as LocalConfig) : null;
   } catch {
     return null;
   }
 }
-
-type LocalConfig = { wordpressUrl: string; consumerKey: string; consumerSecret: string };
-type LocalConfigStore = { users?: Record<string, LocalConfig> } & Partial<LocalConfig>;
-
 export function writeLocalConfig(cfg: LocalConfig, userId?: string) {
   try {
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
-    let out: LocalConfigStore = {};
-    if (fs.existsSync(configFile)) {
-      try {
-        out = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-      } catch {
-        out = {};
-      }
-    }
+    const store = getMemStore();
     if (userId) {
-      if (!out.users || typeof out.users !== "object") out.users = {};
-      out.users[userId] = cfg;
+      if (!store.users || typeof store.users !== "object") store.users = {};
+      store.users[userId] = cfg;
     } else {
-      out = cfg;
+      Object.assign(store, cfg);
     }
-    fs.writeFileSync(configFile, JSON.stringify(out, null, 2), "utf-8");
     return true;
   } catch {
     return false;
@@ -65,15 +54,37 @@ export function getSupabaseAnon() {
   return null;
 }
 
+function getSupabaseAuthClientPreferAnon() {
+  const anon = getSupabaseAnon();
+  if (anon) return anon;
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const srv = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (url && srv) return createClient(url, srv);
+  return null;
+}
+
 export async function getUserIdFromToken(token?: string) {
   if (!token) return null;
-  const supabase = getSupabaseAnon();
+  const supabase = getSupabaseAuthClientPreferAnon();
   if (!supabase) return null;
+  const now = Date.now();
+  const cached = userCache.get(token);
+  if (cached && cached.exp > now) return cached.uid;
   const ms = parseInt(process.env.SUPABASE_TIMEOUT_MS || "5000", 10) || 5000;
+  if (failCount >= 3 && now - lastFail < 120000) {
+    userCache.set(token, { uid: null, exp: now + 60000 });
+    return null;
+  }
   try {
     const { data } = await withTimeout(supabase.auth.getUser(token), ms);
-    return data.user?.id || null;
+    const uid = data.user?.id || null;
+    userCache.set(token, { uid, exp: now + (uid ? 300000 : 60000) });
+    failCount = 0;
+    return uid;
   } catch {
+    failCount++;
+    lastFail = now;
+    userCache.set(token, { uid: null, exp: now + 60000 });
     return null;
   }
 }

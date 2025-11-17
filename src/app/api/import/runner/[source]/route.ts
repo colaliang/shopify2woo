@@ -9,6 +9,8 @@ import { buildWooProductPayload, buildVariationFromShopifyVariant, type WooProdu
 import { fetchHtmlMeta, extractJsonLdProduct, extractProductVariations, extractFormAttributes, extractProductPrice, buildVariationsFromForm, extractBreadcrumbCategories, extractPostedInCategories, extractTags, extractDescriptionHtml, extractGalleryImages, extractOgImages, extractContentImages, extractSku } from "@/lib/wordpressScrape";
 import { normalizeWpSlugOrLink, WooProduct } from "@/lib/wordpress";
 import { pgmqQueueName, pgmqRead, pgmqDelete, pgmqArchive, pgmqSetVt } from "@/lib/pgmq";
+const lastRunBySource = new Map<string, number>();
+const inFlightSources = new Set<string>();
 
 // PGMQ 消息类型定义
 interface PgmqMessage {
@@ -46,6 +48,17 @@ async function updateJob(userId: string, requestId: string, data: { processed?: 
 async function runForSource(source: string) {
   const supabase = getSupabaseServer();
   if (!supabase) return NextResponse.json({ error: "服务未配置" }, { status: 500 });
+  const now = Date.now();
+  const minInterval = parseInt(process.env.RUNNER_MIN_INTERVAL_MS || "5000", 10) || 5000;
+  const last = lastRunBySource.get(source) || 0;
+  if (now - last < minInterval) {
+    return NextResponse.json({ ok: true, skipped: true });
+  }
+  if (inFlightSources.has(source)) {
+    return NextResponse.json({ ok: true, busy: true });
+  }
+  inFlightSources.add(source);
+  lastRunBySource.set(source, now);
   const U = (s: string) => s.toUpperCase();
   const batchSize = parseInt(process.env[`RUNNER_${U(source)}_BATCH_SIZE`] || process.env.RUNNER_MAX_ITEMS_PER_JOB_TICK || "25", 10) || 25;
   const maxMessages = parseInt(process.env.RUNNER_MAX_MESSAGES_PER_INVOCATION || "100", 10) || 100;
@@ -56,7 +69,7 @@ async function runForSource(source: string) {
     const q = pgmqQueueName(source);
     const vt = parseInt(process.env.RUNNER_VT_SECONDS || "60", 10) || 60;
     const msgs = await pgmqRead(q, vt, batchSize);
-    if (!msgs.length) return NextResponse.json({ ok: true, picked: 0 });
+    if (!msgs.length) { inFlightSources.delete(source); return NextResponse.json({ ok: true, picked: 0 }); }
     let processedCount = 0;
     let errorCount = 0;
     const started = Date.now();
@@ -225,10 +238,10 @@ async function runForSource(source: string) {
         if (Date.now() - started > maxWallTimeMs) break;
       }
     }
+    inFlightSources.delete(source);
     return NextResponse.json({ ok: true, picked: msgs.length });
   }
 
-  
 }
 
 export async function GET(req: Request) {

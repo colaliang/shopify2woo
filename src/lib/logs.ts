@@ -1,6 +1,4 @@
 import { getSupabaseServer } from "./supabaseServer";
-import fs from "fs";
-import path from "path";
 
 type LogItem = { userId: string; requestId: string; level: "info" | "error"; message: string; createdAt: string };
 
@@ -10,24 +8,12 @@ type DbLogRow = {
   created_at: string;
 };
 
-const dataDir = path.join(process.cwd(), ".data");
-const logsFile = path.join(dataDir, "import-logs.json");
-
+const globalAny = globalThis as any;
 function readLocal(): LogItem[] {
-  try {
-    if (!fs.existsSync(logsFile)) return [];
-    const raw = fs.readFileSync(logsFile, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
+  try { return Array.isArray(globalAny.__importLogs) ? globalAny.__importLogs : []; } catch { return []; }
 }
-
 function writeLocal(arr: LogItem[]) {
-  try {
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
-    fs.writeFileSync(logsFile, JSON.stringify(arr, null, 2), "utf-8");
-  } catch {}
+  try { globalAny.__importLogs = arr; } catch {}
 }
 
 export async function appendLog(userId: string, requestId: string, level: "info" | "error", message: string) {

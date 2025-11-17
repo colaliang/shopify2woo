@@ -1,6 +1,4 @@
 import { getSupabaseServer } from "./supabaseServer";
-import fs from "fs";
-import path from "path";
 
 type Result = {
   requestId: string;
@@ -22,24 +20,12 @@ type DbResultRow = {
   created_at: string;
 };
 
-const dataDir = path.join(process.cwd(), ".data");
-const resultsFile = path.join(dataDir, "import-results.json");
-
+const globalAny = globalThis as any;
 function readLocal(): Result[] {
-  try {
-    if (!fs.existsSync(resultsFile)) return [];
-    const raw = fs.readFileSync(resultsFile, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
+  try { return Array.isArray(globalAny.__importResults) ? globalAny.__importResults : []; } catch { return []; }
 }
-
 function writeLocal(arr: Result[]) {
-  try {
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
-    fs.writeFileSync(resultsFile, JSON.stringify(arr, null, 2), "utf-8");
-  } catch {}
+  try { globalAny.__importResults = arr; } catch {}
 }
 
 export async function recordResult(userId: string, source: string, requestId: string, itemKey: string, name: string | undefined, productId: number | undefined, status: "success" | "error") {

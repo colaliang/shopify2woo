@@ -9,6 +9,8 @@ import { fetchProductByHandle } from "@/lib/shopify";
 import { buildWooProductPayload, buildVariationFromShopifyVariant } from "@/lib/importMap";
 import { fetchHtmlMeta, extractJsonLdProduct, extractProductVariations, extractFormAttributes, extractProductPrice, buildVariationsFromForm, extractBreadcrumbCategories, extractPostedInCategories, extractTags, extractDescriptionHtml, extractGalleryImages, extractOgImages, extractContentImages, extractSku } from "@/lib/wordpressScrape";
 import { normalizeWpSlugOrLink, type WooProduct } from "@/lib/wordpress";
+const lastRunBySource = new Map<string, number>();
+const inFlightSources = new Set<string>();
 
 // WordPress 产品数据负载接口
 interface WordPressProductPayload {
@@ -134,6 +136,13 @@ export async function POST(req: Request) {
       const sources = src ? [src] : ["shopify", "wordpress", "wix"];
       let picked = 0;
       for (const s of sources) {
+        const now = Date.now();
+        const minInterval = parseInt(process.env.RUNNER_MIN_INTERVAL_MS || "5000", 10) || 5000;
+        const last = lastRunBySource.get(s) || 0;
+        if (now - last < minInterval) continue;
+        if (inFlightSources.has(s)) continue;
+        inFlightSources.add(s);
+        lastRunBySource.set(s, now);
         const q = pgmqQueueName(s);
         const vt = parseInt(process.env.RUNNER_VT_SECONDS || "60", 10) || 60;
         const msgs = await pgmqRead(q, vt, batchSizeEnv);
@@ -415,7 +424,7 @@ export async function POST(req: Request) {
           }
           
         }
-        
+        inFlightSources.delete(s);
     }
     
       return NextResponse.json({ ok: true, picked });

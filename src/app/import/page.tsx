@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
 
 export default function ImportPage() {
-  const [importType, setImportType] = useState<"shopify" | "wordpress" | "wix">("shopify");
+  const [importType, setImportType] = useState<"shopify" | "wordpress" | "wix">("wordpress");
   const [shopifyBaseUrl, setShopifyBaseUrl] = useState("");
   const [productLinks, setProductLinks] = useState("");
   const [shopifyAllowed, setShopifyAllowed] = useState(true);
@@ -19,34 +19,70 @@ export default function ImportPage() {
   const [debugOpen, setDebugOpen] = useState(process.env.NODE_ENV !== "production");
   const [logs, setLogs] = useState<Array<{ level: string; message: string; createdAt: string }>>([]);
   const [runnerPing, setRunnerPing] = useState<NodeJS.Timeout | null>(null);
-  const [evt, setEvt] = useState<EventSource | null>(null);
+  const [evt, setEvt] = useState<EventSource | WebSocket | null>(null);
   const [cap, setCap] = useState<number>(1000);
+  const [runnerStopUntil, setRunnerStopUntil] = useState<number>(0);
   const isRunning = !!rid;
 
-  const startTracking = useCallback((r: string) => {
+  useEffect(() => {
+    if (!message) return;
+    const level = /错误|未授权|异常|停止/.test(message) ? "error" : "info";
+    const item = { level, message, createdAt: new Date().toISOString() };
+    setLogs((prev) => {
+      const arr = [...prev, item];
+      return arr.slice(Math.max(0, arr.length - 29));
+    });
+  }, [message]);
+
+  const startTracking = useCallback(async (r: string) => {
     try { localStorage.setItem("importRequestId", r); } catch {}
     const storedSrc = (() => { try { return localStorage.getItem("importSource") || ""; } catch { return ""; } })();
     setRid(r);
     if (evt) { try { evt.close(); } catch {} setEvt(null); }
     if (!token) return;
-    const url = `/api/import/sse?requestId=${encodeURIComponent(r)}&token=${encodeURIComponent(token)}`;
-    const es = new EventSource(url);
-    es.addEventListener("logs", (ev: MessageEvent) => {
+    const stopUntilLs = (()=>{ 
+      try { 
+        return parseInt(localStorage.getItem("wsStopUntil") || "0", 10) || 0; 
+      } catch { return 0; } 
+    })();
+    if (stopUntilLs > Date.now()) {
+      setMessage("实时通道已暂停，稍后再试! StartTracking");
+      return;
+    }
+    const proto = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const authToken = token || process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+    if (!authToken) {
+      setMessage("未登录且未配置客户端RUNNER_TOKEN，已停止实时通道");
+      return;
+    }
+    try {
+      const pre = await fetch(`/api/import/ws/check?requestId=${encodeURIComponent(r)}&token=${encodeURIComponent(authToken)}`, {
+        headers: { Authorization: `Bearer ${authToken}` }, cache: 'no-store' 
+      });
+      const preBody = await pre.json().catch(()=>({}));
+      if (!pre.ok) {
+        setMessage(`WS 授权失败: ${preBody?.error || pre.status}`);
+        return;
+      }
+    } catch (e) {
+      setMessage(`WS 预检失败: ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
+    const url = `${proto}://${typeof window !== 'undefined' ? window.location.host : ''}/api/import/ws?requestId=${encodeURIComponent(r)}&token=${encodeURIComponent(authToken)}`;
+    const es = new WebSocket(url);
+    try { (window as any).__wsActive = true; } catch {}
+    es.addEventListener("open", () => { setMessage(null); });
+    es.addEventListener("message", (ev: MessageEvent) => {
       try {
-        const arr = JSON.parse(ev.data);
-        if (Array.isArray(arr)) {
-          const latest = arr.slice(Math.max(0, arr.length - 30));
+        const msg = JSON.parse(String(ev.data || ""));
+        const { event, data } = msg || {};
+        if (event === "logs" && Array.isArray(data)) {
+          const latest = data.slice(Math.max(0, data.length - 30));
           setLogs(latest);
-        }
-      } catch {}
-    });
-    es.addEventListener("history", (ev: MessageEvent) => {
-      try { const arr = JSON.parse(ev.data); if (Array.isArray(arr)) setHistory(arr); } catch {}
-    });
-    es.addEventListener("counts", (ev: MessageEvent) => {
-      try {
-        const obj = JSON.parse(ev.data);
-        if (obj && typeof obj.processed === 'number') {
+        } else if (event === "history" && Array.isArray(data)) {
+          setHistory(data);
+        } else if (event === "counts" && data && typeof data.processed === 'number') {
+          const obj = data as { processed: number; successCount: number; errorCount: number };
           setCounts({ processed: obj.processed || 0, successCount: obj.successCount || 0, errorCount: obj.errorCount || 0 });
           const totalKey = `importTotal:${r}`;
           const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
@@ -55,43 +91,76 @@ export default function ImportPage() {
             try { localStorage.removeItem("importRequestId"); } catch {}
             try { localStorage.removeItem("importSource"); } catch {}
             try { localStorage.removeItem(totalKey); } catch {}
-            if (evt) { try { evt.close(); } catch {} setEvt(null); }
+            if (evt) { try { (evt as WebSocket).close(); } catch {} setEvt(null); }
             if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
             setRid(null);
             setMessage(`已完成：成功 ${obj.successCount || 0}，失败 ${obj.errorCount || 0}`);
           }
+        } else if (event === "error") {
+          setMessage(`WS 错误：${(data && data.message) || "未知"}`);
         }
       } catch {}
+    });
+    es.addEventListener("close", (ev: CloseEvent) => {
+      setEvt(null);
+      setMessage(`实时通道关闭，已停止更新 (code=${ev.code}${ev.reason ? ", reason="+ev.reason : ""})`);
+      try { 
+        const until = String(Date.now() + 10 * 60 * 1000);
+        localStorage.setItem("wsStopUntil", until);
+      } catch {}
+      try { (window as any).__wsActive = false; } catch {}
+      if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
     });
     setEvt(es);
     if (process.env.NEXT_PUBLIC_ENABLE_CLIENT_RUNNER === "1") {
       if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
       const src = storedSrc || importType;
-      (async()=>{ 
-        try { 
+      let failures = 0;
+      if (runnerStopUntil > Date.now()) {
+        setMessage("Runner 轮询已暂停，稍后再试");
+        return;
+      }
+      const authToken = token || process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+      if (!authToken) {
+        setMessage("未登录且未配置客户端RUNNER_TOKEN，已停止轮询");
+        return;
+      }
+      const ping = async () => {
+        try {
           const controller = new AbortController();
           const timer = setTimeout(()=>controller.abort(), 5000);
-          const r = await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true, signal: controller.signal }); 
+          const runnerUrl = `/api/import/runner?source=${encodeURIComponent(src)}&token=${encodeURIComponent(authToken)}`;
+          const r = await fetch(runnerUrl, { method: "POST", headers: { Authorization: `Bearer ${authToken}` }, redirect: 'manual', cache: 'no-store', signal: controller.signal });
           clearTimeout(timer);
           if (!r.ok) {
-            if (r.status === 401) setMessage("Runner 未授权，已停止轮询");
-            return;
+            if (r.status === 401) {
+              clearInterval(rid2);
+              setRunnerPing(null);
+              setMessage("Runner 未授权，已停止轮询");
+              setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
+            } else {
+              failures++;
+              if (failures >= 3) {
+                clearInterval(rid2);
+                setRunnerPing(null);
+                setMessage("Runner 异常，已停止轮询");
+                setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
+              }
+            }
           }
-        } catch {}
-      })();
-      const rid2 = setInterval(async () => {
-        try { 
-          const controller = new AbortController();
-          const timer = setTimeout(()=>controller.abort(), 5000);
-          const r = await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true, signal: controller.signal }); 
-          clearTimeout(timer);
-          if (!r.ok) {
-            if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
-            if (r.status === 401) setMessage("Runner 未授权，已停止轮询");
+        } catch {
+          failures++;
+          if (failures >= 3) {
+            clearInterval(rid2);
+            setRunnerPing(null);
+            setMessage("Runner 网络异常，已停止轮询");
+            setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
           }
-        } catch {}
-      }, 10000);
+        }
+      };
+      const rid2 = setInterval(ping, 10000);
       setRunnerPing(rid2);
+      ping();
     }
   }, [evt, importType, runnerPing, setEvt, setRid, setRunnerPing, token]);
 
@@ -136,26 +205,52 @@ export default function ImportPage() {
         if (process.env.NEXT_PUBLIC_ENABLE_CLIENT_RUNNER === "1") {
           if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
           const src = importType;
-          try { 
-            const controller = new AbortController();
-            const timer = setTimeout(()=>controller.abort(), 5000);
-            const r = await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true, signal: controller.signal });
-            clearTimeout(timer);
-            if (!r.ok && r.status === 401) setMessage("Runner 未授权，已停止轮询");
-          } catch {}
-          const rid = setInterval(async () => {
-            try { 
+          let failures = 0;
+          if (runnerStopUntil > Date.now()) {
+            setMessage("Runner 轮询已暂停，稍后再试");
+            return;
+          }
+          const authToken = token || process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+          if (!authToken) {
+            setMessage("未登录且未配置客户端RUNNER_TOKEN，已停止轮询");
+            return;
+          }
+          const ping = async () => {
+            try {
               const controller = new AbortController();
               const timer = setTimeout(()=>controller.abort(), 5000);
-              const r = await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true, signal: controller.signal }); 
+              const runnerUrl = `/api/import/runner?source=${encodeURIComponent(src)}&token=${encodeURIComponent(authToken)}`;
+              const r = await fetch(runnerUrl, { method: "POST", headers: { Authorization: `Bearer ${authToken}` }, redirect: 'manual', cache: 'no-store', signal: controller.signal });
               clearTimeout(timer);
               if (!r.ok) {
-                if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
-                if (r.status === 401) setMessage("Runner 未授权，已停止轮询");
+                if (r.status === 401) {
+                  clearInterval(rid);
+                  setRunnerPing(null);
+                  setMessage("Runner 未授权，已停止轮询");
+                  setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
+                } else {
+                  failures++;
+                  if (failures >= 3) {
+                    clearInterval(rid);
+                    setRunnerPing(null);
+                    setMessage("Runner 异常，已停止轮询");
+                    setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
+                  }
+                }
               }
-            } catch {}
-          }, 10000);
+            } catch {
+              failures++;
+              if (failures >= 3) {
+                clearInterval(rid);
+                setRunnerPing(null);
+                setMessage("Runner 网络异常，已停止轮询");
+                setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
+              }
+            }
+          };
+          const rid = setInterval(ping, 10000);
           setRunnerPing(rid);
+          ping();
         }
       }
     } catch (err: unknown) {
@@ -190,6 +285,13 @@ export default function ImportPage() {
         const isShopify = params.get("isShopify");
         if (url) setShopifyBaseUrl(url);
         if (isShopify === "0") setShopifyAllowed(false);
+        try {
+          const envBase = process.env.NEXT_PUBLIC_BASE_URL || "";
+          const envProdInput = process.env.NEXT_PUBLIC_PRODUCT_INPUT || "";
+          if (envBase) setSourceUrl(envBase);
+          if (envProdInput) setProductLinks(envProdInput);
+          setImportType("wordpress");
+        } catch {}
       }
     }
     (async () => {
@@ -203,6 +305,7 @@ export default function ImportPage() {
       } catch {}
     })();
   }, [page]);
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -252,6 +355,7 @@ export default function ImportPage() {
       window.removeEventListener("keydown", onKey);
       if (evt) { try { evt.close(); } catch {} }
       if (runnerPing) clearInterval(runnerPing);
+      try { (window as any).__wsActive = false; } catch {}
     };
   }, [evt, runnerPing]);
 
