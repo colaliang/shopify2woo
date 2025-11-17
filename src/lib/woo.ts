@@ -91,16 +91,42 @@ async function wooFetch(
       console.error(`请求日志记录失败: ${logError}`);
     }
     
+    const timeoutMs = parseInt(process.env.WOO_FETCH_TIMEOUT_MS || "20000", 10) || 20000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     type UndiciRequestInit = RequestInit & { dispatcher?: unknown };
-    const res = await fetch(apiUrl.toString(), {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers || {}),
-      },
-      // `dispatcher` 为 undici 的扩展选项，这里做类型兼容处理
-      ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}),
-    });
+    let res: Response;
+    try {
+      res = await fetch(apiUrl.toString(), {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers || {}),
+        },
+        ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      try {
+        const errorLogData = {
+          ts: new Date().toISOString(),
+          level: "ERROR",
+          event: "wp_request_network_error",
+          method: init?.method || "GET",
+          url: redact(apiUrl.toString()),
+          retryAttempt: i,
+          error: (err as Error)?.message || String(err),
+        };
+        console.error(JSON.stringify(errorLogData));
+      } catch {}
+      if (i < retry) {
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+    clearTimeout(timer);
     const ct = res.headers.get("content-type") || "";
     const ms = Date.now() - started;
     

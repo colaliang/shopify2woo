@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseServer, getUserIdFromToken } from "@/lib/supabaseServer";
+import { getUserIdFromToken } from "@/lib/supabaseServer";
 import { appendLog } from "@/lib/logs";
 import { pgmqQueueName, pgmqRead, pgmqDelete, pgmqSetVt } from "@/lib/pgmq";
 
@@ -15,17 +15,10 @@ export async function POST(req: Request) {
     if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
     await appendLog(userId, requestId, "info", "canceled by user");
     let removed = 0;
-    const supabase = getSupabaseServer();
-    if (process.env.USE_PGMQ === "1" && supabase) {
-      const { data: jobRow } = await supabase
-        .from("import_jobs")
-        .select("source")
-        .eq("request_id", requestId)
-        .limit(1)
-        .maybeSingle();
-      const source = jobRow?.source || "";
-      if (source) {
-        const queue = pgmqQueueName(source);
+    if (process.env.USE_PGMQ === "1") {
+      const sources = ["shopify", "wordpress", "wix"];
+      for (const s of sources) {
+        const queue = pgmqQueueName(s);
         for (let i = 0; i < 50; i++) {
           const rows = await pgmqRead(queue, 10, 100).catch(() => [] as { msg_id: number; message: unknown }[]);
           if (!rows || rows.length === 0) break;
@@ -45,13 +38,8 @@ export async function POST(req: Request) {
           }
           if (rows.length < 100) break;
         }
-        try {
-          // 触发一次 runner 清扫，使处于不可见窗口的消息尽快被读取并因 canceled 状态被删除
-          const origin = process.env.NEXT_PUBLIC_APP_URL || "";
-          const url = origin ? `${origin}/api/import/runner?source=${encodeURIComponent(source)}` : `/api/import/runner?source=${encodeURIComponent(source)}`;
-          await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(()=>{});
-        } catch {}
       }
+      
     }
     return NextResponse.json({ ok: true, removed });
   } catch (e: unknown) {

@@ -67,9 +67,29 @@ export default function ImportPage() {
     if (process.env.NEXT_PUBLIC_ENABLE_CLIENT_RUNNER === "1") {
       if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
       const src = storedSrc || importType;
-      (async()=>{ try { await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true }); } catch {} })();
+      (async()=>{ 
+        try { 
+          const controller = new AbortController();
+          const timer = setTimeout(()=>controller.abort(), 5000);
+          const r = await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true, signal: controller.signal }); 
+          clearTimeout(timer);
+          if (!r.ok) {
+            if (r.status === 401) setMessage("Runner 未授权，已停止轮询");
+            return;
+          }
+        } catch {}
+      })();
       const rid2 = setInterval(async () => {
-        try { await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true }); } catch {}
+        try { 
+          const controller = new AbortController();
+          const timer = setTimeout(()=>controller.abort(), 5000);
+          const r = await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true, signal: controller.signal }); 
+          clearTimeout(timer);
+          if (!r.ok) {
+            if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+            if (r.status === 401) setMessage("Runner 未授权，已停止轮询");
+          }
+        } catch {}
       }, 10000);
       setRunnerPing(rid2);
     }
@@ -116,9 +136,24 @@ export default function ImportPage() {
         if (process.env.NEXT_PUBLIC_ENABLE_CLIENT_RUNNER === "1") {
           if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
           const src = importType;
-          try { await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true }); } catch {}
+          try { 
+            const controller = new AbortController();
+            const timer = setTimeout(()=>controller.abort(), 5000);
+            const r = await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true, signal: controller.signal });
+            clearTimeout(timer);
+            if (!r.ok && r.status === 401) setMessage("Runner 未授权，已停止轮询");
+          } catch {}
           const rid = setInterval(async () => {
-            try { await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true }); } catch {}
+            try { 
+              const controller = new AbortController();
+              const timer = setTimeout(()=>controller.abort(), 5000);
+              const r = await fetch(`/api/import/runner?source=${encodeURIComponent(src)}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'manual', cache: 'no-store', keepalive: true, signal: controller.signal }); 
+              clearTimeout(timer);
+              if (!r.ok) {
+                if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+                if (r.status === 401) setMessage("Runner 未授权，已停止轮询");
+              }
+            } catch {}
           }, 10000);
           setRunnerPing(rid);
         }

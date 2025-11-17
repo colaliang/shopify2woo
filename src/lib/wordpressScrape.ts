@@ -45,9 +45,13 @@ const defaultHeaders = {
 
 export async function fetchHtml(url: string) {
   let lastErr: unknown;
+  const timeoutMs = parseInt(process.env.SCRAPE_FETCH_TIMEOUT_MS || "15000", 10) || 15000;
   for (let i = 0; i < 3; i++) {
     try {
-      const res = await fetch(url, { headers: defaultHeaders });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(url, { headers: defaultHeaders, signal: controller.signal, redirect: "follow" });
+      clearTimeout(timer);
       if (res.status === 404) throw new Error(`无法获取页面 404`);
       if (!res.ok) throw new Error(`无法获取页面 ${res.status}`);
       return await res.text();
@@ -61,15 +65,16 @@ export async function fetchHtml(url: string) {
 
 export async function fetchHtmlMeta(url: string) {
   let lastErr: unknown;
+  const timeoutMs = parseInt(process.env.SCRAPE_FETCH_TIMEOUT_MS || "15000", 10) || 15000;
   for (let i = 0; i < 3; i++) {
     try {
-      const res = await fetch(url, { headers: defaultHeaders, redirect: "follow" });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(url, { headers: defaultHeaders, redirect: "follow", signal: controller.signal });
+      clearTimeout(timer);
       const text = await res.text();
       const finalUrl = res.url || url;
-      
-      // 检测网址不匹配：如果最终URL与原始URL不同，说明发生了重定向
       const urlMismatch = finalUrl !== url;
-      
       return { 
         html: text, 
         status: res.status, 
@@ -303,14 +308,20 @@ export async function discoverProductLinksFromSitemaps(base: string) {
   const links: string[] = [];
   for (const u of urls) {
     try {
-      const res = await fetch(new URL(u, base.replace(/\/$/, "")).toString());
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), parseInt(process.env.SCRAPE_FETCH_TIMEOUT_MS || "15000", 10) || 15000);
+      const res = await fetch(new URL(u, base.replace(/\/$/, "")).toString(), { signal: controller.signal });
+      clearTimeout(timer);
       if (!res.ok) continue;
       const xml = await res.text();
       const locs = Array.from(xml.matchAll(/<loc>([\s\S]*?)<\/loc>/gi)).map((m) => m[1].trim());
       for (const loc of locs) {
         if (/\.xml(\?.*)?$/i.test(loc)) {
           try {
-            const r = await fetch(loc);
+            const controller2 = new AbortController();
+            const timer2 = setTimeout(() => controller2.abort(), parseInt(process.env.SCRAPE_FETCH_TIMEOUT_MS || "15000", 10) || 15000);
+            const r = await fetch(loc, { signal: controller2.signal });
+            clearTimeout(timer2);
             if (!r.ok) continue;
             const child = await r.text();
             const childLocs = Array.from(child.matchAll(/<loc>([\s\S]*?)<\/loc>/gi)).map((m) => m[1].trim());

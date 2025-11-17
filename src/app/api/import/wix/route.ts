@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer, getUserIdFromToken, readLocalConfig } from "@/lib/supabaseServer";
-import { ensureTerms, findProductBySkuOrSlug, wooPost, wooPut } from "@/lib/woo";
-import { fetchHtml } from "@/lib/wordpressScrape";
-import { buildWixPayload, discoverWixProductLinks } from "@/lib/wixScrape";
+import { discoverWixProductLinks } from "@/lib/wixScrape";
 import { normalizeWpSlugOrLink } from "@/lib/wordpress";
-// import-jobs 相关逻辑已移除
-import { recordResult } from "@/lib/history";
+ 
 import { appendLog } from "@/lib/logs";
 import { pgmqQueueName, pgmqSendBatch } from "@/lib/pgmq";
 
-interface WixImportParams {
-  sourceUrl: string;
-  links: string[];
-}
+ 
 
 
 export const runtime = "nodejs";
@@ -52,7 +46,7 @@ export async function POST(req: Request) {
     }
     if (!wordpressUrl || !consumerKey || !consumerSecret) return NextResponse.json({ error: "目标站 Woo 配置未设置" }, { status: 400 });
 
-    const dstCfg = { url: wordpressUrl, consumerKey, consumerSecret };
+    
     const maxCap = typeof cap === "number" && cap > 0 ? Math.min(cap, 5000) : 1000;
     const requestId = Math.random().toString(36).slice(2, 10);
 
@@ -70,157 +64,16 @@ export async function POST(req: Request) {
       jobTotal = links.length;
     }
 
-    const supabase = getSupabaseServer();
-    if (supabase) {
-      if (process.env.USE_PGMQ === "1") {
-        await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "wix", total: jobTotal, processed: 0, success_count: 0, error_count: 0, status: "queued" }, { onConflict: "request_id" });
-        const q = pgmqQueueName("wix");
-        const items = (mode === "all" ? discovered : links).map((l) => ({ userId, requestId, source: "wix", link: l, sourceUrl }));
-        const chunk = 300;
-        for (let i = 0; i < items.length; i += chunk) {
-          await pgmqSendBatch(q, items.slice(i, i + chunk));
-        }
-        await appendLog(userId, requestId, "info", `pgmq queued ${jobTotal} links from ${sourceUrl}`);
-        return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
-      } else {
-        const params: WixImportParams = { sourceUrl, links: mode === "all" ? discovered : links };
-        await supabase.from("import_jobs").upsert({ request_id: requestId, user_id: userId, source: "wix", total: jobTotal, processed: 0, success_count: 0, error_count: 0, status: "queued", params }, { onConflict: "request_id" });
-        await appendLog(userId, requestId, "info", mode === "all" ? `queued ${jobTotal} links from ${sourceUrl}` : `queued ${jobTotal} links by request`);
-        return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
-      }
+    const q = pgmqQueueName("wix");
+    const items = (mode === "all" ? discovered : links).map((l) => ({ userId, requestId, source: "wix", link: l, sourceUrl }));
+    const chunk = 300;
+    for (let i = 0; i < items.length; i += chunk) {
+      await pgmqSendBatch(q, items.slice(i, i + chunk));
     }
-
-    await createJob(userId, "wix", requestId, jobTotal);
-    await appendLog(userId, requestId, "info", mode === "all" ? `discover ${jobTotal} links from ${sourceUrl}` : `links ${jobTotal}`);
-
-    setTimeout(async () => {
-      try {
-        const results: Array<{ slug?: string; id?: number; name?: string; error?: string }> = [];
-        const sourceProducts: Array<{ slug: string; payload: Record<string, unknown>; categories: string[]; tags: string[] }> = [];
-        const iterate = mode === "all" ? discovered : links;
-        for (const link of iterate) {
-          try {
-            const html = await fetchHtml(link);
-            const mapped = buildWixPayload(link, html);
-            const slug = normalizeWpSlugOrLink(link);
-            const payload = mapped.payload as { images?: unknown[]; attributes?: unknown[]; description?: string };
-            await appendLog(userId, requestId, "info", `parsed ${link} imgs=${(payload?.images || []).length} attrs=${(payload?.attributes || []).length} desc=${(payload?.description || "").length}`);
-            sourceProducts.push({ slug, payload, categories: mapped.categories, tags: mapped.tags });
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            results.push({ slug: normalizeWpSlugOrLink(link), error: msg });
-            await appendLog(userId, requestId, "error", `parse failed ${link}: ${msg}`);
-            await updateJob(userId, requestId, { processed: 1, error: 1 });
-          }
-        }
-
-        for (const p of sourceProducts) {
-          try {
-            const catTerms = await ensureTerms(dstCfg, "category", p.categories);
-            const tagTerms = await ensureTerms(dstCfg, "tag", p.tags);
-            const payload = { ...p.payload, categories: catTerms, tags: tagTerms };
-            const existing = await findProductBySkuOrSlug(dstCfg, undefined, p.slug);
-            let saved: { id?: number; name?: string } = {};
-            if (existing?.id) {
-              const resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
-              const ct = resp.headers.get("content-type") || "";
-              if (!resp.ok || !ct.includes("application/json")) {
-                const txt = await resp.text();
-                await appendLog(userId, requestId, "error", `wooPut failed id=${existing.id} status=${resp.status} content-type=${ct} body=${txt.slice(0,300)}`);
-                results.push({ slug: p.slug, error: `wooPut ${resp.status}` });
-                await updateJob(userId, requestId, { processed: 1, error: 1 });
-                continue;
-              }
-              try { saved = await resp.json(); } catch {}
-            } else {
-              const resp = await wooPost(dstCfg, "wp-json/wc/v3/products", { ...payload, slug: p.slug });
-              const ct = resp.headers.get("content-type") || "";
-              if (!resp.ok || !ct.includes("application/json")) {
-                const txt = await resp.text();
-                await appendLog(userId, requestId, "error", `wooPost failed slug=${p.slug} status=${resp.status} content-type=${ct} body=${txt.slice(0,300)}`);
-                results.push({ slug: p.slug, error: `wooPost ${resp.status}` });
-                await updateJob(userId, requestId, { processed: 1, error: 1 });
-                continue;
-              }
-              try { saved = await resp.json(); } catch {}
-            }
-            await appendLog(userId, requestId, "info", `saved product id=${saved?.id} name=${saved?.name}`);
-            await updateJob(userId, requestId, { processed: 1, success: 1 });
-            await recordResult(userId, "wix", requestId, p.slug, saved?.name, saved?.id, "success");
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            results.push({ slug: p.slug, error: msg });
-            await appendLog(userId, requestId, "error", `save failed slug=${p.slug} error=${msg}`);
-            await updateJob(userId, requestId, { processed: 1, error: 1 });
-          }
-        }
-
-        await finishJob(userId, requestId, "done");
-        await appendLog(userId, requestId, "info", `finish import total=${sourceProducts.length}`);
-      } catch (e: unknown) {
-        await appendLog(userId, requestId, "error", `job failed ${e instanceof Error ? e.message : String(e)}`);
-        await finishJob(userId, requestId, "done");
-      }
-    }, 0);
-
+    await appendLog(userId, requestId, "info", `pgmq queued ${jobTotal} links from ${sourceUrl}`);
     return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
     return NextResponse.json({ error: msg }, { status: 500 });
-  }
-}
-async function createJob(userId: string, source: string, requestId: string, total: number) {
-  const supabase = getSupabaseServer();
-  if (!supabase) return;
-  try {
-    await supabase
-      .from("import_jobs")
-      .upsert({ 
-        request_id: requestId, 
-        user_id: userId, 
-        source, 
-        total, 
-        processed: 0, 
-        success_count: 0, 
-        error_count: 0, 
-        status: "running",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, { onConflict: "request_id" });
-  } catch (e) {
-    console.error("createJob failed:", e);
-  }
-}
-
-async function updateJob(userId: string, requestId: string, stats: { processed?: number; success?: number; error?: number }) {
-  const supabase = getSupabaseServer();
-  if (!supabase) return;
-  try {
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (stats.processed !== undefined) updates.processed = stats.processed;
-    if (stats.success !== undefined) updates.success_count = stats.success;
-    if (stats.error !== undefined) updates.error_count = stats.error;
-    
-    await supabase
-      .from("import_jobs")
-      .update(updates)
-      .eq("request_id", requestId)
-      .eq("user_id", userId);
-  } catch (e) {
-    console.error("updateJob failed:", e);
-  }
-}
-
-async function finishJob(userId: string, requestId: string, status: string) {
-  const supabase = getSupabaseServer();
-  if (!supabase) return;
-  try {
-    await supabase
-      .from("import_jobs")
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq("request_id", requestId)
-      .eq("user_id", userId);
-  } catch (e) {
-    console.error("finishJob failed:", e);
   }
 }

@@ -69,6 +69,18 @@ export async function getUserIdFromToken(token?: string) {
   if (!token) return null;
   const supabase = getSupabaseAnon();
   if (!supabase) return null;
-  const { data } = await supabase.auth.getUser(token);
-  return data.user?.id || null;
+  const ms = parseInt(process.env.SUPABASE_TIMEOUT_MS || "5000", 10) || 5000;
+  try {
+    const { data } = await withTimeout(supabase.auth.getUser(token), ms);
+    return data.user?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
 }

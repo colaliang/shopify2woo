@@ -22,7 +22,11 @@ export type ShopifyProduct = {
 
 export async function fetchProductByHandle(shopifyBase: string, handle: string): Promise<ShopifyProduct | null> {
   const url = new URL(`/products/${handle}.json`, shopifyBase.replace(/\/$/, ""));
-  const res = await fetch(url.toString());
+  const timeoutMs = parseInt(process.env.SHOPIFY_FETCH_TIMEOUT_MS || "10000", 10) || 10000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const res = await fetch(url.toString(), { signal: controller.signal });
+  clearTimeout(timer);
   if (!res.ok) return null;
   const data = await res.json();
   return data?.product || null;
