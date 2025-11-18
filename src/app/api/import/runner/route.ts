@@ -174,14 +174,15 @@ export async function POST(req: Request) {
         const q = pgmqQueueName(s);
         const vt = parseInt(process.env.RUNNER_VT_SECONDS || "60", 10) || 60;
         let msgs = await pgmqRead(qHigh, vt, batchSizeEnv);
-        if (!msgs.length) msgs = await pgmqRead(q, vt, batchSizeEnv);
+        let queueUsed = qHigh;
+        if (!msgs.length) { msgs = await pgmqRead(q, vt, batchSizeEnv); queueUsed = q; }
         picked += msgs.length;
         
         for (const row of msgs) {
           const msg = (row.message || {}) as PgmqMessage;
           const userId = String(msg.userId || "");
           const requestId = String(msg.requestId || "");
-          if (!userId || !requestId) { await pgmqArchive(q, row.msg_id).catch(()=>{}); continue; }
+          if (!userId || !requestId) { await pgmqArchive(queueUsed, row.msg_id).catch(()=>{}); continue; }
           try { await appendLog(userId, requestId, "info", `cfg maxJobs=${maxJobs} batchSize=${batchSizeEnv}`); } catch {}
           try { await appendLog(userId, requestId, "info", `begin source=${s} mid=${row.msg_id}`); } catch {}
           const { data: cfg } = await supabase
@@ -205,12 +206,12 @@ export async function POST(req: Request) {
             const wpUrlObj = new URL(wordpressUrl);
             if (!wpUrlObj.protocol.startsWith('http')) {
               await appendLog(userId, requestId, "error", `WordPress网址协议无效: ${wordpressUrl}`);
-              await pgmqArchive(q, row.msg_id).catch(()=>{});
+              await pgmqArchive(queueUsed, row.msg_id).catch(()=>{});
               continue;
             }
           } catch {
             await appendLog(userId, requestId, "error", `WordPress网址格式无效: ${wordpressUrl}`);
-            await pgmqArchive(q, row.msg_id).catch(()=>{});
+            await pgmqArchive(queueUsed, row.msg_id).catch(()=>{});
             continue;
           }
           const dstCfg = { url: wordpressUrl, consumerKey, consumerSecret };
@@ -425,7 +426,7 @@ export async function POST(req: Request) {
               }
             }
             try {
-            await pgmqDelete(q, row.msg_id);
+            await pgmqDelete(queueUsed, row.msg_id);
             try { await appendLog(userId, requestId, "info", `pgmq delete mid=${row.msg_id}`); } catch {}
           } catch (delErr: unknown) {
               const errorMessage = delErr instanceof Error ? delErr.message : String(delErr || "未知错误");
@@ -454,9 +455,9 @@ export async function POST(req: Request) {
             // 退避与重试：最多3次，指数退避
             const maxRetry = parseInt(process.env.RUNNER_MAX_READ_RETRIES || "3", 10) || 3;
             if ((row.read_ct || 0) + 1 >= maxRetry) {
-              await pgmqArchive(q, row.msg_id).catch(()=>{});
+              await pgmqArchive(queueUsed, row.msg_id).catch(()=>{});
             } else {
-              await pgmqSetVt(q, row.msg_id, vt * Math.min(8, Math.pow(2, (row.read_ct || 0) + 1))).catch(()=>{});
+              await pgmqSetVt(queueUsed, row.msg_id, vt * Math.min(8, Math.pow(2, (row.read_ct || 0) + 1))).catch(()=>{});
             }
           }
             // 只在异常时记录日志，不写入import_results

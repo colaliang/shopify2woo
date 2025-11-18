@@ -1,4 +1,5 @@
 import { getSupabaseServer } from "./supabaseServer";
+import { appendLog } from "./logs";
 
 type Result = {
   requestId: string;
@@ -36,6 +37,10 @@ export async function recordResult(userId: string, source: string, requestId: st
       await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status, error_message: errorMessage });
     } catch {
       await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status });
+    }
+    if (status === "error") {
+      const msg = errorMessage || "unknown_error";
+      await appendLog(userId, requestId, "error", `result error source=${source} item=${itemKey} msg=${msg}`);
     }
     return;
   }

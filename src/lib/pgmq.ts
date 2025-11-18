@@ -3,10 +3,13 @@ import { getSupabaseServer } from "./supabaseServer";
 type PgmqMessage = { msg_id: number; vt: string; read_ct: number; enqueued_at: string; message: unknown };
 
 export function pgmqQueueName(source: string) {
-  if (source === "shopify") return "import_shopify";
-  if (source === "wordpress") return "import_wordpress";
-  if (source === "wix") return "import_wix";
-  return source;
+  const isHigh = source.endsWith("_high");
+  const base = isHigh ? source.replace(/_high$/, "") : source;
+  let mapped = base;
+  if (base === "shopify") mapped = "import_shopify";
+  else if (base === "wordpress") mapped = "import_wordpress";
+  else if (base === "wix") mapped = "import_wix";
+  return isHigh ? `${mapped}_high` : mapped;
 }
 
 export async function pgmqSendBatch(queue: string, messages: unknown[]) {
