@@ -48,7 +48,7 @@ export default function ImportPage() {
     try { (window as any).__rtActive = true; } catch {}
     const ch = supabase
       .channel(`import:${myUid}:${r}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_logs', filter: `user_id=eq.${myUid},request_id=eq.${r}` }, (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_logs', filter: `user_id=eq.${myUid}&request_id=eq.${r}` }, (payload: any) => {
         const row = payload?.new || {};
         const one = { level: row?.level || 'info', message: row?.message || '', createdAt: row?.created_at || new Date().toISOString() };
         setLogs((prev) => {
@@ -56,7 +56,7 @@ export default function ImportPage() {
           return arr.slice(Math.max(0, arr.length - 29));
         });
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid},request_id=eq.${r}` }, (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}&request_id=eq.${r}` }, (payload: any) => {
         const row = payload?.new || {};
         const item = { requestId: r, source: row?.source || '', itemKey: row?.item_key || '', name: row?.name || '', productId: row?.product_id, createdAt: row?.created_at || new Date().toISOString() };
         setHistory((prev) => {
