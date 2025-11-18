@@ -184,14 +184,14 @@ export async function POST(req: Request) {
           const requestId = String(msg.requestId || "");
           if (!userId || !requestId) { await pgmqArchive(queueUsed, row.msg_id).catch(()=>{}); continue; }
           try { await appendLog(userId, requestId, "info", `cfg maxJobs=${maxJobs} batchSize=${batchSizeEnv}`); } catch {}
-          try { await appendLog(userId, requestId, "info", `begin source=${s} mid=${row.msg_id}`); } catch {}
+          try { await appendLog(userId, requestId, "info", `begin source=${s} mid=${row.msg_id} queue=${queueUsed} read_ct=${row.read_ct||0}`); } catch {}
           const { data: cfg } = await supabase
             .from("user_configs")
             .select("wordpress_url, consumer_key, consumer_secret")
             .eq("user_id", userId)
             .limit(1)
             .maybeSingle();
-          try { await appendLog(userId, requestId, "info", `queue=${q} vt=${vt} msg_id=${row.msg_id} read_ct=${row.read_ct||0} wpUrl=${(cfg?.wordpress_url)?"set":"empty"} key=${(cfg?.consumer_key)?"set":"empty"} secret=${(cfg?.consumer_secret)?"set":"empty"}`); } catch {}
+          try { await appendLog(userId, requestId, "info", `queue=${queueUsed} vt=${vt} msg_id=${row.msg_id} read_ct=${row.read_ct||0} wpUrl=${(cfg?.wordpress_url)?"set":"empty"} key=${(cfg?.consumer_key)?"set":"empty"} secret=${(cfg?.consumer_secret)?"set":"empty"}`); } catch {}
           const wordpressUrl = cfg?.wordpress_url || "";
           const consumerKey = cfg?.consumer_key || "";
           const consumerSecret = cfg?.consumer_secret || "";
@@ -214,6 +214,7 @@ export async function POST(req: Request) {
             await pgmqArchive(queueUsed, row.msg_id).catch(()=>{});
             continue;
           }
+          await appendLog(userId, requestId, "info", `WordPress网址验证通过: ${wordpressUrl}`);
           const dstCfg = { url: wordpressUrl, consumerKey, consumerSecret };
           try {
             if (s === "shopify") {
@@ -431,12 +432,13 @@ export async function POST(req: Request) {
           } catch (delErr: unknown) {
               const errorMessage = delErr instanceof Error ? delErr.message : String(delErr || "未知错误");
               try { await appendLog(userId, requestId, "error", `pgmqDelete failed mid=${row.msg_id} err=${errorMessage}`); } catch {}
-              try { await pgmqArchive(q, row.msg_id); } catch {}
+              try { await pgmqArchive(queueUsed, row.msg_id); await appendLog(userId, requestId, "error", `pgmq archived mid=${row.msg_id} after delete failure`); } catch {}
             }
           } catch (e: unknown) {
             const maxRetry = parseInt(process.env.RUNNER_MAX_READ_RETRIES || "5", 10) || 5;
             if ((row.read_ct || 0) + 1 >= maxRetry) {
-              await pgmqArchive(q, row.msg_id).catch(()=>{});
+              await pgmqArchive(queueUsed, row.msg_id).catch(()=>{});
+              try { await appendLog(userId, requestId, "error", `max retry reached mid=${row.msg_id} archived`); } catch {}
               // 在最大重试次数达到时执行事务回滚
               try {
                 const dstCfg = {
@@ -457,7 +459,9 @@ export async function POST(req: Request) {
             if ((row.read_ct || 0) + 1 >= maxRetry) {
               await pgmqArchive(queueUsed, row.msg_id).catch(()=>{});
             } else {
-              await pgmqSetVt(queueUsed, row.msg_id, vt * Math.min(8, Math.pow(2, (row.read_ct || 0) + 1))).catch(()=>{});
+              const newVt = vt * Math.min(8, Math.pow(2, (row.read_ct || 0) + 1));
+              await pgmqSetVt(queueUsed, row.msg_id, newVt).catch(()=>{});
+              try { await appendLog(userId, requestId, "error", `retry scheduled mid=${row.msg_id} new_vt=${newVt}`); } catch {}
             }
           }
             // 只在异常时记录日志，不写入import_results
