@@ -47,6 +47,10 @@ export async function recordResult(userId: string, source: string, requestId: st
   const arr = readLocal();
   arr.push({ userId, requestId, source, itemKey, name, productId, status, createdAt: now });
   writeLocal(arr);
+  if (status === "error") {
+    const msg = errorMessage || "unknown_error";
+    try { await appendLog(userId, requestId, "error", `result error source=${source} item=${itemKey} msg=${msg}`); } catch {}
+  }
 }
 
 export async function listResults(userId: string, page = 1, pageSize = 20) {

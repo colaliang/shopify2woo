@@ -221,8 +221,18 @@ export async function POST(req: Request) {
               const categories: string[] = Array.isArray(msg.categories) ? msg.categories : [];
               const tags: string[] = Array.isArray(msg.tags) ? msg.tags : [];
               await appendLog(userId, requestId, "info", `开始处理Shopify产品 handle=${String(msg.handle||"")} 分类=${categories.length} 标签=${tags.length}`);
-              const catTerms = await ensureTermsCached(dstCfg, "category", categories, requestId);
-              const tagTerms = await ensureTermsCached(dstCfg, "tag", tags, requestId);
+              let catTerms: any = [];
+              let tagTerms: any = [];
+              try {
+                catTerms = await ensureTermsCached(dstCfg, "category", categories, requestId);
+                tagTerms = await ensureTermsCached(dstCfg, "tag", tags, requestId);
+                await appendLog(userId, requestId, "info", `准备分类与标签术语完成 handle=${String(msg.handle||"")}`);
+              } catch (e) {
+                const emsg = e instanceof Error ? e.message : String(e || "术语准备失败");
+                await appendLog(userId, requestId, "error", `术语准备失败 handle=${String(msg.handle||"")} err=${emsg}`);
+                await recordResult(userId, "shopify", requestId, String(msg.handle||""), undefined, undefined, "error", emsg);
+                continue;
+              }
               await appendLog(userId, requestId, "info", `已准备分类和标签术语 handle=${String(msg.handle||"")}`);
               const product = await fetchProductByHandle(String(msg.shopifyBaseUrl || ""), String(msg.handle || ""));
               if (!product) {
@@ -235,7 +245,15 @@ export async function POST(req: Request) {
                 payload.categories = catTerms;
                 payload.tags = tagTerms;
                 await appendLog(userId, requestId, "info", `构建WooCommerce产品数据完成 handle=${String(product.handle||"")}`);
-                const existing = await findProductCached(dstCfg, undefined, product.handle, requestId);
+                let existing: WooProduct | null = null;
+                try {
+                  existing = await findProductCached(dstCfg, undefined, product.handle, requestId);
+                } catch (e) {
+                  const emsg = e instanceof Error ? e.message : String(e || "检查现有产品失败");
+                  await appendLog(userId, requestId, "error", `检查现有产品失败 handle=${String(msg.handle||"")} err=${emsg}`);
+                  await recordResult(userId, "shopify", requestId, String(msg.handle||""), undefined, undefined, "error", emsg);
+                  continue;
+                }
                 await appendLog(userId, requestId, "info", `检查现有产品完成 handle=${String(product.handle||"")} 现有ID=${existing?.id || "无"}`);
                 let resp: Response;
                 
@@ -307,6 +325,21 @@ export async function POST(req: Request) {
               await appendLog(userId, requestId, "info", `开始处理WordPress产品 link=${link}`);
               const meta = await fetchHtmlMeta(link);
               const html = meta.html;
+              await appendLog(userId, requestId, "info", `HTTP状态=${meta.status} CT=${meta.contentType}`);
+              if (meta.status >= 400) {
+                const emsg = `获取页面失败 HTTP ${meta.status}`;
+                await appendLog(userId, requestId, "error", `${emsg} link=${link}`);
+                const slugFail = normalizeWpSlugOrLink(link);
+                await recordResult(userId, "wordpress", requestId, slugFail, undefined, undefined, "error", emsg);
+                continue;
+              }
+              if (!meta.contentType.includes("text/html")) {
+                const emsg = `页面类型非HTML: ${meta.contentType}`;
+                await appendLog(userId, requestId, "error", `${emsg} link=${link}`);
+                const slugFail = normalizeWpSlugOrLink(link);
+                await recordResult(userId, "wordpress", requestId, slugFail, undefined, undefined, "error", emsg);
+                continue;
+              }
               
               // 检测并记录网址不匹配
               if (meta.urlMismatch && meta.finalUrl !== link) {
@@ -314,6 +347,13 @@ export async function POST(req: Request) {
               }
               
               await appendLog(userId, requestId, "info", `获取HTML内容完成 link=${link} 长度=${html.length}`);
+              if (!html || html.length < 512) {
+                const emsg = `HTML内容过短，疑似防护或重定向，长度=${html.length}`;
+                await appendLog(userId, requestId, "error", `${emsg} link=${link}`);
+                const slugFail = normalizeWpSlugOrLink(link);
+                await recordResult(userId, "wordpress", requestId, slugFail, undefined, undefined, "error", emsg);
+                continue;
+              }
               const ld = extractJsonLdProduct(html);
               await appendLog(userId, requestId, "info", `提取JSON-LD数据完成 link=${link} 产品名称=${ld?.name || "无"}`);
               let vars = extractProductVariations(html);
@@ -348,13 +388,28 @@ export async function POST(req: Request) {
               await appendLog(userId, requestId, "info", `提取描述完成 link=${link} 描述长度=${descHtml?.length || 0}`);
               const payload: WordPressProductPayload = { name: ld?.name || slug, slug, sku, description: descHtml || "", short_description: descHtml || "", images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
               await appendLog(userId, requestId, "info", `构建产品数据完成 link=${link} 名称=${payload.name}`);
-              const catTerms = await ensureTermsCached(dstCfg, "category", allCats, requestId);
-              const tagTerms = await ensureTermsCached(dstCfg, "tag", tags, requestId);
-              await appendLog(userId, requestId, "info", `准备分类和标签术语完成 link=${link}`);
-              payload.categories = catTerms;
-              payload.tags = tagTerms;
-              const existing = await findProductCached(dstCfg, sku, slug, requestId);
-              await appendLog(userId, requestId, "info", `检查现有产品完成 link=${link} 现有ID=${existing?.id || "无"}`);
+              try {
+                const catTerms = await ensureTermsCached(dstCfg, "category", allCats, requestId);
+                const tagTerms = await ensureTermsCached(dstCfg, "tag", tags, requestId);
+                await appendLog(userId, requestId, "info", `准备分类和标签术语完成 link=${link}`);
+                payload.categories = catTerms;
+                payload.tags = tagTerms;
+              } catch (e) {
+                const emsg = e instanceof Error ? e.message : String(e || "术语准备失败");
+                await appendLog(userId, requestId, "error", `术语准备失败 link=${link} err=${emsg}`);
+                await recordResult(userId, "wordpress", requestId, slug, payload?.name, undefined, "error", emsg);
+                continue;
+              }
+              let existing: WooProduct | null = null;
+              try {
+                existing = await findProductCached(dstCfg, sku, slug, requestId);
+                await appendLog(userId, requestId, "info", `检查现有产品完成 link=${link} 现有ID=${existing?.id || "无"}`);
+              } catch (e) {
+                const emsg = e instanceof Error ? e.message : String(e || "检查现有产品失败");
+                await appendLog(userId, requestId, "error", `检查现有产品失败 link=${link} err=${emsg}`);
+                await recordResult(userId, "wordpress", requestId, slug, payload?.name, undefined, "error", emsg);
+                continue;
+              }
               let resp: Response;
               if (existing) {
                 await appendLog(userId, requestId, "info", `开始更新现有产品 link=${link} ID=${existing.id}`);
@@ -449,6 +504,11 @@ export async function POST(req: Request) {
                 await rollbackTransaction(requestId, dstCfg);
                 const errorMessage = e instanceof Error ? e.message : String(e || "未知错误");
                 await appendLog(userId, requestId, "error", `获取原始产品数据失败: ${errorMessage}`);
+                try {
+                  const itemKeyRaw = String((msg && (msg.handle || msg.link)) || "");
+                  const itemKey = itemKeyRaw ? normalizeWpSlugOrLink(itemKeyRaw) : itemKeyRaw;
+                  await recordResult(userId, s, requestId, itemKey, undefined, undefined, "error", errorMessage);
+                } catch {}
               } catch (rollbackError: unknown) {
                 const rollbackErrorMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError || "未知错误");
                 await appendLog(userId, requestId, "error", `事务回滚失败: ${rollbackErrorMessage}`);

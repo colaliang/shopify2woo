@@ -14,7 +14,7 @@ export default function ImportPage() {
   const [token, setToken] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [rid, setRid] = useState<string | null>(null);
-  const [history, setHistory] = useState<Array<{ requestId: string; source: string; itemKey: string; name?: string; productId?: number; createdAt: string }>>([]);
+  const [history, setHistory] = useState<Array<{ requestId: string; source: string; itemKey: string; name?: string; status?: string; productId?: number; createdAt: string }>>([]);
   const [counts, setCounts] = useState<{ processed: number; successCount: number; errorCount: number }>({ processed: 0, successCount: 0, errorCount: 0 });
   const [page, setPage] = useState(1);
   const [debugOpen, setDebugOpen] = useState(process.env.NODE_ENV !== "production");
@@ -48,17 +48,19 @@ export default function ImportPage() {
     try { (window as any).__rtActive = true; } catch {}
     const ch = supabase
       .channel(`import:${myUid}:${r}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_logs', filter: `user_id=eq.${myUid}&request_id=eq.${r}` }, (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_logs', filter: `user_id=eq.${myUid}` }, (payload: any) => {
         const row = payload?.new || {};
+        if (String(row?.request_id || '') !== r) return;
         const one = { level: row?.level || 'info', message: row?.message || '', createdAt: row?.created_at || new Date().toISOString() };
         setLogs((prev) => {
           const arr = [...prev, one];
           return arr.slice(Math.max(0, arr.length - 29));
         });
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}&request_id=eq.${r}` }, (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}` }, (payload: any) => {
         const row = payload?.new || {};
-        const item = { requestId: r, source: row?.source || '', itemKey: row?.item_key || '', name: row?.name || '', productId: row?.product_id, createdAt: row?.created_at || new Date().toISOString() };
+        if (String(row?.request_id || '') !== r) return;
+        const item = { requestId: r, source: row?.source || '', itemKey: row?.item_key || '', name: row?.name || '', status: row?.status || '', productId: row?.product_id, createdAt: row?.created_at || new Date().toISOString() };
         setHistory((prev) => {
           const arr = [item, ...prev];
           return arr.slice(0, 50);
@@ -520,12 +522,13 @@ export default function ImportPage() {
         </div>
       </div>
       <div className="mt-6">
-        <h2 className="text-lg font-semibold mb-2">已成功导入记录</h2>
+        <h2 className="text-lg font-semibold mb-2">导入记录</h2>
         <div className="space-y-2">
           {history.map((h) => (
-            <div key={`${h.requestId}-${h.itemKey}`} className="flex justify-between border rounded px-3 py-2">
-              <div className="text-sm">[{h.source}] {h.itemKey} — {h.name || ""}</div>
+            <div key={`${h.requestId}-${h.itemKey}`} className="grid grid-cols-3 gap-2 items-center border rounded px-3 py-2">
               <div className="text-xs text-gray-500">{new Date(h.createdAt).toLocaleString()}</div>
+              <div className="text-sm truncate">{h.name || h.itemKey}</div>
+              <div className={`text-xs justify-self-end ${h.status === 'error' ? 'text-red-600' : 'text-green-600'}`}>{h.status || ''}</div>
             </div>
           ))}
         </div>
