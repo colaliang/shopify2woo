@@ -69,10 +69,19 @@ async function wooFetch(
   const dispatcher = getDispatcherFromEnv();
   const started = Date.now();
   for (let i = 0; i <= retry; i++) {
-    // 使用查询参数进行 WooCommerce API 认证（而不是 Basic Auth）
+    const authMode = (process.env.WOO_AUTH_MODE || "query").toLowerCase();
     const apiUrl = new URL(url.toString());
-    apiUrl.searchParams.set("consumer_key", cfg.consumerKey);
-    apiUrl.searchParams.set("consumer_secret", cfg.consumerSecret);
+    let headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}) as Record<string, string>,
+    };
+    if (authMode === "basic") {
+      const token = Buffer.from(`${cfg.consumerKey}:${cfg.consumerSecret}`).toString("base64");
+      headers["Authorization"] = `Basic ${token}`;
+    } else {
+      apiUrl.searchParams.set("consumer_key", cfg.consumerKey);
+      apiUrl.searchParams.set("consumer_secret", cfg.consumerSecret);
+    }
     
     // 详细的请求日志记录
     try {
@@ -84,7 +93,8 @@ async function wooFetch(
         url: redact(apiUrl.toString()),
         retryAttempt: i,
         bodySize: init?.body ? String(init.body).length : 0,
-        hasDispatcher: !!dispatcher
+        hasDispatcher: !!dispatcher,
+        authMode
       };
       console.log(JSON.stringify(requestLogData));
     } catch (logError) {
@@ -99,10 +109,7 @@ async function wooFetch(
     try {
       res = await fetch(apiUrl.toString(), {
         ...init,
-        headers: {
-          "Content-Type": "application/json",
-          ...(init?.headers || {}),
-        },
+        headers,
         ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}),
         signal: controller.signal,
       });
