@@ -22,6 +22,7 @@ export default function ImportPage() {
   const [debugOpen, setDebugOpen] = useState(process.env.NODE_ENV !== "production");
   const [logs, setLogs] = useState<Array<{ level: string; message: string; createdAt: string }>>([]);
   const [runnerPing, setRunnerPing] = useState<NodeJS.Timeout | null>(null);
+  const [statsPing, setStatsPing] = useState<NodeJS.Timeout | null>(null);
   const [evt, setEvt] = useState<any>(null);
   const [cap, setCap] = useState<number>(1000);
   const [runnerStopUntil, setRunnerStopUntil] = useState<number>(0);
@@ -387,9 +388,33 @@ export default function ImportPage() {
         if (data && data.warn && Array.isArray(data.reasons)) {
           setMessage(data.reasons.join('; '));
         }
+        try {
+          const currentRid = (()=>{ try { return localStorage.getItem('importRequestId') || ''; } catch { return ''; } })();
+          if (currentRid) {
+            const res2 = await fetch(`/api/import/status?requestId=${encodeURIComponent(currentRid)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+            const j2 = await res2.json().catch(()=>null);
+            if (res2.ok && j2 && j2.counts) {
+              setCounts(j2.counts);
+              const totalKey = `importTotal:${currentRid}`;
+              const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
+              const total = parseInt(totalStr || "0", 10) || 0;
+              const processedVal = typeof j2.counts.processed === 'number' ? j2.counts.processed : 0;
+              if (total > 0 && processedVal >= total) {
+                try { localStorage.removeItem('importRequestId'); } catch {}
+                try { localStorage.removeItem('importSource'); } catch {}
+                if (evt) { try { const supabase = getSupabaseBrowser(); if (supabase) supabase.removeChannel(evt); subscribedRef.current = null; } catch {} setEvt(null); }
+                if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+                if (statsPing) { clearInterval(statsPing); setStatsPing(null); }
+                setRid(null);
+                setMessage('任务已完成');
+              }
+            }
+          }
+        } catch {}
       } catch {}
     }, 30000);
-    return () => clearInterval(id);
+    setStatsPing(id);
+    return () => { clearInterval(id); };
   }, []);
 
   useEffect(() => {
@@ -401,16 +426,18 @@ export default function ImportPage() {
       window.removeEventListener("keydown", onKey);
       if (evt) { try { const supabase = getSupabaseBrowser(); if (supabase) supabase.removeChannel(evt); subscribedRef.current = null; } catch {} }
       if (runnerPing) clearInterval(runnerPing);
+      if (statsPing) clearInterval(statsPing);
       try { (window as any).__wsActive = false; } catch {}
     };
-  }, [evt, runnerPing]);
+  }, [evt, runnerPing, statsPing]);
 
   useEffect(() => {
     const active = !!rid;
     if (!active) {
       if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+      if (statsPing) { clearInterval(statsPing); setStatsPing(null); }
     }
-  }, [rid, runnerPing]);
+  }, [rid, runnerPing, statsPing]);
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -532,11 +559,12 @@ export default function ImportPage() {
               setMessage('已结束任务');
               try { localStorage.removeItem('importRequestId'); } catch {}
               try { localStorage.removeItem('importSource'); } catch {}
-              if (evt) { try { evt.close(); } catch {} setEvt(null); }
-              if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
-              setRid(null);
-            } catch {}
-          }}
+          if (evt) { try { evt.close(); } catch {} setEvt(null); }
+          if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+          if (statsPing) { clearInterval(statsPing); setStatsPing(null); }
+          setRid(null);
+        } catch {}
+      }}
           disabled={!rid}
           className="ml-2 inline-flex items-center px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
         >
