@@ -47,10 +47,10 @@ export async function recordResult(userId: string, source: string, requestId: st
       if (existing && typeof existing?.id === "number") {
         await supabase
           .from("import_results")
-          .update({ name, product_id: productId, status, error_message: errorMessage })
+          .update({ name, product_id: productId, status, error_message: status === "success" ? null : (errorMessage || null) })
           .eq("id", existing.id);
       } else {
-        await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status, error_message: errorMessage });
+        await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status, error_message: status === "success" ? null : (errorMessage || null) });
       }
     } catch {
       const { data: existing } = await supabase

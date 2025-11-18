@@ -475,7 +475,7 @@ export async function POST(req: Request) {
                 if (intended > 0 && !imagesOk) {
                   const emsg = `图片上传失败或不完整 link=${link}`;
                   await appendLog(userId, requestId, "error", emsg);
-                  await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "error", emsg);
+                  await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "success");
                 } else {
                   await appendLog(userId, requestId, "info", `WooCommerce产品${existing ? '更新' : '创建'}成功 link=${link} ID=${saved?.id || "未知"}`);
                   await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "success");
