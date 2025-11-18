@@ -105,7 +105,7 @@ async function runForSource(source: string) {
           const product = await fetchProductByHandle(String(msg.shopifyBaseUrl || ""), String(msg.handle || ""));
           if (!product) {
             await appendLog(userId, requestId, "error", `not found handle=${String(msg.handle||"")}`);
-            await recordResult(userId, "shopify", requestId, String(msg.handle||""), "", undefined, "error");
+            await recordResult(userId, "shopify", requestId, String(msg.handle||""), String(msg.handle||""), undefined, "error");
           } else {
             const payload = buildWooProductPayload(product);
             payload.categories = catTerms;
@@ -163,6 +163,7 @@ async function runForSource(source: string) {
             await recordResult(userId, "wordpress", requestId, slug, payload?.name, existing?.id, "error");
           } else {
             const saved = await resp.json().catch(()=>({})) as WooProduct;
+            let imagesOk = true;
             try {
               const remotes = images.map((u) => new URL(u, meta.finalUrl || link).toString());
               const maxImages = parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10;
@@ -171,26 +172,32 @@ async function runForSource(source: string) {
               if (typeof saved?.id === "number") {
                 const cur = await (await wooGet(dstCfg, `wp-json/wc/v3/products/${saved.id}`)).json().catch(()=>({}));
                 base = Array.isArray(cur?.images) ? cur.images.map((ii: { id?: number }) => ({ id: ii?.id })) : [];
-              const maxRetryImg = parseInt(process.env.IMAGE_UPLOAD_RETRY || "2", 10) || 2;
-              const backoffImg = parseInt(process.env.IMAGE_RETRY_BACKOFF || "2000", 10) || 2000;
-              for (const src of toUpload) {
-
-                for (let ai = 0; ai <= maxRetryImg; ai++) {
-                  await new Promise((r)=>setTimeout(r, backoffImg * (ai + 1)));
-                  const up = await wooPut(dstCfg, `wp-json/wc/v3/products/${saved.id}`, { images: [...base, { src }] });
-                  const ct2 = up.headers.get("content-type") || "";
-                  if (up.ok && ct2.includes("application/json")) {
-                    const j = await up.json().catch(()=>({}));
-                    base = Array.isArray(j?.images) ? j.images.map((ii: { id?: number }) => ({ id: ii?.id })) : base;
-                    // done = true;
-                    break;
+                const maxRetryImg = parseInt(process.env.IMAGE_UPLOAD_RETRY || "2", 10) || 2;
+                const backoffImg = parseInt(process.env.IMAGE_RETRY_BACKOFF || "2000", 10) || 2000;
+                for (const src of toUpload) {
+                  let ok = false;
+                  for (let ai = 0; ai <= maxRetryImg; ai++) {
+                    await new Promise((r)=>setTimeout(r, backoffImg * (ai + 1)));
+                    const up = await wooPut(dstCfg, `wp-json/wc/v3/products/${saved.id}`, { images: [...base, { src }] });
+                    const ct2 = up.headers.get("content-type") || "";
+                    if (up.ok && ct2.includes("application/json")) {
+                      const j = await up.json().catch(()=>({}));
+                      base = Array.isArray(j?.images) ? j.images.map((ii: { id?: number }) => ({ id: ii?.id })) : base;
+                      ok = true;
+                      break;
+                    }
                   }
+                  if (!ok) imagesOk = false;
                 }
               }
-              }
-            } catch {}
-            await updateJob(userId, requestId, { processed: 1, success: 1 });
-            await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
+            } catch { imagesOk = false; }
+            if (imagesOk) {
+              await updateJob(userId, requestId, { processed: 1, success: 1 });
+              await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
+            } else {
+              await updateJob(userId, requestId, { processed: 1, error: 1 });
+              await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "error");
+            }
           }
         } else if (source === "wix") {
           const link = String(msg.link || "");

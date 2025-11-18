@@ -18,6 +18,7 @@ type DbResultRow = {
   item_key: string;
   name?: string;
   product_id?: number;
+  status?: "success" | "error";
   created_at: string;
 };
 
@@ -34,9 +35,41 @@ export async function recordResult(userId: string, source: string, requestId: st
   const now = new Date().toISOString();
   if (supabase) {
     try {
-      await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status, error_message: errorMessage });
+      const { data: existing } = await supabase
+        .from("import_results")
+        .select("id, status, name, product_id")
+        .eq("user_id", userId)
+        .eq("request_id", requestId)
+        .eq("source", source)
+        .eq("item_key", itemKey)
+        .limit(1)
+        .maybeSingle();
+      if (existing && typeof existing?.id === "number") {
+        await supabase
+          .from("import_results")
+          .update({ name, product_id: productId, status, error_message: errorMessage })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status, error_message: errorMessage });
+      }
     } catch {
-      await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status });
+      const { data: existing } = await supabase
+        .from("import_results")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("request_id", requestId)
+        .eq("source", source)
+        .eq("item_key", itemKey)
+        .limit(1)
+        .maybeSingle();
+      if (existing && typeof existing?.id === "number") {
+        await supabase
+          .from("import_results")
+          .update({ name, product_id: productId, status })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status });
+      }
     }
     if (status === "error") {
       const msg = errorMessage || "unknown_error";
@@ -45,7 +78,9 @@ export async function recordResult(userId: string, source: string, requestId: st
     return;
   }
   const arr = readLocal();
-  arr.push({ userId, requestId, source, itemKey, name, productId, status, createdAt: now });
+  const idx = arr.findIndex((r) => r.userId === userId && r.requestId === requestId && r.source === source && r.itemKey === itemKey);
+  if (idx >= 0) arr[idx] = { ...arr[idx], name, productId, status, createdAt: now };
+  else arr.push({ userId, requestId, source, itemKey, name, productId, status, createdAt: now });
   writeLocal(arr);
   if (status === "error") {
     const msg = errorMessage || "unknown_error";
@@ -60,11 +95,11 @@ export async function listResults(userId: string, page = 1, pageSize = 20) {
     const to = from + pageSize - 1;
     const { data } = await supabase
       .from("import_results")
-      .select("request_id, source, item_key, name, product_id, created_at")
+      .select("request_id, source, item_key, name, product_id, status, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .range(from, to);
-    return (data || []).map((d: DbResultRow) => ({ requestId: d.request_id, source: d.source, itemKey: d.item_key, name: d.name, productId: d.product_id, createdAt: d.created_at }));
+    return (data || []).map((d: DbResultRow) => ({ requestId: d.request_id, source: d.source, itemKey: d.item_key, name: d.name, productId: d.product_id, status: d.status, createdAt: d.created_at }));
   }
   const arr = readLocal().filter((r) => r.userId === userId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const from = (page - 1) * pageSize;

@@ -65,7 +65,15 @@ async function wooFetch(
   init?: RequestInit,
   retry = 2
 ) {
-  const url = new URL(endpoint, cfg.url.replace(/\/$/, ""));
+  function applyIndexPhp(ep: string) {
+    const useIndex = (process.env.WOO_USE_INDEXPHP || "1") === "1";
+    if (!useIndex) return ep;
+    const clean = ep.replace(/^\//, "");
+    if (clean.startsWith("index.php/")) return clean;
+    if (clean.startsWith("wp-json/")) return `index.php/${clean}`;
+    return ep;
+  }
+  const url = new URL(applyIndexPhp(endpoint), cfg.url.replace(/\/$/, ""));
   const dispatcher = getDispatcherFromEnv();
   const started = Date.now();
   for (let i = 0; i <= retry; i++) {
@@ -73,6 +81,7 @@ async function wooFetch(
     const apiUrl = new URL(url.toString());
     let headers: Record<string, string> = {
       "Content-Type": "application/json",
+      "Accept": "application/json",
       ...(init?.headers || {}) as Record<string, string>,
     };
     if (authMode === "basic") {
@@ -94,7 +103,8 @@ async function wooFetch(
         retryAttempt: i,
         bodySize: init?.body ? String(init.body).length : 0,
         hasDispatcher: !!dispatcher,
-        authMode
+        authMode,
+        endpointResolved: apiUrl.pathname
       };
       console.log(JSON.stringify(requestLogData));
     } catch (logError) {

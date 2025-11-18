@@ -197,7 +197,7 @@ export async function POST(req: Request) {
           const consumerSecret = cfg?.consumer_secret || "";
           if (!wordpressUrl || !consumerKey || !consumerSecret) {
             await appendLog(userId, requestId, "error", "目标站 Woo 配置未设置");
-            await pgmqArchive(q, row.msg_id).catch(()=>{});
+            await pgmqArchive(queueUsed, row.msg_id).catch(()=>{});
             continue;
           }
           
@@ -230,7 +230,7 @@ export async function POST(req: Request) {
               } catch (e) {
                 const emsg = e instanceof Error ? e.message : String(e || "术语准备失败");
                 await appendLog(userId, requestId, "error", `术语准备失败 handle=${String(msg.handle||"")} err=${emsg}`);
-                await recordResult(userId, "shopify", requestId, String(msg.handle||""), undefined, undefined, "error", emsg);
+                await recordResult(userId, "shopify", requestId, String(msg.handle||""), String(msg.handle||""), undefined, "error", emsg);
                 continue;
               }
               await appendLog(userId, requestId, "info", `已准备分类和标签术语 handle=${String(msg.handle||"")}`);
@@ -238,7 +238,7 @@ export async function POST(req: Request) {
               if (!product) {
                 const emsg = `not found handle=${String(msg.handle||"")}`;
                 await appendLog(userId, requestId, "error", emsg);
-                await recordResult(userId, "shopify", requestId, String(msg.handle||""), undefined, undefined, "error", emsg);
+                await recordResult(userId, "shopify", requestId, String(msg.handle||""), String(msg.handle||""), undefined, "error", emsg);
               } else {
                 await appendLog(userId, requestId, "info", `获取到Shopify产品 handle=${String(product.handle||"")} 名称=${product.title||""}`);
                 const payload = buildWooProductPayload(product);
@@ -251,7 +251,7 @@ export async function POST(req: Request) {
                 } catch (e) {
                   const emsg = e instanceof Error ? e.message : String(e || "检查现有产品失败");
                   await appendLog(userId, requestId, "error", `检查现有产品失败 handle=${String(msg.handle||"")} err=${emsg}`);
-                  await recordResult(userId, "shopify", requestId, String(msg.handle||""), undefined, undefined, "error", emsg);
+                  await recordResult(userId, "shopify", requestId, String(msg.handle||""), String(msg.handle||""), undefined, "error", emsg);
                   continue;
                 }
                 await appendLog(userId, requestId, "info", `检查现有产品完成 handle=${String(product.handle||"")} 现有ID=${existing?.id || "无"}`);
@@ -425,10 +425,17 @@ export async function POST(req: Request) {
                 await recordResult(userId, "wordpress", requestId, slug, payload?.name, existing?.id, "error", emsg);
               } else {
                 const saved = await resp.json().catch(()=>({})) as WooProduct;
-                await appendLog(userId, requestId, "info", `WooCommerce产品${existing ? '更新' : '创建'}成功 link=${link} ID=${saved?.id || "未知"}`);
-                
-                await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
-                await appendLog(userId, requestId, "info", `产品导入完成 link=${link} ID=${saved?.id || existing?.id || "未知"}`);
+                const intended = Array.isArray(payload?.images) ? payload.images.length : 0;
+                const savedCount = Array.isArray((saved as any)?.images) ? (saved as any).images.length : 0;
+                if (intended > 0 && savedCount < Math.min(intended, parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10)) {
+                  const emsg = `图片上传失败或不完整 link=${link} intended=${intended} saved=${savedCount}`;
+                  await appendLog(userId, requestId, "error", emsg);
+                  await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "error", emsg);
+                } else {
+                  await appendLog(userId, requestId, "info", `WooCommerce产品${existing ? '更新' : '创建'}成功 link=${link} ID=${saved?.id || "未知"}`);
+                  await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
+                  await appendLog(userId, requestId, "info", `产品导入完成 link=${link} ID=${saved?.id || existing?.id || "未知"}`);
+                }
               }
             } else if (s === "wix") {
               const link = String(msg.link || "");

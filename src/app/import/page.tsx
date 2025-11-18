@@ -17,6 +17,8 @@ export default function ImportPage() {
   const [history, setHistory] = useState<Array<{ requestId: string; source: string; itemKey: string; name?: string; status?: string; productId?: number; createdAt: string }>>([]);
   const [counts, setCounts] = useState<{ processed: number; successCount: number; errorCount: number }>({ processed: 0, successCount: 0, errorCount: 0 });
   const [page, setPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [maxPages, setMaxPages] = useState(1);
   const [debugOpen, setDebugOpen] = useState(process.env.NODE_ENV !== "production");
   const [logs, setLogs] = useState<Array<{ level: string; message: string; createdAt: string }>>([]);
   const [runnerPing, setRunnerPing] = useState<NodeJS.Timeout | null>(null);
@@ -57,7 +59,7 @@ export default function ImportPage() {
           return arr.slice(Math.max(0, arr.length - 29));
         });
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}` }, (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}` }, async (payload: any) => {
         const row = payload?.new || {};
         if (String(row?.request_id || '') !== r) return;
         const item = { requestId: r, source: row?.source || '', itemKey: row?.item_key || '', name: row?.name || '', status: row?.status || '', productId: row?.product_id, createdAt: row?.created_at || new Date().toISOString() };
@@ -65,22 +67,57 @@ export default function ImportPage() {
           const arr = [item, ...prev];
           return arr.slice(0, 50);
         });
-        setCounts((prev) => {
-          const successInc = row?.status === 'success' ? 1 : 0;
-          const errorInc = row?.status === 'error' ? 1 : 0;
-          return { processed: prev.processed + successInc + errorInc, successCount: prev.successCount + successInc, errorCount: prev.errorCount + errorInc };
-        });
+        let processedVal = counts.processed;
+        try {
+          const res = await fetch(`/api/import/status?requestId=${encodeURIComponent(r)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+          const j = await res.json().catch(()=>null);
+          if (res.ok && j && j.counts) {
+            setCounts(j.counts);
+            processedVal = typeof j.counts.processed === 'number' ? j.counts.processed : processedVal;
+          }
+        } catch {}
         const totalKey = `importTotal:${r}`;
         const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
         const total = parseInt(totalStr || "0", 10) || 0;
-        const cur = (() => { try { return localStorage.getItem(`importProcessed:${r}`) || "0"; } catch { return "0"; } })();
-        const processed = parseInt(cur || "0", 10) + 1;
-        try { localStorage.setItem(`importProcessed:${r}`, String(processed)); } catch {}
-        if (total > 0 && processed >= total) {
+        if (total > 0 && processedVal >= total) {
           try { localStorage.removeItem("importRequestId"); } catch {}
           try { localStorage.removeItem("importSource"); } catch {}
           try { localStorage.removeItem(totalKey); } catch {}
-          try { localStorage.removeItem(`importProcessed:${r}`); } catch {}
+          if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+          setRid(null);
+          setMessage("已完成：任务处理完成");
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}` }, async (payload: any) => {
+        const row = payload?.new || {};
+        if (String(row?.request_id || '') !== r) return;
+        const item = { requestId: r, source: row?.source || '', itemKey: row?.item_key || '', name: row?.name || '', status: row?.status || '', productId: row?.product_id, createdAt: row?.created_at || new Date().toISOString() };
+        setHistory((prev) => {
+          const idx = prev.findIndex((x) => x.requestId === r && x.itemKey === item.itemKey);
+          if (idx >= 0) {
+            const arr = [...prev];
+            arr[idx] = { ...arr[idx], name: item.name, status: item.status, productId: item.productId, createdAt: item.createdAt };
+            return arr;
+          }
+          const arr = [item, ...prev];
+          return arr.slice(0, 50);
+        });
+        let processedVal = counts.processed;
+        try {
+          const res = await fetch(`/api/import/status?requestId=${encodeURIComponent(r)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+          const j = await res.json().catch(()=>null);
+          if (res.ok && j && j.counts) {
+            setCounts(j.counts);
+            processedVal = typeof j.counts.processed === 'number' ? j.counts.processed : processedVal;
+          }
+        } catch {}
+        const totalKey = `importTotal:${r}`;
+        const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
+        const total = parseInt(totalStr || "0", 10) || 0;
+        if (total > 0 && processedVal >= total) {
+          try { localStorage.removeItem("importRequestId"); } catch {}
+          try { localStorage.removeItem("importSource"); } catch {}
+          try { localStorage.removeItem(totalKey); } catch {}
           if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
           setRid(null);
           setMessage("已完成：任务处理完成");
@@ -279,7 +316,13 @@ export default function ImportPage() {
       try {
         const r = await fetch(`/api/import/history?page=${page}`, { headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : {} });
         const j = await r.json();
-        if (r.ok && Array.isArray(j.items)) setHistory(j.items);
+        if (r.ok && Array.isArray(j.items)) {
+          setHistory(j.items);
+          setTotalRecords(parseInt(String(j.total_records || 0), 10) || 0);
+          setMaxPages(parseInt(String(j.max_pages || 1), 10) || 1);
+          const cp = parseInt(String(j.current_page || page), 10) || page;
+          if (cp !== page) setPage(cp);
+        }
       } catch {}
     })();
   }, [page]);
@@ -532,10 +575,45 @@ export default function ImportPage() {
             </div>
           ))}
         </div>
-        <div className="mt-3 flex items-center gap-2">
-          <button className="px-2 py-1 border rounded" disabled={page<=1} onClick={()=>setPage((p)=>Math.max(1,p-1))}>上一页</button>
-          <span className="text-sm">第 {page} 页</span>
-          <button className="px-2 py-1 border rounded" onClick={()=>setPage((p)=>p+1)}>下一页</button>
+        <div className="mt-3">
+          {totalRecords <= 20 ? (
+            <div className="text-sm text-gray-600">共 {totalRecords} 条记录</div>
+          ) : (
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                className={`px-2 py-1 border rounded ${page===1? 'opacity-50 cursor-not-allowed':''}`}
+                disabled={page===1}
+                onClick={()=>setPage(1)}
+              >首页</button>
+              <button
+                className={`px-2 py-1 border rounded ${page===1? 'opacity-50 cursor-not-allowed':''}`}
+                disabled={page===1}
+                onClick={()=>setPage((p)=>Math.max(1,p-1))}
+              >上一页</button>
+              {Array.from({ length: maxPages }).map((_, i) => {
+                const n = i + 1;
+                const active = n === page;
+                return (
+                  <button
+                    key={n}
+                    className={`px-2 py-1 border rounded ${active? 'bg-blue-600 text-white':'bg-white text-gray-800'}`}
+                    onClick={()=>setPage(n)}
+                  >{n}</button>
+                );
+              })}
+              <button
+                className={`px-2 py-1 border rounded ${page===maxPages? 'opacity-50 cursor-not-allowed':''}`}
+                disabled={page===maxPages}
+                onClick={()=>setPage((p)=>Math.min(maxPages,p+1))}
+              >下一页</button>
+              <button
+                className={`px-2 py-1 border rounded ${page===maxPages? 'opacity-50 cursor-not-allowed':''}`}
+                disabled={page===maxPages}
+                onClick={()=>setPage(maxPages)}
+              >末页</button>
+              <span className="text-sm text-gray-600">共 {totalRecords} 条记录，当前显示第 {page} / {maxPages} 页</span>
+            </div>
+          )}
         </div>
       </div>
       {debugOpen && (

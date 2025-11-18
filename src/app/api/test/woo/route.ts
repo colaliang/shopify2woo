@@ -12,6 +12,7 @@ export async function POST(req: Request) {
     const authMode = String(body?.authMode || "query").toLowerCase();
     const action = String(body?.action || "");
     const payload = body?.payload || {};
+    const useIndexPhp = !!body?.useIndexPhp;
     if (!url || !consumerKey || !consumerSecret || !action) {
       return NextResponse.json({ error: "missing_params" }, { status: 400 });
     }
@@ -19,17 +20,20 @@ export async function POST(req: Request) {
     const prev = process.env.WOO_AUTH_MODE;
     process.env.WOO_AUTH_MODE = authMode;
     try {
+      const base = useIndexPhp ? `index.php/wp-json/wc/v3` : `wp-json/wc/v3`;
       if (action === "listCategories") {
         const search = String(payload?.search || "");
-        const ep = search ? `wp-json/wc/v3/products/categories?search=${encodeURIComponent(search)}` : `wp-json/wc/v3/products/categories`;
+        const ep = search ? `${base}/products/categories?search=${encodeURIComponent(search)}` : `${base}/products/categories`;
         const res = await wooGet(cfg, ep);
+        const ct = res.headers.get("content-type") || "";
         const txt = await res.text();
-        return NextResponse.json({ ok: res.ok, status: res.status, contentType: res.headers.get("content-type") || "", body: txt });
+        const ok = res.ok && ct.includes("application/json");
+        return NextResponse.json({ ok, status: res.status, contentType: ct, body: txt });
       }
       if (action === "createCategory") {
         const name = String(payload?.name || "");
         if (!name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
-        const res = await wooPost(cfg, `wp-json/wc/v3/products/categories`, { name });
+        const res = await wooPost(cfg, `${base}/products/categories`, { name });
         const ct = res.headers.get("content-type") || "";
         const txt = await res.text();
         const ok = res.ok && ct.includes("application/json");
@@ -38,16 +42,18 @@ export async function POST(req: Request) {
       if (action === "listProducts") {
         const sku = String(payload?.sku || "");
         const slug = String(payload?.slug || "");
-        let ep = `wp-json/wc/v3/products`;
-        if (sku) ep = `wp-json/wc/v3/products?sku=${encodeURIComponent(sku)}`;
-        else if (slug) ep = `wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`;
+        let ep = `${base}/products`;
+        if (sku) ep = `${base}/products?sku=${encodeURIComponent(sku)}`;
+        else if (slug) ep = `${base}/products?slug=${encodeURIComponent(slug)}`;
         const res = await wooGet(cfg, ep);
+        const ct = res.headers.get("content-type") || "";
         const txt = await res.text();
-        return NextResponse.json({ ok: res.ok, status: res.status, contentType: res.headers.get("content-type") || "", body: txt });
+        const ok = res.ok && ct.includes("application/json");
+        return NextResponse.json({ ok, status: res.status, contentType: ct, body: txt });
       }
       if (action === "createProduct") {
         const data = payload && typeof payload === "object" ? payload : {};
-        const res = await wooPost(cfg, `wp-json/wc/v3/products`, data);
+        const res = await wooPost(cfg, `${base}/products`, data);
         const ct = res.headers.get("content-type") || "";
         const txt = await res.text();
         const ok = res.ok && ct.includes("application/json");
@@ -57,7 +63,7 @@ export async function POST(req: Request) {
         const id = String(payload?.id || "");
         const data = payload && typeof payload === "object" ? payload : {};
         if (!id) return NextResponse.json({ error: "missing_id" }, { status: 400 });
-        const res = await wooPut(cfg, `wp-json/wc/v3/products/${id}`, data);
+        const res = await wooPut(cfg, `${base}/products/${id}`, data);
         const txt = await res.text();
         return NextResponse.json({ ok: res.ok, status: res.status, contentType: res.headers.get("content-type") || "", body: txt });
       }

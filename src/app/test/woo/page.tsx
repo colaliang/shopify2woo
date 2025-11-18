@@ -2,10 +2,14 @@
 import { useState } from "react";
 
 export default function WooTestPage() {
-  const [url, setUrl] = useState("");
-  const [key, setKey] = useState("");
-  const [secret, setSecret] = useState("");
+  const defaultUrl = process.env.NEXT_PUBLIC_WOO_TEST_URL || "";
+  const defaultKey = process.env.NEXT_PUBLIC_WOO_TEST_KEY || "";
+  const defaultSecret = process.env.NEXT_PUBLIC_WOO_TEST_SECRET || "";
+  const [url, setUrl] = useState(defaultUrl);
+  const [key, setKey] = useState(defaultKey);
+  const [secret, setSecret] = useState(defaultSecret);
   const [authMode, setAuthMode] = useState<"query" | "basic">("basic");
+  const [useIndexPhp, setUseIndexPhp] = useState<boolean>(true);
   const [out, setOut] = useState<string>("");
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
@@ -21,7 +25,7 @@ export default function WooTestPage() {
       const res = await fetch("/api/test/woo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, consumerKey: key, consumerSecret: secret, authMode, action, payload }),
+        body: JSON.stringify({ url, consumerKey: key, consumerSecret: secret, authMode, useIndexPhp, action, payload }),
         signal: controller.signal,
       });
       clearTimeout(timer);
@@ -44,6 +48,7 @@ export default function WooTestPage() {
         </select>
         <input className="border px-2 py-1" placeholder="consumer_key" value={key} onChange={(e)=>setKey(e.target.value)} />
         <input className="border px-2 py-1" placeholder="consumer_secret" value={secret} onChange={(e)=>setSecret(e.target.value)} />
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={useIndexPhp} onChange={(e)=>setUseIndexPhp(e.target.checked)} /> 使用 /index.php/wp-json/wc/v3</label>
       </div>
 
       <div className="grid grid-cols-3 gap-4 items-end">
