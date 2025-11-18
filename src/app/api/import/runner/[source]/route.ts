@@ -207,7 +207,7 @@ async function runForSource(source: string) {
               await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "success");
             } else {
               await updateJob(userId, requestId, { processed: 1, success: 1 });
-              await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "success");
+              await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "partial", "images_partial");
             }
           }
         } else if (source === "wix") {

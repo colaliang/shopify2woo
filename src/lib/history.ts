@@ -8,7 +8,7 @@ type Result = {
   itemKey: string;
   name?: string;
   productId?: number;
-  status: "success" | "error";
+  status: "success" | "error" | "partial";
   createdAt: string;
 };
 
@@ -18,7 +18,7 @@ type DbResultRow = {
   item_key: string;
   name?: string;
   product_id?: number;
-  status?: "success" | "error";
+  status?: "success" | "error" | "partial";
   created_at: string;
 };
 
@@ -30,7 +30,7 @@ function writeLocal(arr: Result[]) {
   try { globalAny.__importResults = arr; } catch {}
 }
 
-export async function recordResult(userId: string, source: string, requestId: string, itemKey: string, name: string | undefined, productId: number | undefined, status: "success" | "error", errorMessage?: string) {
+export async function recordResult(userId: string, source: string, requestId: string, itemKey: string, name: string | undefined, productId: number | undefined, status: "success" | "error" | "partial", errorMessage?: string) {
   const supabase = getSupabaseServer();
   const now = new Date().toISOString();
   if (supabase) {
@@ -121,12 +121,20 @@ export async function getResultCounts(userId: string, requestId: string) {
       .eq("user_id", userId)
       .eq("request_id", requestId)
       .eq("status", "error");
+    const { count: part } = await supabase
+      .from("import_results")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("request_id", requestId)
+      .eq("status", "partial");
     const successCount = typeof succ === "number" ? succ : 0;
     const errorCount = typeof err === "number" ? err : 0;
-    return { successCount, errorCount, processed: successCount + errorCount };
+    const partialCount = typeof part === "number" ? part : 0;
+    return { successCount, errorCount, partialCount, processed: successCount + errorCount + partialCount };
   }
   const arr = readLocal().filter((r) => r.userId === userId && r.requestId === requestId);
   const successCount = arr.filter((r) => r.status === "success").length;
   const errorCount = arr.filter((r) => r.status === "error").length;
-  return { successCount, errorCount, processed: successCount + errorCount };
+  const partialCount = arr.filter((r) => r.status === "partial").length;
+  return { successCount, errorCount, partialCount, processed: successCount + errorCount + partialCount };
 }
