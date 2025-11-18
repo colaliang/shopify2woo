@@ -366,6 +366,12 @@ export default function ImportPage() {
     const r0 = (() => { try { return localStorage.getItem("importRequestId") || ""; } catch { return ""; }})();
     if (r0 && token && uid && subscribedRef.current !== r0) {
       startTracking(r0);
+      try {
+        fetch(`/api/import/status?requestId=${encodeURIComponent(r0)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+          .then(res=>res.json().catch(()=>null))
+          .then(j=>{ if (j && j.counts) setCounts(j.counts); })
+          .catch(()=>{});
+      } catch {}
     }
   }, [token, uid]);
 
