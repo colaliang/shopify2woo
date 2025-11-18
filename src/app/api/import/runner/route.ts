@@ -426,9 +426,40 @@ export async function POST(req: Request) {
               } else {
                 const saved = await resp.json().catch(()=>({})) as WooProduct;
                 const intended = Array.isArray(payload?.images) ? payload.images.length : 0;
-                const savedCount = Array.isArray((saved as any)?.images) ? (saved as any).images.length : 0;
-                if (intended > 0 && savedCount < Math.min(intended, parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10)) {
-                  const emsg = `图片上传失败或不完整 link=${link} intended=${intended} saved=${savedCount}`;
+                let imagesOk = true;
+                if (intended > 0 && typeof saved?.id === 'number') {
+                  try {
+                    const remotes = (payload?.images || []).map((ii: { src: string }) => ii.src);
+                    const maxImages = parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10;
+                    const toUpload = remotes.slice(0, maxImages);
+                    // 获取当前图片基线
+                    const cur = await (await wooGet(dstCfg, `wp-json/wc/v3/products/${saved.id}`)).json().catch(()=>({}));
+                    let base = Array.isArray(cur?.images) ? cur.images.map((ii: { id?: number }) => ({ id: ii?.id })) : [];
+                    const maxRetryImg = parseInt(process.env.IMAGE_UPLOAD_RETRY || "2", 10) || 2;
+                    const backoffImg = parseInt(process.env.IMAGE_RETRY_BACKOFF || "2000", 10) || 2000;
+                    for (const src of toUpload) {
+                      let ok = false;
+                      for (let ai = 0; ai <= maxRetryImg; ai++) {
+                        await new Promise((r)=>setTimeout(r, backoffImg * (ai + 1)));
+                        const up = await wooPut(dstCfg, `wp-json/wc/v3/products/${saved.id}`, { images: [...base, { src }] });
+                        const ct2 = up.headers.get("content-type") || "";
+                        if (up.ok && ct2.includes("application/json")) {
+                          const j = await up.json().catch(()=>({}));
+                          base = Array.isArray(j?.images) ? j.images.map((ii: { id?: number }) => ({ id: ii?.id })) : base;
+                          ok = true;
+                          break;
+                        }
+                      }
+                      if (!ok) imagesOk = false;
+                    }
+                    // 最终确认
+                    const final = await (await wooGet(dstCfg, `wp-json/wc/v3/products/${saved.id}`)).json().catch(()=>({}));
+                    const finalCount = Array.isArray(final?.images) ? final.images.length : 0;
+                    if (finalCount < Math.min(intended, maxImages)) imagesOk = false;
+                  } catch { imagesOk = false; }
+                }
+                if (intended > 0 && !imagesOk) {
+                  const emsg = `图片上传失败或不完整 link=${link}`;
                   await appendLog(userId, requestId, "error", emsg);
                   await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "error", emsg);
                 } else {
