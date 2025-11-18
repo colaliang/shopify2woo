@@ -410,21 +410,35 @@ export async function POST(req: Request) {
                 await recordResult(userId, "wordpress", requestId, slug, payload?.name, undefined, "error", emsg);
                 continue;
               }
-              let resp: Response;
-              if (existing) {
-                await appendLog(userId, requestId, "info", `开始更新现有产品 link=${link} ID=${existing.id}`);
-                resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
-              } else {
-                await appendLog(userId, requestId, "info", `开始创建新产品 link=${link}`);
-                resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
+              let resp: Response | null = null;
+              let curExisting: WooProduct | null = existing || null;
+              try {
+                if (curExisting) {
+                  await appendLog(userId, requestId, "info", `开始更新现有产品 link=${link} ID=${curExisting.id}`);
+                  resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${curExisting.id}`, payload);
+                } else {
+                  await appendLog(userId, requestId, "info", `开始创建新产品 link=${link}`);
+                  resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
+                }
+              } catch (e) {
+                const ex2 = await findProductCached(dstCfg, sku, slug, requestId);
+                if (ex2 && typeof ex2?.id === 'number') {
+                  curExisting = ex2;
+                  resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${ex2.id}`, payload);
+                } else {
+                  const emsg = `WooCommerce API请求失败 link=${link}`;
+                  await appendLog(userId, requestId, "error", emsg);
+                  await recordResult(userId, "wordpress", requestId, slug, payload?.name, existing?.id, "error", emsg);
+                  continue;
+                }
               }
-              const ct = resp.headers.get("content-type") || "";
-              if (!resp.ok || !ct.includes("application/json")) {
+              const ct = resp!.headers.get("content-type") || "";
+              if (!resp!.ok || !ct.includes("application/json")) {
                 const emsg = `WooCommerce API请求失败 link=${link} 状态=${resp.status}`;
                 await appendLog(userId, requestId, "error", emsg);
-                await recordResult(userId, "wordpress", requestId, slug, payload?.name, existing?.id, "error", emsg);
+                await recordResult(userId, "wordpress", requestId, slug, payload?.name, curExisting?.id, "error", emsg);
               } else {
-                const saved = await resp.json().catch(()=>({})) as WooProduct;
+                const saved = await resp!.json().catch(()=>({})) as WooProduct;
                 const intended = Array.isArray(payload?.images) ? payload.images.length : 0;
                 let imagesOk = true;
                 if (intended > 0 && typeof saved?.id === 'number') {
@@ -461,11 +475,11 @@ export async function POST(req: Request) {
                 if (intended > 0 && !imagesOk) {
                   const emsg = `图片上传失败或不完整 link=${link}`;
                   await appendLog(userId, requestId, "error", emsg);
-                  await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "error", emsg);
+                  await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "error", emsg);
                 } else {
                   await appendLog(userId, requestId, "info", `WooCommerce产品${existing ? '更新' : '创建'}成功 link=${link} ID=${saved?.id || "未知"}`);
-                  await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
-                  await appendLog(userId, requestId, "info", `产品导入完成 link=${link} ID=${saved?.id || existing?.id || "未知"}`);
+                  await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "success");
+                  await appendLog(userId, requestId, "info", `产品导入完成 link=${link} ID=${saved?.id || curExisting?.id || "未知"}`);
                 }
               }
             } else if (s === "wix") {

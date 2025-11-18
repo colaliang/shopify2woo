@@ -155,14 +155,25 @@ async function runForSource(source: string) {
           payload.categories = catTerms;
           payload.tags = tagTerms;
           const existing = await findProductBySkuOrSlug(dstCfg, sku, slug);
-          let resp: Response;
-          if (existing) resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${existing.id}`, payload);
-          else resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
-          const ct = resp.headers.get("content-type") || "";
-          if (!resp.ok || !ct.includes("application/json")) {
-            await recordResult(userId, "wordpress", requestId, slug, payload?.name, existing?.id, "error");
+          let resp: Response | null = null;
+          let curExisting = existing || null;
+          try {
+            if (curExisting) resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${curExisting.id}`, payload);
+            else resp = await wooPost(dstCfg, `wp-json/wc/v3/products`, { ...payload, slug });
+          } catch (e) {
+            const ex2 = await findProductBySkuOrSlug(dstCfg, sku, slug);
+            if (ex2 && typeof ex2?.id === 'number') {
+              curExisting = ex2;
+              resp = await wooPut(dstCfg, `wp-json/wc/v3/products/${ex2.id}`, payload);
+            } else {
+              await recordResult(userId, "wordpress", requestId, slug, payload?.name, existing?.id, "error");
+            }
+          }
+          const ct = resp!.headers.get("content-type") || "";
+          if (!resp!.ok || !ct.includes("application/json")) {
+            await recordResult(userId, "wordpress", requestId, slug, payload?.name, curExisting?.id, "error");
           } else {
-            const saved = await resp.json().catch(()=>({})) as WooProduct;
+            const saved = await resp!.json().catch(()=>({})) as WooProduct;
             let imagesOk = true;
             try {
               const remotes = images.map((u) => new URL(u, meta.finalUrl || link).toString());
@@ -193,10 +204,10 @@ async function runForSource(source: string) {
             } catch { imagesOk = false; }
             if (imagesOk) {
               await updateJob(userId, requestId, { processed: 1, success: 1 });
-              await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "success");
+              await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "success");
             } else {
               await updateJob(userId, requestId, { processed: 1, error: 1 });
-              await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : existing?.id), "error");
+              await recordResult(userId, "wordpress", requestId, slug, (saved?.name || payload?.name), (typeof saved?.id === 'number' ? saved?.id : curExisting?.id), "error");
             }
           }
         } else if (source === "wix") {
