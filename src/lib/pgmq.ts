@@ -63,3 +63,27 @@ export async function pgmqArchive(queue: string, msgId: number) {
   if (error) throw error;
   return true;
 }
+
+export async function pgmqQsize(queue: string): Promise<{ ready: number; vt: number; total: number } | null> {
+  const supabase = getSupabaseServer();
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.rpc("pgmq_qsize", { q: queue });
+    if (!data) return null;
+    const d = data as { ready: number; vt: number; total: number };
+    return { ready: Number(d.ready || 0), vt: Number(d.vt || 0), total: Number(d.total || 0) };
+  } catch {
+    return null;
+  }
+}
+
+export async function pgmqArchivedCount(queue: string): Promise<number | null> {
+  const supabase = getSupabaseServer();
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.rpc("pgmq_archived_count", { q: queue });
+    return Number(data || 0);
+  } catch {
+    return null;
+  }
+}

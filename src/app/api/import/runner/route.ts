@@ -46,6 +46,8 @@ interface PgmqMessage {
 }
 
 const transactionStore = new Map<string, TransactionTracker>();
+const termListCacheStore = new Map<string, { category: Map<string, Array<{ id: number }>>; tag: Map<string, Array<{ id: number }>> }>();
+const productCacheStore = new Map<string, { bySku: Map<string, WooProduct | null>; bySlug: Map<string, WooProduct | null> }>();
 
 // 获取或创建事务跟踪器
 function getTransactionTracker(requestId: string): TransactionTracker {
@@ -62,6 +64,8 @@ function getTransactionTracker(requestId: string): TransactionTracker {
 // 清理事务跟踪器
 function cleanupTransactionTracker(requestId: string) {
   transactionStore.delete(requestId);
+  termListCacheStore.delete(requestId);
+  productCacheStore.delete(requestId);
 }
 
 // 回滚事务 - 删除创建的产品，恢复更新的产品
@@ -104,6 +108,28 @@ async function rollbackTransaction(requestId: string, dstCfg: WooConfig) {
 
 export const runtime = "nodejs";
 
+async function ensureTermsCached(dstCfg: WooConfig, type: "category" | "tag", names: string[], requestId: string) {
+  if (!termListCacheStore.has(requestId)) termListCacheStore.set(requestId, { category: new Map(), tag: new Map() });
+  const store = termListCacheStore.get(requestId)!;
+  const cache = type === "category" ? store.category : store.tag;
+  const key = names.join("|");
+  if (cache.has(key)) return cache.get(key)!;
+  const res = await ensureTerms(dstCfg, type, names);
+  cache.set(key, res);
+  return res;
+}
+
+async function findProductCached(dstCfg: WooConfig, sku: string | undefined, slug: string | undefined, requestId: string) {
+  if (!productCacheStore.has(requestId)) productCacheStore.set(requestId, { bySku: new Map(), bySlug: new Map() });
+  const store = productCacheStore.get(requestId)!;
+  if (sku && store.bySku.has(sku)) return store.bySku.get(sku)!;
+  if (slug && store.bySlug.has(slug)) return store.bySlug.get(slug)!;
+  const existing = await findProductBySkuOrSlug(dstCfg, sku, slug);
+  if (sku) store.bySku.set(sku, existing || null);
+  if (slug) store.bySlug.set(slug, existing || null);
+  return existing;
+}
+
 async function authorize(req: Request) {
   if (process.env.RUNNER_ALLOW_ANON === "1") return true;
   const token = process.env.RUNNER_TOKEN || "";
@@ -143,9 +169,12 @@ export async function POST(req: Request) {
         if (inFlightSources.has(s)) continue;
         inFlightSources.add(s);
         lastRunBySource.set(s, now);
+        // 优先处理高优先级队列
+        const qHigh = pgmqQueueName(`${s}_high`);
         const q = pgmqQueueName(s);
         const vt = parseInt(process.env.RUNNER_VT_SECONDS || "60", 10) || 60;
-        const msgs = await pgmqRead(q, vt, batchSizeEnv);
+        let msgs = await pgmqRead(qHigh, vt, batchSizeEnv);
+        if (!msgs.length) msgs = await pgmqRead(q, vt, batchSizeEnv);
         picked += msgs.length;
         
         for (const row of msgs) {
@@ -190,20 +219,21 @@ export async function POST(req: Request) {
               const categories: string[] = Array.isArray(msg.categories) ? msg.categories : [];
               const tags: string[] = Array.isArray(msg.tags) ? msg.tags : [];
               await appendLog(userId, requestId, "info", `开始处理Shopify产品 handle=${String(msg.handle||"")} 分类=${categories.length} 标签=${tags.length}`);
-              const catTerms = await ensureTerms(dstCfg, "category", categories);
-              const tagTerms = await ensureTerms(dstCfg, "tag", tags);
+              const catTerms = await ensureTermsCached(dstCfg, "category", categories, requestId);
+              const tagTerms = await ensureTermsCached(dstCfg, "tag", tags, requestId);
               await appendLog(userId, requestId, "info", `已准备分类和标签术语 handle=${String(msg.handle||"")}`);
               const product = await fetchProductByHandle(String(msg.shopifyBaseUrl || ""), String(msg.handle || ""));
               if (!product) {
-                await appendLog(userId, requestId, "error", `not found handle=${String(msg.handle||"")}`);
-                // 只在失败时记录日志，不写入import_results
+                const emsg = `not found handle=${String(msg.handle||"")}`;
+                await appendLog(userId, requestId, "error", emsg);
+                await recordResult(userId, "shopify", requestId, String(msg.handle||""), undefined, undefined, "error", emsg);
               } else {
                 await appendLog(userId, requestId, "info", `获取到Shopify产品 handle=${String(product.handle||"")} 名称=${product.title||""}`);
                 const payload = buildWooProductPayload(product);
                 payload.categories = catTerms;
                 payload.tags = tagTerms;
                 await appendLog(userId, requestId, "info", `构建WooCommerce产品数据完成 handle=${String(product.handle||"")}`);
-                const existing = await findProductBySkuOrSlug(dstCfg, undefined, product.handle);
+                const existing = await findProductCached(dstCfg, undefined, product.handle, requestId);
                 await appendLog(userId, requestId, "info", `检查现有产品完成 handle=${String(product.handle||"")} 现有ID=${existing?.id || "无"}`);
                 let resp: Response;
                 
@@ -232,7 +262,8 @@ export async function POST(req: Request) {
                 }
                 const ct = resp.headers.get("content-type") || "";
                 if (!resp.ok || !ct.includes("application/json")) {
-                  await appendLog(userId, requestId, "error", `WooCommerce API请求失败 handle=${String(product.handle||"")} 状态=${resp.status}`);
+                  const emsg = `WooCommerce API请求失败 handle=${String(product.handle||"")} 状态=${resp.status}`;
+                  await appendLog(userId, requestId, "error", emsg);
                   // API请求失败时触发事务回滚
                   try {
                     await rollbackTransaction(requestId, dstCfg);
@@ -241,7 +272,7 @@ export async function POST(req: Request) {
                     const errorMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError || "未知错误");
                     await appendLog(userId, requestId, "error", `事务回滚失败: ${errorMessage}`);
                   }
-                  // 只在失败时记录日志，不写入import_results
+                  await recordResult(userId, "shopify", requestId, String(product.handle||""), (payload?.name as string | undefined), existing?.id, "error", emsg);
                 } else {
                   const saved = await resp.json().catch(()=>({})) as WooProduct;
                   
@@ -315,12 +346,12 @@ export async function POST(req: Request) {
               await appendLog(userId, requestId, "info", `提取描述完成 link=${link} 描述长度=${descHtml?.length || 0}`);
               const payload: WordPressProductPayload = { name: ld?.name || slug, slug, sku, description: descHtml || "", short_description: descHtml || "", images: images.map((u) => ({ src: new URL(u, meta.finalUrl || link).toString() })) };
               await appendLog(userId, requestId, "info", `构建产品数据完成 link=${link} 名称=${payload.name}`);
-              const catTerms = await ensureTerms(dstCfg, "category", allCats);
-              const tagTerms = await ensureTerms(dstCfg, "tag", tags);
+              const catTerms = await ensureTermsCached(dstCfg, "category", allCats, requestId);
+              const tagTerms = await ensureTermsCached(dstCfg, "tag", tags, requestId);
               await appendLog(userId, requestId, "info", `准备分类和标签术语完成 link=${link}`);
               payload.categories = catTerms;
               payload.tags = tagTerms;
-              const existing = await findProductBySkuOrSlug(dstCfg, sku, slug);
+              const existing = await findProductCached(dstCfg, sku, slug, requestId);
               await appendLog(userId, requestId, "info", `检查现有产品完成 link=${link} 现有ID=${existing?.id || "无"}`);
               let resp: Response;
               if (existing) {
@@ -332,8 +363,9 @@ export async function POST(req: Request) {
               }
               const ct = resp.headers.get("content-type") || "";
               if (!resp.ok || !ct.includes("application/json")) {
-                await appendLog(userId, requestId, "error", `WooCommerce API请求失败 link=${link} 状态=${resp.status}`);
-                // 只在失败时记录日志，不写入import_results
+                const emsg = `WooCommerce API请求失败 link=${link} 状态=${resp.status}`;
+                await appendLog(userId, requestId, "error", emsg);
+                await recordResult(userId, "wordpress", requestId, slug, payload?.name, existing?.id, "error", emsg);
               } else {
                 const saved = await resp.json().catch(()=>({})) as WooProduct;
                 await appendLog(userId, requestId, "info", `WooCommerce产品${existing ? '更新' : '创建'}成功 link=${link} ID=${saved?.id || "未知"}`);
@@ -381,8 +413,9 @@ export async function POST(req: Request) {
               }
               const ct = resp.headers.get("content-type") || "";
               if (!resp.ok || !ct.includes("application/json")) {
-                await appendLog(userId, requestId, "error", `WooCommerce API请求失败 目标站点=${wordpressUrl} 源网址=${link} 状态=${resp.status}`);
-                // 只在失败时记录日志，不写入import_results
+                const emsg = `WooCommerce API请求失败 目标站点=${wordpressUrl} 源网址=${link} 状态=${resp.status}`;
+                await appendLog(userId, requestId, "error", emsg);
+                await recordResult(userId, "wix", requestId, slug, payload?.name, existing?.id, "error", emsg);
               } else {
                 const saved = await resp.json().catch(()=>({})) as WooProduct;
                 await appendLog(userId, requestId, "info", `WooCommerce产品${existing ? '更新' : '创建'}成功 目标站点=${wordpressUrl} 源网址=${link} ID=${saved?.id || "未知"}`);
@@ -392,9 +425,9 @@ export async function POST(req: Request) {
               }
             }
             try {
-              await pgmqDelete(q, row.msg_id);
-              try { await appendLog(userId, requestId, "info", `pgmq delete mid=${row.msg_id}`); } catch {}
-            } catch (delErr: unknown) {
+            await pgmqDelete(q, row.msg_id);
+            try { await appendLog(userId, requestId, "info", `pgmq delete mid=${row.msg_id}`); } catch {}
+          } catch (delErr: unknown) {
               const errorMessage = delErr instanceof Error ? delErr.message : String(delErr || "未知错误");
               try { await appendLog(userId, requestId, "error", `pgmqDelete failed mid=${row.msg_id} err=${errorMessage}`); } catch {}
               try { await pgmqArchive(q, row.msg_id); } catch {}
@@ -418,7 +451,13 @@ export async function POST(req: Request) {
                 await appendLog(userId, requestId, "error", `事务回滚失败: ${rollbackErrorMessage}`);
               }
           } else {
-            await pgmqSetVt(q, row.msg_id, vt * Math.min(10, (row.read_ct || 0) + 1)).catch(()=>{});
+            // 退避与重试：最多3次，指数退避
+            const maxRetry = parseInt(process.env.RUNNER_MAX_READ_RETRIES || "3", 10) || 3;
+            if ((row.read_ct || 0) + 1 >= maxRetry) {
+              await pgmqArchive(q, row.msg_id).catch(()=>{});
+            } else {
+              await pgmqSetVt(q, row.msg_id, vt * Math.min(8, Math.pow(2, (row.read_ct || 0) + 1))).catch(()=>{});
+            }
           }
             // 只在异常时记录日志，不写入import_results
           }

@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { sourceUrl, mode, productLinks = [], cap } = body || {};
+    const { sourceUrl, mode, productLinks = [], cap, priority } = body || {};
     if (mode !== "all" && mode !== "links") return NextResponse.json({ error: "缺少或非法导入模式" }, { status: 400 });
     if (mode === "all" && !sourceUrl) return NextResponse.json({ error: "全站模式需提供源站 URL" }, { status: 400 });
 
@@ -55,21 +55,24 @@ export async function POST(req: Request) {
     let links: string[] = [];
     if (mode === "all") {
       discovered = await discoverAllProductLinks(sourceUrl, maxCap);
+      // 预处理：去重与格式校验
+      discovered = Array.from(new Set(discovered)).filter((u) => /^https?:\/\//.test(u));
       jobTotal = discovered.length;
     } else {
-      links = (Array.isArray(productLinks) ? productLinks : [])
-        .map((s: string) => normalizeWpSlugOrLink(String(s || "")))
+      // 预处理：类型、去重、标准化
+      const arr = Array.isArray(productLinks) ? productLinks : [];
+      links = Array.from(new Set(arr.map((s: string) => normalizeWpSlugOrLink(String(s || "")))))
         .filter(Boolean);
       jobTotal = links.length;
     }
 
-    const q = pgmqQueueName("wordpress");
-    const items = (mode === "all" ? discovered : links).map((l) => ({ userId, requestId, source: "wordpress", link: /^https?:\/\//.test(l) ? l : new URL(l, sourceUrl).toString(), sourceUrl }));
+    const q = pgmqQueueName(priority === "high" ? "wordpress_high" : "wordpress");
+    const items = (mode === "all" ? discovered : links).map((l) => ({ userId, requestId, source: "wordpress", priority: priority === "high" ? "high" : "normal", link: /^https?:\/\//.test(l) ? l : new URL(l, sourceUrl).toString(), sourceUrl }));
     const chunk = 300;
     for (let i = 0; i < items.length; i += chunk) {
       await pgmqSendBatch(q, items.slice(i, i + chunk));
     }
-    await appendLog(userId, requestId, "info", `pgmq queued ${jobTotal} links from ${sourceUrl}`);
+    await appendLog(userId, requestId, "info", `pgmq queued ${jobTotal} links from ${sourceUrl} q=${q}`);
     return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
 
     

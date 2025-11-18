@@ -28,11 +28,15 @@ function writeLocal(arr: Result[]) {
   try { globalAny.__importResults = arr; } catch {}
 }
 
-export async function recordResult(userId: string, source: string, requestId: string, itemKey: string, name: string | undefined, productId: number | undefined, status: "success" | "error") {
+export async function recordResult(userId: string, source: string, requestId: string, itemKey: string, name: string | undefined, productId: number | undefined, status: "success" | "error", errorMessage?: string) {
   const supabase = getSupabaseServer();
   const now = new Date().toISOString();
   if (supabase) {
-    await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status });
+    try {
+      await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status, error_message: errorMessage });
+    } catch {
+      await supabase.from("import_results").insert({ user_id: userId, request_id: requestId, source, item_key: itemKey, name, product_id: productId, status });
+    }
     return;
   }
   const arr = readLocal();

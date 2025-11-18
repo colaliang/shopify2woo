@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
 
 export default function ImportPage() {
@@ -12,6 +12,7 @@ export default function ImportPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
   const [rid, setRid] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{ requestId: string; source: string; itemKey: string; name?: string; productId?: number; createdAt: string }>>([]);
   const [counts, setCounts] = useState<{ processed: number; successCount: number; errorCount: number }>({ processed: 0, successCount: 0, errorCount: 0 });
@@ -19,10 +20,11 @@ export default function ImportPage() {
   const [debugOpen, setDebugOpen] = useState(process.env.NODE_ENV !== "production");
   const [logs, setLogs] = useState<Array<{ level: string; message: string; createdAt: string }>>([]);
   const [runnerPing, setRunnerPing] = useState<NodeJS.Timeout | null>(null);
-  const [evt, setEvt] = useState<EventSource | WebSocket | null>(null);
+  const [evt, setEvt] = useState<any>(null);
   const [cap, setCap] = useState<number>(1000);
   const [runnerStopUntil, setRunnerStopUntil] = useState<number>(0);
   const isRunning = !!rid;
+  const subscribedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!message) return;
@@ -38,80 +40,53 @@ export default function ImportPage() {
     try { localStorage.setItem("importRequestId", r); } catch {}
     const storedSrc = (() => { try { return localStorage.getItem("importSource") || ""; } catch { return ""; } })();
     setRid(r);
-    if (evt) { try { evt.close(); } catch {} setEvt(null); }
-    if (!token) return;
-    const stopUntilLs = (()=>{ 
-      try { 
-        return parseInt(localStorage.getItem("wsStopUntil") || "0", 10) || 0; 
-      } catch { return 0; } 
-    })();
-    if (stopUntilLs > Date.now()) {
-      setMessage("实时通道已暂停，稍后再试! StartTracking");
-      return;
-    }
-    const proto = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const authToken = token || process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
-    if (!authToken) {
-      setMessage("未登录且未配置客户端RUNNER_TOKEN，已停止实时通道");
-      return;
-    }
-    try {
-      const pre = await fetch(`/api/import/ws/check?requestId=${encodeURIComponent(r)}&token=${encodeURIComponent(authToken)}`, {
-        headers: { Authorization: `Bearer ${authToken}` }, cache: 'no-store' 
-      });
-      const preBody = await pre.json().catch(()=>({}));
-      if (!pre.ok) {
-        setMessage(`WS 授权失败: ${preBody?.error || pre.status}`);
-        return;
-      }
-    } catch (e) {
-      setMessage(`WS 预检失败: ${e instanceof Error ? e.message : String(e)}`);
-      return;
-    }
-    const url = `${proto}://${typeof window !== 'undefined' ? window.location.host : ''}/api/import/ws?requestId=${encodeURIComponent(r)}&token=${encodeURIComponent(authToken)}`;
-    const es = new WebSocket(url);
-    try { (window as any).__wsActive = true; } catch {}
-    es.addEventListener("open", () => { setMessage(null); });
-    es.addEventListener("message", (ev: MessageEvent) => {
-      try {
-        const msg = JSON.parse(String(ev.data || ""));
-        const { event, data } = msg || {};
-        if (event === "logs" && Array.isArray(data)) {
-          const latest = data.slice(Math.max(0, data.length - 30));
-          setLogs(latest);
-        } else if (event === "history" && Array.isArray(data)) {
-          setHistory(data);
-        } else if (event === "counts" && data && typeof data.processed === 'number') {
-          const obj = data as { processed: number; successCount: number; errorCount: number };
-          setCounts({ processed: obj.processed || 0, successCount: obj.successCount || 0, errorCount: obj.errorCount || 0 });
-          const totalKey = `importTotal:${r}`;
-          const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
-          const total = parseInt(totalStr || "0", 10) || 0;
-          if (total > 0 && obj.processed >= total) {
-            try { localStorage.removeItem("importRequestId"); } catch {}
-            try { localStorage.removeItem("importSource"); } catch {}
-            try { localStorage.removeItem(totalKey); } catch {}
-            if (evt) { try { (evt as WebSocket).close(); } catch {} setEvt(null); }
-            if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
-            setRid(null);
-            setMessage(`已完成：成功 ${obj.successCount || 0}，失败 ${obj.errorCount || 0}`);
-          }
-        } else if (event === "error") {
-          setMessage(`WS 错误：${(data && data.message) || "未知"}`);
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+    const myUid = uid;
+    if (!myUid) { setMessage("未登录"); return; }
+    if (evt && supabase) { try { supabase.removeChannel(evt); } catch {} setEvt(null); }
+    try { (window as any).__rtActive = true; } catch {}
+    const ch = supabase
+      .channel(`import:${myUid}:${r}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_logs', filter: `user_id=eq.${myUid},request_id=eq.${r}` }, (payload: any) => {
+        const row = payload?.new || {};
+        const one = { level: row?.level || 'info', message: row?.message || '', createdAt: row?.created_at || new Date().toISOString() };
+        setLogs((prev) => {
+          const arr = [...prev, one];
+          return arr.slice(Math.max(0, arr.length - 29));
+        });
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid},request_id=eq.${r}` }, (payload: any) => {
+        const row = payload?.new || {};
+        const item = { requestId: r, source: row?.source || '', itemKey: row?.item_key || '', name: row?.name || '', productId: row?.product_id, createdAt: row?.created_at || new Date().toISOString() };
+        setHistory((prev) => {
+          const arr = [item, ...prev];
+          return arr.slice(0, 50);
+        });
+        setCounts((prev) => {
+          const successInc = row?.status === 'success' ? 1 : 0;
+          const errorInc = row?.status === 'error' ? 1 : 0;
+          return { processed: prev.processed + successInc + errorInc, successCount: prev.successCount + successInc, errorCount: prev.errorCount + errorInc };
+        });
+        const totalKey = `importTotal:${r}`;
+        const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
+        const total = parseInt(totalStr || "0", 10) || 0;
+        const cur = (() => { try { return localStorage.getItem(`importProcessed:${r}`) || "0"; } catch { return "0"; } })();
+        const processed = parseInt(cur || "0", 10) + 1;
+        try { localStorage.setItem(`importProcessed:${r}`, String(processed)); } catch {}
+        if (total > 0 && processed >= total) {
+          try { localStorage.removeItem("importRequestId"); } catch {}
+          try { localStorage.removeItem("importSource"); } catch {}
+          try { localStorage.removeItem(totalKey); } catch {}
+          try { localStorage.removeItem(`importProcessed:${r}`); } catch {}
+          if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+          setRid(null);
+          setMessage("已完成：任务处理完成");
         }
-      } catch {}
-    });
-    es.addEventListener("close", (ev: CloseEvent) => {
-      setEvt(null);
-      setMessage(`实时通道关闭，已停止更新 (code=${ev.code}${ev.reason ? ", reason="+ev.reason : ""})`);
-      try { 
-        const until = String(Date.now() + 10 * 60 * 1000);
-        localStorage.setItem("wsStopUntil", until);
-      } catch {}
-      try { (window as any).__wsActive = false; } catch {}
-      if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
-    });
-    setEvt(es);
+      })
+      .subscribe((status: any) => { if (status === 'SUBSCRIBED') setMessage(null); });
+    setEvt(ch);
+    subscribedRef.current = r;
     if (process.env.NEXT_PUBLIC_ENABLE_CLIENT_RUNNER === "1") {
       if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
       const src = storedSrc || importType;
@@ -162,7 +137,7 @@ export default function ImportPage() {
       setRunnerPing(rid2);
       ping();
     }
-  }, [evt, importType, runnerPing, setEvt, setRid, setRunnerPing, token]);
+  }, [evt, importType, runnerPing, setEvt, setRid, setRunnerPing, uid]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -298,6 +273,7 @@ export default function ImportPage() {
       const supabase = getSupabaseBrowser();
       const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
       setToken(data.session?.access_token || null);
+      setUid((data.session?.user?.id as string) || null);
       try {
         const r = await fetch(`/api/import/history?page=${page}`, { headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : {} });
         const j = await r.json();
@@ -343,8 +319,27 @@ export default function ImportPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const r0 = (() => { try { return localStorage.getItem("importRequestId") || ""; } catch { return ""; }})();
-    if (r0 && token) startTracking(r0);
-  }, [token, startTracking]);
+    if (r0 && token && uid && subscribedRef.current !== r0) {
+      startTracking(r0);
+    }
+  }, [token, uid]);
+
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
+        const r = await fetch(`/api/import/queue/stats`, { cache: 'no-store', signal: controller.signal });
+        clearTimeout(timer);
+        if (!r.ok) return;
+        const data = await r.json().catch(()=>null);
+        if (data && data.warn && Array.isArray(data.reasons)) {
+          setMessage(data.reasons.join('; '));
+        }
+      } catch {}
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -353,7 +348,7 @@ export default function ImportPage() {
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      if (evt) { try { evt.close(); } catch {} }
+      if (evt) { try { const supabase = getSupabaseBrowser(); if (supabase) supabase.removeChannel(evt); subscribedRef.current = null; } catch {} }
       if (runnerPing) clearInterval(runnerPing);
       try { (window as any).__wsActive = false; } catch {}
     };
