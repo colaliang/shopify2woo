@@ -76,7 +76,11 @@ async function wooFetch(
   const url = new URL(applyIndexPhp(endpoint), cfg.url.replace(/\/$/, ""));
   const dispatcher = getDispatcherFromEnv();
   const started = Date.now();
-  for (let i = 0; i <= retry; i++) {
+  const method = (init?.method || "GET").toUpperCase();
+  const maxRetry = method !== "GET"
+    ? (parseInt(process.env.WOO_WRITE_RETRY || "3", 10) || 3)
+    : (parseInt(process.env.WOO_READ_RETRY || String(retry), 10) || retry);
+  for (let i = 0; i <= maxRetry; i++) {
     const authMode = (process.env.WOO_AUTH_MODE || "query").toLowerCase();
     const apiUrl = new URL(url.toString());
     let headers: Record<string, string> = {
@@ -111,7 +115,9 @@ async function wooFetch(
       console.error(`请求日志记录失败: ${logError}`);
     }
     
-    const timeoutMs = parseInt(process.env.WOO_FETCH_TIMEOUT_MS || "20000", 10) || 20000;
+    const timeoutMs = method !== "GET"
+      ? (parseInt(process.env.WOO_WRITE_TIMEOUT_MS || "40000", 10) || 40000)
+      : (parseInt(process.env.WOO_FETCH_TIMEOUT_MS || "20000", 10) || 20000);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     type UndiciRequestInit = RequestInit & { dispatcher?: unknown };
@@ -137,7 +143,7 @@ async function wooFetch(
         };
         console.error(JSON.stringify(errorLogData));
       } catch {}
-      if (i < retry) {
+      if (i < maxRetry) {
         await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
         continue;
       }
@@ -188,7 +194,7 @@ async function wooFetch(
       console.error(`日志记录失败: ${logError}`);
     }
     if (!res.ok || ((init?.method || "GET") !== "GET" && !ct.includes("application/json"))) {
-      if (i < retry) {
+      if (i < maxRetry) {
         await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
         continue;
       }
