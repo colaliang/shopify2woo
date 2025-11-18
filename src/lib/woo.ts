@@ -151,7 +151,7 @@ async function wooFetch(
         retryAttempt: i
       };
       
-      if (!res.ok) {
+      if (!res.ok || ((init?.method || "GET") !== "GET" && !ct.includes("application/json"))) {
         const body = await res.clone().text().catch(() => "");
         const errorLogData = {
           ...logData,
@@ -176,6 +176,13 @@ async function wooFetch(
     } catch (logError) {
       // 日志记录失败时不中断主流程
       console.error(`日志记录失败: ${logError}`);
+    }
+    if (!res.ok || ((init?.method || "GET") !== "GET" && !ct.includes("application/json"))) {
+      if (i < retry) {
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+        continue;
+      }
+      throw new Error(`Woo 请求失败: 状态=${res.status} CT=${ct}`);
     }
     if (res.status >= 500 || res.status === 429) {
       await new Promise((r) => setTimeout(r, 1000 * (i + 1)));

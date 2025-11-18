@@ -30,8 +30,10 @@ export async function POST(req: Request) {
         const name = String(payload?.name || "");
         if (!name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
         const res = await wooPost(cfg, `wp-json/wc/v3/products/categories`, { name });
+        const ct = res.headers.get("content-type") || "";
         const txt = await res.text();
-        return NextResponse.json({ ok: res.ok, status: res.status, contentType: res.headers.get("content-type") || "", body: txt });
+        const ok = res.ok && ct.includes("application/json");
+        return NextResponse.json({ ok, status: res.status, contentType: ct, body: txt });
       }
       if (action === "listProducts") {
         const sku = String(payload?.sku || "");
@@ -46,8 +48,10 @@ export async function POST(req: Request) {
       if (action === "createProduct") {
         const data = payload && typeof payload === "object" ? payload : {};
         const res = await wooPost(cfg, `wp-json/wc/v3/products`, data);
+        const ct = res.headers.get("content-type") || "";
         const txt = await res.text();
-        return NextResponse.json({ ok: res.ok, status: res.status, contentType: res.headers.get("content-type") || "", body: txt });
+        const ok = res.ok && ct.includes("application/json");
+        return NextResponse.json({ ok, status: res.status, contentType: ct, body: txt });
       }
       if (action === "updateProduct") {
         const id = String(payload?.id || "");

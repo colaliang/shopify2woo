@@ -5,7 +5,7 @@ export default function WooTestPage() {
   const [url, setUrl] = useState("");
   const [key, setKey] = useState("");
   const [secret, setSecret] = useState("");
-  const [authMode, setAuthMode] = useState<"query" | "basic">("query");
+  const [authMode, setAuthMode] = useState<"query" | "basic">("basic");
   const [out, setOut] = useState<string>("");
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
