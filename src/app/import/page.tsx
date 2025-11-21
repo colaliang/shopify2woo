@@ -24,7 +24,7 @@ export default function ImportPage() {
   const [logs, setLogs] = useState<Array<{ level: string; message: string; createdAt: string }>>([]);
   const [debugTab, setDebugTab] = useState<"log"|"scrape"|"health">(() => { try { return (localStorage.getItem("debugTab") as "log"|"scrape"|"health") || "log"; } catch { return "log"; } });
   type HealthResponse = { ok: boolean; env: { supabase_server_url: boolean; supabase_server_key: boolean; supabase_client_url: boolean; supabase_client_key: boolean; runner_token: boolean; image_cache_bucket: string }; supabase: { storage_access: boolean; pgmq_rpc: boolean }; reasons: string[]; ts: string };
-  type ScrapeResult = { finalUrl?: string; selectedCount?: number };
+  type ScrapeResultBase = { finalUrl?: string; selectedCount?: number };
   const [hLoading, setHLoading] = useState(false);
   const [hError, setHError] = useState<string | null>(null);
   const [hData, setHData] = useState<HealthResponse | null>(null);
@@ -34,7 +34,7 @@ export default function ImportPage() {
   const [dbgError, setDbgError] = useState<string | null>(null);
   type VarAttr = { name: string; option: string };
   type VariationsPreview = { attributes?: Array<{ name: string; visible?: boolean; variation?: boolean; options: string[] }>; default_attributes?: Array<VarAttr>; variations?: Array<{ attributes: VarAttr[]; regular_price?: string }> };
-  type ScrapeResult = { finalUrl?: string; selectedCount?: number; variationsPreview?: VariationsPreview };
+  type ScrapeResult = ScrapeResultBase & { variationsPreview?: VariationsPreview };
   const [dbgData, setDbgData] = useState<ScrapeResult | null>(null);
   const [runnerPing, setRunnerPing] = useState<NodeJS.Timeout | null>(null);
   const [statsPing, setStatsPing] = useState<NodeJS.Timeout | null>(null);
@@ -935,7 +935,7 @@ export default function ImportPage() {
                     {dbgData.variationsPreview ? (
                       <div className="mt-2">
                         <div className="font-semibold text-green-200 mb-1">变体预览（只读）</div>
-                        <div className="mb-1">规格：{String((dbgData.variationsPreview.attributes||[]).map(a=>a.name).join(' / '))}</div>
+                        <div className="mb-1">规格：{String((dbgData.variationsPreview.attributes||[]).map((a: { name: string })=>a.name).join(' / '))}</div>
                         <div className="mb-1">组合数量：{Number(dbgData.variationsPreview.variations?.length||0)}</div>
                         <div className="border rounded p-2 whitespace-pre-wrap">{JSON.stringify({ attributes: dbgData.variationsPreview.attributes, default_attributes: dbgData.variationsPreview.default_attributes, sample: (dbgData.variationsPreview.variations||[]).slice(0, 20) }, null, 2)}</div>
                       </div>

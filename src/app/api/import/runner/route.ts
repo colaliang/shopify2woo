@@ -9,9 +9,9 @@ import { ensureTerms, findProductBySkuOrSlug, wooPost, wooPut, wooGet, wooDelete
 import { fetchProductByHandle, type ShopifyProduct } from "@/lib/shopify";
 import { getImportCache, saveImportCache, isCacheValid, sha256 } from "@/lib/cache";
 import { buildWooProductPayload, buildVariationFromShopifyVariant } from "@/lib/importMap";
-import { fetchHtmlMeta, buildWpPayloadFromHtml, buildWpVariationsFromHtml } from "@/lib/wordpressScrape";
+import { fetchHtmlMeta, buildWpPayloadFromHtml, buildWpVariationsFromHtml, extractJsonLdProduct } from "@/lib/wordpressScrape";
 import { normalizeWpSlugOrLink, type WooProduct } from "@/lib/wordpress";
-import { buildWixPayload } from "@/lib/wixScrape";
+import { buildWixPayload, buildWixVariationsFromHtml } from "@/lib/wixScrape";
 const lastRunBySource = new Map<string, number>();
 const inFlightSources = new Set<string>();
 let lastCleanupAt = 0;
@@ -30,7 +30,7 @@ interface WordPressProductPayload {
 
 type ShopifyCachePre = { product?: ShopifyProduct; payload?: Record<string, unknown> };
 type WpCachePre = { slug?: string; sku?: string; name?: string; description?: string; short_description?: string; imagesAbs?: string[]; catNames?: string[]; tagNames?: string[]; payload?: WordPressProductPayload };
-type WixCachePre = { slug?: string; name?: string; description?: string; short_description?: string; imagesAbs?: string[]; payload?: WordPressProductPayload };
+type WixCachePre = { slug?: string; name?: string; description?: string; short_description?: string; imagesAbs?: string[]; catNames?: string[]; tagNames?: string[]; payload?: WordPressProductPayload };
 
 
 
@@ -551,12 +551,6 @@ export async function POST(req: Request) {
                     continue;
                   }
                 }
-                let vars = extractProductVariations(html);
-                if (!vars.length) {
-                  const attrs = extractFormAttributes(html);
-                  const price = extractProductPrice(html);
-                  vars = buildVariationsFromForm(attrs, price);
-                }
                 const built = buildWpPayloadFromHtml(html, link, meta.finalUrl || link);
                 slug = built.slug;
                 sku = built.sku;
@@ -744,7 +738,7 @@ export async function POST(req: Request) {
                         const lists = attrs.map(a => a.options || []);
                         const variations: Array<{ attributes: Array<{ name: string; option: string }>; regular_price?: string }> = [];
                         const priceStr = String((payload as Record<string, unknown>)?.regular_price || (payload as Record<string, unknown>)?.price || "").trim();
-                        function gen(namesIn: string[], listsIn: string[], acc: Array<{ name: string; option: string }>) {
+                        function gen(namesIn: string[], listsIn: string[][], acc: Array<{ name: string; option: string }>) {
                           if (!namesIn.length) { const v: { attributes: Array<{ name: string; option: string }>; regular_price?: string } = { attributes: acc.slice() }; if (priceStr) v.regular_price = priceStr; variations.push(v); return; }
                           const [n, ...rn] = namesIn; const [ls, ...rl] = listsIn; for (const opt of ls) gen(rn, rl, [...acc, { name: n, option: opt }]);
                         }

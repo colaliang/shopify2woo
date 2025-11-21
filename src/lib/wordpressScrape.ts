@@ -543,9 +543,10 @@ export function buildWpVariationsFromHtml(html: string) {
   const default_attributes = first ? Object.entries(first.attributes || {}).map(([name, option]) => ({ name, option: String(option || "") })).filter((x) => x.option) : [];
   const variations = vars.map((v) => {
     const attrs = Object.entries(v.attributes || {}).map(([name, option]) => ({ name, option: String(option || "") })).filter((x) => x.option);
-    const price = v.price ? String(v.price) : undefined;
-    const sale_price = v.salePrice ? String(v.salePrice) : undefined;
-    const image = v.image ? { src: cleanImageUrl(String(v.image)) || String(v.image) } : undefined;
+    const price = v.regular_price ? String(v.regular_price) : undefined;
+    const sale_price = v.sale_price ? String(v.sale_price) : undefined;
+    const imgSrc = v.image?.src;
+    const image = imgSrc ? { src: cleanImageUrl(String(imgSrc)) || String(imgSrc) } : undefined;
     const out: Record<string, unknown> = { attributes: attrs };
     if (price) out.regular_price = price;
     if (sale_price) out.sale_price = sale_price;

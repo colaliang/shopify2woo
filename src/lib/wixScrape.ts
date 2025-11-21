@@ -98,7 +98,7 @@ export function buildWixVariationsFromHtml(html: string) {
   const default_attributes = opts.map((o) => ({ name: o.name, option: o.options[0] })).filter((x) => x.option);
   type VarAttr = { name: string; option: string };
   const variations: Array<{ attributes: VarAttr[]; regular_price?: string }> = [];
-  function cartesian(names: string[], lists: string[], acc: VarAttr[]) {
+  function cartesian(names: string[], lists: string[][], acc: VarAttr[]) {
     if (!names.length) {
       const v: { attributes: VarAttr[]; regular_price?: string } = { attributes: acc.slice() };
       if (price) v.regular_price = String(price);
