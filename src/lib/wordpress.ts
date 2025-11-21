@@ -63,7 +63,7 @@ export function buildWooPayloadFromWooProduct(src: WooProduct) {
 export async function fetchSourceProductsAll(cfg: WooConfig, perPage = 100) {
   const all: WooProduct[] = [];
   for (let page = 1; page <= 100; page++) {
-    const res = await wooGet(cfg, `wp-json/wc/v3/products?per_page=${perPage}&page=${page}`);
+    const res = await wooGet(cfg, `index.php/wp-json/wc/v3/products?per_page=${perPage}&page=${page}`);
     const arr = await res.json();
     if (!Array.isArray(arr) || !arr.length) break;
     all.push(...arr);
@@ -72,7 +72,7 @@ export async function fetchSourceProductsAll(cfg: WooConfig, perPage = 100) {
 }
 
 export async function fetchSourceProductBySlug(cfg: WooConfig, slug: string) {
-  const res = await wooGet(cfg, `wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`);
+  const res = await wooGet(cfg, `index.php/wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`);
   const arr = await res.json();
   return Array.isArray(arr) && arr.length ? (arr[0] as WooProduct) : null;
 }
@@ -80,7 +80,7 @@ export async function fetchSourceProductBySlug(cfg: WooConfig, slug: string) {
 export async function fetchSourceVariations(cfg: WooConfig, productId: number, perPage = 100) {
   const all: WooVariation[] = [];
   for (let page = 1; page <= 100; page++) {
-    const res = await wooGet(cfg, `wp-json/wc/v3/products/${productId}/variations?per_page=${perPage}&page=${page}`);
+    const res = await wooGet(cfg, `index.php/wp-json/wc/v3/products/${productId}/variations?per_page=${perPage}&page=${page}`);
     const arr = await res.json();
     if (!Array.isArray(arr) || !arr.length) break;
     all.push(...arr);

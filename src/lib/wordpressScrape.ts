@@ -1,4 +1,5 @@
 import { cleanImageUrl } from "./importMap";
+import { normalizeWpSlugOrLink } from "./wordpress";
 
 type LdProduct = {
   name?: string;
@@ -39,7 +40,7 @@ function htmlUnescape(s: string) {
 
 const defaultHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0 Safari/537.36",
-  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "Accept-Language": "en-US,en;q=0.8,zh-CN;q=0.7,zh;q=0.6",
 };
 
@@ -50,7 +51,9 @@ export async function fetchHtml(url: string) {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(url, { headers: defaultHeaders, signal: controller.signal, redirect: "follow" });
+      const headers = { ...defaultHeaders } as Record<string, string>;
+      try { headers["Referer"] = new URL(url).origin; } catch {}
+      const res = await fetch(url, { headers, signal: controller.signal, redirect: "follow" });
       clearTimeout(timer);
       if (res.status === 404) throw new Error(`无法获取页面 404`);
       if (!res.ok) throw new Error(`无法获取页面 ${res.status}`);
@@ -70,15 +73,18 @@ export async function fetchHtmlMeta(url: string) {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(url, { headers: defaultHeaders, redirect: "follow", signal: controller.signal });
+      const headers = { ...defaultHeaders } as Record<string, string>;
+      try { headers["Referer"] = new URL(url).origin; } catch {}
+      const res = await fetch(url, { headers, redirect: "follow", signal: controller.signal });
       clearTimeout(timer);
       const text = await res.text();
-      const finalUrl = res.url || url;
+      const ct = res.headers.get("content-type") || "";
+      const finalUrl = ct.startsWith("image/") ? url : (res.url || url);
       const urlMismatch = finalUrl !== url;
       return { 
         html: text, 
         status: res.status, 
-        contentType: res.headers.get("content-type") || "", 
+        contentType: ct, 
         finalUrl,
         urlMismatch,
         originalUrl: url
@@ -381,7 +387,7 @@ export function extractDescriptionHtml(html: string) {
 
 export function extractGalleryImages(html: string) {
   const out: string[] = [];
-  const figRe = /<figure[^>]*class="[^"]*woocommerce-product-gallery__image[^"]*"[\s\S]*?<\/figure>/gi;
+  const figRe = /<(figure|div)[^>]*class="[^"]*woocommerce-product-gallery__image[^"]*"[\s\S]*?<\/\1>/gi;
   let m: RegExpExecArray | null;
   while ((m = figRe.exec(html))) {
     const block = m[0];
@@ -389,8 +395,9 @@ export function extractGalleryImages(html: string) {
     const img = block.match(/src="([^"]+)"/i)?.[1];
     const srcset = block.match(/srcset="([^"]+)"/i)?.[1];
     const dataSrc = block.match(/data-src="([^"]+)"/i)?.[1];
+    const large = block.match(/data-large_image="([^"]+)"/i)?.[1];
     const bestFromSrcset = srcset ? pickLargestFromSrcset(srcset) : undefined;
-    const src = href || bestFromSrcset || dataSrc || img;
+    const src = href || bestFromSrcset || dataSrc || large || img;
     if (src) out.push(src);
   }
   return Array.from(new Set(out.map((s) => cleanImageUrl(s)))).filter(Boolean) as string[];
@@ -419,6 +426,135 @@ export function extractSku(html: string) {
   return undefined;
 }
 
+export function normalizeSku(raw?: string) {
+  if (!raw) return undefined;
+  let s = String(raw).trim();
+  s = s.replace(/^sku\s*[:：\-–]?\s*/i, "");
+  s = s.trim();
+  const m = s.match(/[A-Za-z0-9][A-Za-z0-9\-_.]*/);
+  return m ? m[0] : (s || undefined);
+}
+
+function stripSize(u: string) {
+  try { const p = new URL(u); p.pathname = p.pathname.replace(/-\d+x\d+(?=\.[a-zA-Z0-9]+$)/, ""); return p.toString(); } catch { return u; }
+}
+
+function likelyProductImage(u: string) {
+  const s = u.toLowerCase();
+  if (/\.(svg)$/i.test(s)) return false;
+  if (/(icon|logo|favicon|avatar|placeholder|banner|badge)/i.test(s)) return false;
+  if (/(\/wp-content\/themes|\/wp-includes)/i.test(s)) return false;
+  if (/(data:image)/i.test(s)) return false;
+  if (/(pixel|tracker)/i.test(s)) return false;
+  if (/(woocommerce-product|wp-content\/uploads|\/uploads\/|\/product)/i.test(s)) return true;
+  return true;
+}
+
+export function selectImages(ld: unknown, gallery: string[]) {
+  const rawLd = ld && typeof ld === "object" && (ld as Record<string, unknown>).image;
+  const arrLd = Array.isArray(rawLd) ? rawLd as unknown[] : (typeof rawLd === "string" ? [rawLd] : []);
+  const fromLd = Array.from(new Set(arrLd.map((x) => stripSize(String(x))))).filter(Boolean).filter(likelyProductImage);
+  const fromGallery = Array.from(new Set(gallery.map((x) => stripSize(String(x))))).filter(Boolean).filter(likelyProductImage);
+  const base = fromLd.length ? fromLd : fromGallery;
+  const preferred = base.filter((u) => /\.(jpe?g|webp)$/i.test(u));
+  const primary = preferred.length ? preferred : base;
+  const uniq = Array.from(new Set(primary));
+  if (!uniq.length) {
+    const fallback = Array.from(new Set(gallery.map((x) => stripSize(String(x))))).filter(Boolean);
+    return fallback;
+  }
+  return uniq;
+}
+
+export function buildWpPayloadFromHtml(html: string, srcUrl: string, finalUrl?: string) {
+  const ld = extractJsonLdProduct(html);
+  const breadcrumb = extractBreadcrumbCategories(html) || [];
+  const posted = extractPostedInCategories(html) || [];
+  const cat = ld?.category;
+  const fromLd = Array.isArray(cat) ? cat : cat ? [cat] : [];
+  const allCats = Array.from(new Set([...(breadcrumb || []), ...(posted || []), ...fromLd].map((x) => String(x).trim()).filter(Boolean)));
+  const primaryCat = (breadcrumb && breadcrumb.length) ? String(breadcrumb[breadcrumb.length - 1]) : "";
+  const orderedCats: string[] = [];
+  if (primaryCat) orderedCats.push(primaryCat);
+  for (const c of allCats) {
+    const lc = c.toLowerCase();
+    if (!orderedCats.some((x) => x.toLowerCase() === lc)) orderedCats.push(c);
+  }
+  let finalCats = orderedCats.filter((c, i) => {
+    const lc = c.toLowerCase();
+    if (lc === "uncategorized" || lc === "未分类") return false;
+    if (lc === "accessories" && i > 0) return false;
+    return true;
+  });
+  if (!finalCats.length) {
+    try {
+      const u = new URL(finalUrl || srcUrl);
+      const parts = u.pathname.split('/').filter(Boolean);
+      const iProd = parts.findIndex((p) => p.toLowerCase() === 'product');
+      if (iProd >= 0 && parts[iProd + 1]) {
+        const seg = parts[iProd + 1];
+        const name = seg.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+        if (name && !/^(accessories|uncategorized|未分类)$/i.test(name)) finalCats = [name];
+      }
+    } catch {}
+  }
+  const tags = extractTags(html) || [];
+  const slug = normalizeWpSlugOrLink(srcUrl);
+  const sku = normalizeSku(extractSku(html) || ld?.sku || slug) || slug;
+  let images = extractGalleryImages(html);
+  if (!images.length) {
+    const ogs = extractOgImages(html);
+    const contents = extractContentImages(html);
+    images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
+  }
+  const descHtml = extractDescriptionHtml(html) || ld?.description || "";
+  const chosen = selectImages(ld, images);
+  const abs = chosen.map((u) => new URL(u, finalUrl || srcUrl).toString());
+  const maxImages = parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10;
+  const v = buildWpVariationsFromHtml(html);
+  const payload = {
+    name: ld?.name || slug,
+    slug,
+    sku,
+    description: descHtml,
+    short_description: descHtml,
+    type: (v.variations && v.variations.length > 1) ? "variable" : "simple",
+    attributes: v.attributes?.length ? v.attributes : undefined,
+    default_attributes: v.default_attributes?.length ? v.default_attributes : undefined,
+    images: Array.from(new Set(abs)).slice(0, maxImages).map((src) => ({ src }))
+  };
+  const result = { source: "wordpress", url: (finalUrl || srcUrl), slug, sku, name: payload.name, description: payload.description, short_description: payload.short_description, imagesAbs: Array.from(new Set(abs)), catNames: finalCats, tagNames: tags, payload };
+  return result;
+}
+
+export function buildWpVariationsFromHtml(html: string) {
+  let vars = extractProductVariations(html);
+  if (!vars.length) {
+    const attrs = extractFormAttributes(html);
+    const price = extractProductPrice(html);
+    vars = buildVariationsFromForm(attrs, price);
+  }
+  const names = Array.from(new Set(vars.flatMap((v) => Object.keys(v.attributes || {}))));
+  const attributes = names.map((n) => {
+    const options = Array.from(new Set(vars.map((v) => String(v.attributes?.[n] || "")).filter(Boolean)));
+    return { name: n, visible: true, variation: true, options };
+  }).filter((a) => a.options.length);
+  const first = vars[0];
+  const default_attributes = first ? Object.entries(first.attributes || {}).map(([name, option]) => ({ name, option: String(option || "") })).filter((x) => x.option) : [];
+  const variations = vars.map((v) => {
+    const attrs = Object.entries(v.attributes || {}).map(([name, option]) => ({ name, option: String(option || "") })).filter((x) => x.option);
+    const price = v.price ? String(v.price) : undefined;
+    const sale_price = v.salePrice ? String(v.salePrice) : undefined;
+    const image = v.image ? { src: cleanImageUrl(String(v.image)) || String(v.image) } : undefined;
+    const out: Record<string, unknown> = { attributes: attrs };
+    if (price) out.regular_price = price;
+    if (sale_price) out.sale_price = sale_price;
+    if (image?.src) out.image = image;
+    return out;
+  });
+  return { attributes, default_attributes, variations };
+}
+
 export function extractOgImages(html: string) {
   const out: string[] = [];
   const re = /<meta[^>]+(?:property|name)="(?:og:image|twitter:image)"[^>]*content="([^"]+)"[^>]*>/gi;
@@ -434,11 +570,18 @@ export function extractContentImages(html: string) {
   const out: string[] = [];
   const blocks = html.match(/<div[^>]*class="[^"]*(entry-content|product)[^"]*"[\s\S]*?<\/div>/gi) || [];
   for (const b of blocks) {
+    const cleaned = b
+      .replace(/<(section|div)[^>]*class="[^"]*(related|upsells|cross-sells)[^"]*"[\s\S]*?<\/\1>/gi, '')
+      .replace(/<a[^>]*class="[^"]*(woocommerce-LoopProduct-link|woocommerce-LoopProduct__link)[^"]*"[\s\S]*?<\/a>/gi, '')
+      .replace(/<div[^>]*class="[^"]*(products|product-grid|products-carousel)[^"]*"[\s\S]*?<\/div>/gi, '');
     const imgRe = /<img[^>]+(srcset|data-src|src)="([^"]+)"[^>]*>/gi;
     let m: RegExpExecArray | null;
-    while ((m = imgRe.exec(b))) {
+    while ((m = imgRe.exec(cleaned))) {
       const attr = m[1];
       const val = m[2];
+      // 排除缩略图占位符
+      const skip = /(woocommerce-placeholder|attachment-woocommerce_thumbnail|thumbnail)/i.test(m[0]);
+      if (skip) continue;
       if (attr === 'srcset') {
         const best = pickLargestFromSrcset(val);
         if (best) out.push(best);

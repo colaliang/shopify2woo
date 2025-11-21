@@ -61,18 +61,23 @@ export async function POST(req: Request) {
     if (!wordpressUrl || !consumerKey || !consumerSecret) return NextResponse.json({ error: "Woo 配置未设置" }, { status: 400 });
 
     const requestId = Math.random().toString(36).slice(2, 10);
-    const supabase = getSupabaseServer();
-    if (!supabase || process.env.USE_PGMQ !== "1") {
-      return NextResponse.json({ error: "PGMQ 未启用或服务未配置" }, { status: 500 });
-    }
     const queue = pgmqQueueName("shopify");
     const msgs = handles.map((h: string) => ({ userId, requestId, source: "shopify", handle: h, shopifyBaseUrl, categories, tags }));
-    const chunk = 500;
-    for (let i = 0; i < msgs.length; i += chunk) {
-      await pgmqSendBatch(queue, msgs.slice(i, i + chunk));
+    try {
+      const chunk = 500;
+      let sent = 0;
+      for (let i = 0; i < msgs.length; i += chunk) {
+        const batch = msgs.slice(i, i + chunk);
+        await pgmqSendBatch(queue, batch);
+        sent += batch.length;
+      }
+      await appendLog(userId, requestId, "info", `pgmq queued ${sent}/${handles.length} from ${shopifyBaseUrl} q=${queue}`);
+      return NextResponse.json({ success: true, requestId, count: handles.length }, { status: 202 });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
+      await appendLog(userId, requestId, "error", `pgmq enqueue failed q=${queue}: ${msg}`);
+      return NextResponse.json({ error: `enqueue_failed: ${msg}` }, { status: 500 });
     }
-    await appendLog(userId, requestId, "info", `pgmq queued ${handles.length} from ${shopifyBaseUrl}`);
-    return NextResponse.json({ success: true, requestId, count: handles.length }, { status: 202 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
     return NextResponse.json({ error: msg }, { status: 500 });

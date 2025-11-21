@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { pgmqQueueName, pgmqQsize, pgmqArchivedCount } from "@/lib/pgmq";
+import { pgmqQueueName, pgmqQsize, pgmqArchivedCount, pgmqRead, pgmqSetVt } from "@/lib/pgmq";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const u = new URL(req.url);
+  const requestId = u.searchParams.get("requestId") || "";
   const sources = ["shopify", "wordpress", "wix"];
   const thresholds = {
     warn: parseInt(process.env.QUEUE_WARN_THRESHOLD || "1000", 10) || 1000,
@@ -19,5 +21,27 @@ export async function GET() {
   const warnQueues = rows.filter(r => (typeof r.total === 'number' && r.total! > thresholds.warn) || (typeof r.ready === 'number' && r.ready! > thresholds.warn));
   const warn = warnQueues.length > 0;
   const reasons = warnQueues.map(r => `队列积压: ${r.queue} total=${r.total} ready=${r.ready}`);
-  return NextResponse.json({ warn, reasons, rows, thresholds });
+  let queueEmptyForRequest: boolean | undefined = undefined;
+  if (requestId) {
+    queueEmptyForRequest = true;
+    outer: for (const s of sources) {
+      for (const qn of [pgmqQueueName(`${s}_high`), pgmqQueueName(s)]) {
+        for (let i = 0; i < 3; i++) {
+          const msgs = await pgmqRead(qn, 1, 100).catch(()=>[] as { msg_id: number; message: unknown }[]);
+          if (!msgs.length) break;
+          for (const row of msgs) {
+            const msg = row && row.message;
+            let rid = "";
+            if (msg && typeof msg === 'object' && 'requestId' in msg) {
+              const v = (msg as Record<string, unknown>).requestId;
+              rid = typeof v === 'string' ? v : '';
+            }
+            await pgmqSetVt(qn, row.msg_id, 0).catch(()=>{});
+            if (rid === requestId) { queueEmptyForRequest = false; break outer; }
+          }
+        }
+      }
+    }
+  }
+  return NextResponse.json({ warn, reasons, rows, thresholds, queueEmptyForRequest });
 }

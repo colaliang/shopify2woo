@@ -8,12 +8,12 @@ export function getSupabaseBrowser() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
   if (!url || !key) return null;
-  const globalAny = globalThis as any;
-  if (globalAny.__supabaseClient) {
-    cached = globalAny.__supabaseClient;
+  const g = globalThis as unknown as { __supabaseClient?: ReturnType<typeof createClient> };
+  if (g.__supabaseClient) {
+    cached = g.__supabaseClient;
     return cached;
   }
   cached = createClient(url, key);
-  globalAny.__supabaseClient = cached;
+  (globalThis as unknown as { __supabaseClient?: ReturnType<typeof createClient> }).__supabaseClient = cached;
   return cached;
 }

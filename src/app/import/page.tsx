@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export default function ImportPage() {
   const [importType, setImportType] = useState<"shopify" | "wordpress" | "wix">("wordpress");
@@ -14,18 +15,50 @@ export default function ImportPage() {
   const [token, setToken] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [rid, setRid] = useState<string | null>(null);
-  const [history, setHistory] = useState<Array<{ requestId: string; source: string; itemKey: string; name?: string; status?: string; productId?: number; createdAt: string }>>([]);
+  const [history, setHistory] = useState<Array<{ requestId: string; source: string; itemKey: string; name?: string; status?: string; productId?: number; action?: string; createdAt: string }>>([]);
   const [counts, setCounts] = useState<{ processed: number; successCount: number; errorCount: number; partialCount: number }>({ processed: 0, successCount: 0, errorCount: 0, partialCount: 0 });
   const [page, setPage] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const [maxPages, setMaxPages] = useState(1);
   const [debugOpen, setDebugOpen] = useState(process.env.NODE_ENV !== "production");
   const [logs, setLogs] = useState<Array<{ level: string; message: string; createdAt: string }>>([]);
+  const [debugTab, setDebugTab] = useState<"log"|"scrape"|"health">(() => { try { return (localStorage.getItem("debugTab") as "log"|"scrape"|"health") || "log"; } catch { return "log"; } });
+  type HealthResponse = { ok: boolean; env: { supabase_server_url: boolean; supabase_server_key: boolean; supabase_client_url: boolean; supabase_client_key: boolean; runner_token: boolean; image_cache_bucket: string }; supabase: { storage_access: boolean; pgmq_rpc: boolean }; reasons: string[]; ts: string };
+  type ScrapeResult = { finalUrl?: string; selectedCount?: number };
+  const [hLoading, setHLoading] = useState(false);
+  const [hError, setHError] = useState<string | null>(null);
+  const [hData, setHData] = useState<HealthResponse | null>(null);
+  const [dbgUrl, setDbgUrl] = useState<string>("");
+  const [dbgSource, setDbgSource] = useState<string>(()=>{ try{ return localStorage.getItem('debugSource') || (localStorage.getItem('importSource')||'wordpress'); } catch { return 'wordpress'; } });
+  const [dbgLoading, setDbgLoading] = useState(false);
+  const [dbgError, setDbgError] = useState<string | null>(null);
+  type VarAttr = { name: string; option: string };
+  type VariationsPreview = { attributes?: Array<{ name: string; visible?: boolean; variation?: boolean; options: string[] }>; default_attributes?: Array<VarAttr>; variations?: Array<{ attributes: VarAttr[]; regular_price?: string }> };
+  type ScrapeResult = { finalUrl?: string; selectedCount?: number; variationsPreview?: VariationsPreview };
+  const [dbgData, setDbgData] = useState<ScrapeResult | null>(null);
   const [runnerPing, setRunnerPing] = useState<NodeJS.Timeout | null>(null);
   const [statsPing, setStatsPing] = useState<NodeJS.Timeout | null>(null);
-  const [evt, setEvt] = useState<any>(null);
-  const [cap, setCap] = useState<number>(1000);
+  const [evt, setEvt] = useState<RealtimeChannel | null>(null);
+  const tokenRef = useRef<string | null>(null);
+  const evtRef = useRef<RealtimeChannel | null>(null);
+  const runnerPingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const statsPingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ridRef = useRef<string | null>(null);
+  const runnerStopUntilRef = useRef<number>(0);
+  const countsProcessedRef = useRef<number>(0);
+  const pageRef = useRef<number>(1);
+  const wsRetriesRef = useRef<number>(0);
   const [runnerStopUntil, setRunnerStopUntil] = useState<number>(0);
+
+  useEffect(() => { tokenRef.current = token; }, [token]);
+  useEffect(() => { evtRef.current = evt; }, [evt]);
+  useEffect(() => { runnerPingRef.current = runnerPing; }, [runnerPing]);
+  useEffect(() => { statsPingRef.current = statsPing; }, [statsPing]);
+  useEffect(() => { ridRef.current = rid; }, [rid]);
+  useEffect(() => { runnerStopUntilRef.current = runnerStopUntil; }, [runnerStopUntil]);
+  useEffect(() => { countsProcessedRef.current = counts.processed; }, [counts.processed]);
+  useEffect(() => { pageRef.current = page; }, [page]);
+  const [cap, setCap] = useState<number>(1000);
   const isRunning = !!rid;
   const subscribedRef = useRef<string | null>(null);
 
@@ -39,65 +72,107 @@ export default function ImportPage() {
     });
   }, [message]);
 
-  const startTracking = useCallback(async (r: string) => {
+  async function kickRunnerOnce(src: string, authToken: string) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(()=>controller.abort(), 5000);
+      const u = `/api/import/runner?source=${encodeURIComponent(src)}&token=${encodeURIComponent(authToken)}`;
+      const r = await fetch(u, { method: "POST", headers: { Authorization: `Bearer ${authToken}` }, redirect: 'manual', cache: 'no-store', signal: controller.signal });
+      clearTimeout(timer);
+      void r;
+    } catch {}
+  }
+
+  async function startTracking(r: string) {
     try { localStorage.setItem("importRequestId", r); } catch {}
     const storedSrc = (() => { try { return localStorage.getItem("importSource") || ""; } catch { return ""; } })();
     setRid(r);
     const supabase = getSupabaseBrowser();
     if (!supabase) return;
-    const myUid = uid;
-    if (!myUid) { setMessage("未登录"); return; }
-    if (evt && supabase) { try { supabase.removeChannel(evt); } catch {} setEvt(null); }
-    try { (window as any).__rtActive = true; } catch {}
+    const myUid = uid || "";
+    if (!myUid) return;
+    const prevCh = evtRef.current;
+    try { (window as unknown as { __rtActive?: boolean }).__rtActive = true; } catch {}
+    try {
+      const res0 = await fetch(`/api/import/logs?requestId=${encodeURIComponent(r)}&limit=500`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const j0 = await res0.json().catch(()=>null);
+      if (res0.ok && Array.isArray(j0?.items)) {
+        setLogs((j0.items as Array<{ level: string; message: string; createdAt: string }> ).reverse());
+      }
+    } catch {}
     const ch = supabase
       .channel(`import:${myUid}:${r}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_logs', filter: `user_id=eq.${myUid}` }, (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_logs', filter: `user_id=eq.${myUid}` }, (payload: { new?: Record<string, unknown> }) => {
         const row = payload?.new || {};
-        if (String(row?.request_id || '') !== r) return;
-        const one = { level: row?.level || 'info', message: row?.message || '', createdAt: row?.created_at || new Date().toISOString() };
+        if (String((row as Record<string, unknown>)['request_id'] || '') !== r) return;
+        const level = typeof row['level'] === 'string' ? (row['level'] as string) : (row['level'] != null ? String(row['level']) : 'info');
+        const message = typeof row['message'] === 'string' ? (row['message'] as string) : (row['message'] != null ? String(row['message']) : '');
+        const createdAt = typeof row['created_at'] === 'string' ? (row['created_at'] as string) : (row['created_at'] != null ? String(row['created_at']) : new Date().toISOString());
+        const one = { level, message, createdAt };
         setLogs((prev) => {
           const arr = [...prev, one];
           return arr.slice(Math.max(0, arr.length - 29));
         });
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}` }, async (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}` }, async (payload: { new?: Record<string, unknown> }) => {
         const row = payload?.new || {};
-        if (String(row?.request_id || '') !== r) return;
-        const item = { requestId: r, source: row?.source || '', itemKey: row?.item_key || '', name: row?.name || '', status: row?.status || '', productId: row?.product_id, createdAt: row?.created_at || new Date().toISOString() };
+        if (String((row as Record<string, unknown>)['request_id'] || '') !== r) return;
+        const item = {
+          requestId: r,
+          source: typeof row['source'] === 'string' ? (row['source'] as string) : String(row['source'] || ''),
+          itemKey: typeof row['item_key'] === 'string' ? (row['item_key'] as string) : String(row['item_key'] || ''),
+          name: typeof row['name'] === 'string' ? (row['name'] as string) : undefined,
+          status: typeof row['status'] === 'string' ? (row['status'] as string) : undefined,
+          productId: typeof row['product_id'] === 'number' ? (row['product_id'] as number) : undefined,
+          action: typeof row['action'] === 'string' ? (row['action'] as string) : undefined,
+          createdAt: typeof row['created_at'] === 'string' ? (row['created_at'] as string) : new Date().toISOString(),
+        };
         setHistory((prev) => {
           const arr = [item, ...prev];
           return arr.slice(0, 50);
         });
         let processedVal = counts.processed;
         try {
-          const res = await fetch(`/api/import/status?requestId=${encodeURIComponent(r)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+          const fallbackToken = process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+          const res = await fetch(`/api/import/status?requestId=${encodeURIComponent(r)}`, { headers: token ? { Authorization: `Bearer ${token}` } : (fallbackToken ? { Authorization: `Bearer ${fallbackToken}` } : {}) });
           const j = await res.json().catch(()=>null);
           if (res.ok && j && j.counts) {
             setCounts(j.counts);
             processedVal = typeof j.counts.processed === 'number' ? j.counts.processed : processedVal;
           }
+          const queueEmptyVal = j && typeof j.queueEmpty === 'boolean' ? j.queueEmpty : false;
+          const totalKey = `importTotal:${r}`;
+          const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
+          const total = parseInt(totalStr || "0", 10) || 0;
+          if (total > 0 && processedVal >= total && queueEmptyVal) {
+            try { localStorage.removeItem("importRequestId"); } catch {}
+            try { localStorage.removeItem("importSource"); } catch {}
+            try { localStorage.removeItem(totalKey); } catch {}
+            if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+            setRid(null);
+            setMessage("已完成：任务处理完成");
+          }
         } catch {}
-        const totalKey = `importTotal:${r}`;
-        const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
-        const total = parseInt(totalStr || "0", 10) || 0;
-        if (total > 0 && processedVal >= total) {
-          try { localStorage.removeItem("importRequestId"); } catch {}
-          try { localStorage.removeItem("importSource"); } catch {}
-          try { localStorage.removeItem(totalKey); } catch {}
-          if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
-          setRid(null);
-          setMessage("已完成：任务处理完成");
-        }
+        
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}` }, async (payload: any) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'import_results', filter: `user_id=eq.${myUid}` }, async (payload: { new?: Record<string, unknown> }) => {
         const row = payload?.new || {};
-        if (String(row?.request_id || '') !== r) return;
-        const item = { requestId: r, source: row?.source || '', itemKey: row?.item_key || '', name: row?.name || '', status: row?.status || '', productId: row?.product_id, createdAt: row?.created_at || new Date().toISOString() };
+        if (String((row as Record<string, unknown>)['request_id'] || '') !== r) return;
+        const item = {
+          requestId: r,
+          source: typeof row['source'] === 'string' ? (row['source'] as string) : String(row['source'] || ''),
+          itemKey: typeof row['item_key'] === 'string' ? (row['item_key'] as string) : String(row['item_key'] || ''),
+          name: typeof row['name'] === 'string' ? (row['name'] as string) : undefined,
+          status: typeof row['status'] === 'string' ? (row['status'] as string) : undefined,
+          productId: typeof row['product_id'] === 'number' ? (row['product_id'] as number) : undefined,
+          action: typeof row['action'] === 'string' ? (row['action'] as string) : undefined,
+          createdAt: typeof row['created_at'] === 'string' ? (row['created_at'] as string) : new Date().toISOString(),
+        };
         setHistory((prev) => {
           const idx = prev.findIndex((x) => x.requestId === r && x.itemKey === item.itemKey);
           if (idx >= 0) {
             const arr = [...prev];
-            arr[idx] = { ...arr[idx], name: item.name, status: item.status, productId: item.productId, createdAt: item.createdAt };
+            arr[idx] = { ...arr[idx], name: item.name, status: item.status, productId: item.productId, action: item.action, createdAt: item.createdAt };
             return arr;
           }
           const arr = [item, ...prev];
@@ -105,39 +180,68 @@ export default function ImportPage() {
         });
         let processedVal = counts.processed;
         try {
-          const res = await fetch(`/api/import/status?requestId=${encodeURIComponent(r)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+          const fallbackToken = process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+          const res = await fetch(`/api/import/status?requestId=${encodeURIComponent(r)}`, { headers: token ? { Authorization: `Bearer ${token}` } : (fallbackToken ? { Authorization: `Bearer ${fallbackToken}` } : {}) });
           const j = await res.json().catch(()=>null);
           if (res.ok && j && j.counts) {
             setCounts(j.counts);
             processedVal = typeof j.counts.processed === 'number' ? j.counts.processed : processedVal;
           }
+          const queueEmptyVal = j && typeof j.queueEmpty === 'boolean' ? j.queueEmpty : false;
+          const totalKey = `importTotal:${r}`;
+          const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
+          const total = parseInt(totalStr || "0", 10) || 0;
+          if (total > 0 && processedVal >= total && queueEmptyVal) {
+            try { localStorage.removeItem("importRequestId"); } catch {}
+            try { localStorage.removeItem("importSource"); } catch {}
+            try { localStorage.removeItem(totalKey); } catch {}
+            if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+            setRid(null);
+            setMessage("已完成：任务处理完成");
+          }
         } catch {}
-        const totalKey = `importTotal:${r}`;
-        const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
-        const total = parseInt(totalStr || "0", 10) || 0;
-        if (total > 0 && processedVal >= total) {
-          try { localStorage.removeItem("importRequestId"); } catch {}
-          try { localStorage.removeItem("importSource"); } catch {}
-          try { localStorage.removeItem(totalKey); } catch {}
-          if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
-          setRid(null);
-          setMessage("已完成：任务处理完成");
-        }
       })
-      .subscribe((status: any) => { if (status === 'SUBSCRIBED') setMessage(null); });
+      .subscribe((status: unknown) => {
+        if (typeof status === 'string' && status === 'SUBSCRIBED') { setMessage(null); wsRetriesRef.current = 0; }
+        if (typeof status === 'string' && status === 'SUBSCRIBED') { if (prevCh) { try { const sup = getSupabaseBrowser(); if (sup) sup.removeChannel(prevCh); } catch {} } }
+        if (typeof status === 'string' && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED')) {
+          setMessage('WS异常，重连中');
+          try { supabase.removeChannel(ch); } catch {}
+          if (wsRetriesRef.current < 3) {
+            wsRetriesRef.current += 1;
+            setTimeout(() => { try { startTrackingRef.current?.(r); } catch {} }, 1500 * wsRetriesRef.current);
+          }
+        }
+      });
     setEvt(ch);
     subscribedRef.current = r;
+    {
+      const authToken = token || process.env.RUNNER_TOKEN || '';
+      const src = storedSrc || importType;
+      if (authToken) { try { kickRunnerOnce(src, authToken); } catch {} }
+    }
     if (process.env.NEXT_PUBLIC_ENABLE_CLIENT_RUNNER === "1") {
-      if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
+      if (runnerPingRef.current) { clearInterval(runnerPingRef.current); setRunnerPing(null); }
       const src = storedSrc || importType;
       let failures = 0;
       if (runnerStopUntil > Date.now()) {
         setMessage("Runner 轮询已暂停，稍后再试");
         return;
       }
-      const authToken = token || process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+      const authToken = token || process.env.RUNNER_TOKEN || '';
       if (!authToken) {
-        setMessage("未登录且未配置客户端RUNNER_TOKEN，已停止轮询");
+        setMessage("未登录且未配置客户端RUNNER_TOKEN，任务已结束");
+        const curRid = ridRef.current;
+        if (curRid) {
+          try { localStorage.removeItem('importRequestId'); } catch {}
+          try { localStorage.removeItem('importSource'); } catch {}
+          try { localStorage.removeItem(`importTotal:${curRid}`); } catch {}
+        }
+        const sup = getSupabaseBrowser();
+        if (sup && evtRef.current) { try { sup.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+        if (runnerPingRef.current) { clearInterval(runnerPingRef.current); setRunnerPing(null); }
+        if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
+        setRid(null);
         return;
       }
       const ping = async () => {
@@ -151,14 +255,34 @@ export default function ImportPage() {
             if (r.status === 401) {
               clearInterval(rid2);
               setRunnerPing(null);
-              setMessage("Runner 未授权，已停止轮询");
+              const sup = getSupabaseBrowser();
+              if (sup && evtRef.current) { try { sup.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+              const curRid = ridRef.current;
+              if (curRid) {
+                try { localStorage.removeItem('importRequestId'); } catch {}
+                try { localStorage.removeItem('importSource'); } catch {}
+                try { localStorage.removeItem(`importTotal:${curRid}`); } catch {}
+              }
+              if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
+              setRid(null);
+              setMessage("Runner 未授权，任务已结束");
               setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
             } else {
               failures++;
               if (failures >= 3) {
                 clearInterval(rid2);
                 setRunnerPing(null);
-                setMessage("Runner 异常，已停止轮询");
+                const sup = getSupabaseBrowser();
+                if (sup && evtRef.current) { try { sup.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+                const curRid = ridRef.current;
+                if (curRid) {
+                  try { localStorage.removeItem('importRequestId'); } catch {}
+                  try { localStorage.removeItem('importSource'); } catch {}
+                  try { localStorage.removeItem(`importTotal:${curRid}`); } catch {}
+                }
+                if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
+                setRid(null);
+                setMessage("Runner 异常，任务已结束");
                 setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
               }
             }
@@ -168,7 +292,17 @@ export default function ImportPage() {
           if (failures >= 3) {
             clearInterval(rid2);
             setRunnerPing(null);
-            setMessage("Runner 网络异常，已停止轮询");
+            const sup = getSupabaseBrowser();
+            if (sup && evtRef.current) { try { sup.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+            const curRid = ridRef.current;
+            if (curRid) {
+              try { localStorage.removeItem('importRequestId'); } catch {}
+              try { localStorage.removeItem('importSource'); } catch {}
+              try { localStorage.removeItem(`importTotal:${curRid}`); } catch {}
+            }
+            if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
+            setRid(null);
+            setMessage("Runner 网络异常，任务已结束");
             setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
           }
         }
@@ -177,7 +311,10 @@ export default function ImportPage() {
       setRunnerPing(rid2);
       ping();
     }
-  }, [evt, importType, runnerPing, setEvt, setRid, setRunnerPing, uid]);
+  }
+
+  const startTrackingRef = useRef<((r: string) => Promise<void>) | null>(null);
+  useEffect(() => { startTrackingRef.current = startTracking; });
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -215,7 +352,11 @@ export default function ImportPage() {
           const totalVal = (typeof data.count === 'number' ? data.count : ((Array.isArray(data.results) ? data.results.length : 0))) || 0;
           localStorage.setItem(`importTotal:${data.requestId}`, String(totalVal));
         } catch {}
-        startTracking(data.requestId);
+        await (startTrackingRef.current?.(data.requestId));
+        {
+          const authToken = token || process.env.RUNNER_TOKEN || '';
+          if (authToken) { try { await kickRunnerOnce(importType, authToken); } catch {} }
+        }
 
         if (process.env.NEXT_PUBLIC_ENABLE_CLIENT_RUNNER === "1") {
           if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
@@ -225,9 +366,16 @@ export default function ImportPage() {
             setMessage("Runner 轮询已暂停，稍后再试");
             return;
           }
-          const authToken = token || process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+          const authToken = token || process.env.RUNNER_TOKEN || '';
           if (!authToken) {
-            setMessage("未登录且未配置客户端RUNNER_TOKEN，已停止轮询");
+            setMessage("未登录且未配置客户端RUNNER_TOKEN，任务已结束");
+            try { localStorage.removeItem('importRequestId'); } catch {}
+            try { localStorage.removeItem('importSource'); } catch {}
+            try { localStorage.removeItem(`importTotal:${data.requestId}`); } catch {}
+            const sup = getSupabaseBrowser();
+            if (sup && evtRef.current) { try { sup.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+            if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
+            setRid(null);
             return;
           }
           const ping = async () => {
@@ -241,14 +389,28 @@ export default function ImportPage() {
                 if (r.status === 401) {
                   clearInterval(rid);
                   setRunnerPing(null);
-                  setMessage("Runner 未授权，已停止轮询");
+                  const sup = getSupabaseBrowser();
+                  if (sup && evtRef.current) { try { sup.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+                  try { localStorage.removeItem('importRequestId'); } catch {}
+                  try { localStorage.removeItem('importSource'); } catch {}
+                  try { localStorage.removeItem(`importTotal:${data.requestId}`); } catch {}
+                  if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
+                  setRid(null);
+                  setMessage("Runner 未授权，任务已结束");
                   setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
                 } else {
                   failures++;
                   if (failures >= 3) {
                     clearInterval(rid);
                     setRunnerPing(null);
-                    setMessage("Runner 异常，已停止轮询");
+                    const sup = getSupabaseBrowser();
+                    if (sup && evtRef.current) { try { sup.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+                    try { localStorage.removeItem('importRequestId'); } catch {}
+                    try { localStorage.removeItem('importSource'); } catch {}
+                    try { localStorage.removeItem(`importTotal:${data.requestId}`); } catch {}
+                    if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
+                    setRid(null);
+                    setMessage("Runner 异常，任务已结束");
                     setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
                   }
                 }
@@ -258,7 +420,14 @@ export default function ImportPage() {
               if (failures >= 3) {
                 clearInterval(rid);
                 setRunnerPing(null);
-                setMessage("Runner 网络异常，已停止轮询");
+                const sup = getSupabaseBrowser();
+                if (sup && evtRef.current) { try { sup.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+                try { localStorage.removeItem('importRequestId'); } catch {}
+                try { localStorage.removeItem('importSource'); } catch {}
+                try { localStorage.removeItem(`importTotal:${data.requestId}`); } catch {}
+                if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
+                setRid(null);
+                setMessage("Runner 网络异常，任务已结束");
                 setRunnerStopUntil(Date.now() + 10 * 60 * 1000);
               }
             }
@@ -315,7 +484,8 @@ export default function ImportPage() {
       setToken(data.session?.access_token || null);
       setUid((data.session?.user?.id as string) || null);
       try {
-        const r = await fetch(`/api/import/history?page=${page}`, { headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : {} });
+        const fallbackToken = process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+        const r = await fetch(`/api/import/history?page=${page}`, { headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : (fallbackToken ? { Authorization: `Bearer ${fallbackToken}` } : {}) });
         const j = await r.json();
         if (r.ok && Array.isArray(j.items)) {
           setHistory(j.items);
@@ -363,18 +533,55 @@ export default function ImportPage() {
   }, []);
 
   useEffect(() => {
+    const v = process.env.NEXT_PUBLIC_DEBUG_DEFAULT_OPEN === "1" || process.env.NEXT_PUBLIC_DEBUG_OPEN === "1";
+    try {
+      const s = localStorage.getItem("debug_default_open");
+      const b = s === "1" || s === "true";
+      if (v || b) setDebugOpen(true);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const r0 = (() => { try { return localStorage.getItem("importRequestId") || ""; } catch { return ""; }})();
     if (r0 && token && uid && subscribedRef.current !== r0) {
-      startTracking(r0);
-      try {
-        fetch(`/api/import/status?requestId=${encodeURIComponent(r0)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-          .then(res=>res.json().catch(()=>null))
-          .then(j=>{ if (j && j.counts) setCounts(j.counts); })
-          .catch(()=>{});
-      } catch {}
+      (async () => {
+        try { await (startTrackingRef.current?.(r0)); } catch {}
+        {
+          const authToken = token || process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+          const s = (()=>{ try { return localStorage.getItem('importSource') || ''; } catch { return ''; } })() || importType;
+          if (authToken) { try { await kickRunnerOnce(s, authToken); } catch {} }
+        }
+        try {
+          {
+            const fallbackToken = process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+            fetch(`/api/import/status?requestId=${encodeURIComponent(r0)}`, { headers: token ? { Authorization: `Bearer ${token}` } : (fallbackToken ? { Authorization: `Bearer ${fallbackToken}` } : {}) })
+            .then(res=>res.json().catch(()=>null))
+            .then(j=>{ 
+              if (j && j.counts) setCounts(j.counts);
+              const processedVal = typeof j?.counts?.processed === 'number' ? j.counts.processed : 0;
+              const queueEmptyVal = typeof j?.queueEmpty === 'boolean' ? j.queueEmpty : false;
+              const totalKey = `importTotal:${r0}`;
+              const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
+              const total = parseInt(totalStr || "0", 10) || 0;
+              const done = (total > 0 && processedVal >= total && queueEmptyVal) || (total === 0 && queueEmptyVal && processedVal >= 0);
+              if (done) {
+                try { localStorage.removeItem('importRequestId'); } catch {}
+                try { localStorage.removeItem('importSource'); } catch {}
+                try { localStorage.removeItem(totalKey); } catch {}
+                if (evtRef.current) { try { const supabase = getSupabaseBrowser(); if (supabase) supabase.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+                if (runnerPingRef.current) { clearInterval(runnerPingRef.current); setRunnerPing(null); }
+                if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
+                setRid(null);
+                setMessage('任务已完成');
+              }
+            })
+            .catch(()=>{});
+          }
+        } catch {}
+      })();
     }
-  }, [token, uid]);
+  }, [token, uid, importType]);
 
   useEffect(() => {
     const id = setInterval(async () => {
@@ -391,7 +598,9 @@ export default function ImportPage() {
         try {
           const currentRid = (()=>{ try { return localStorage.getItem('importRequestId') || ''; } catch { return ''; } })();
           if (currentRid) {
-            const res2 = await fetch(`/api/import/status?requestId=${encodeURIComponent(currentRid)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+            const curToken = tokenRef.current;
+            const fallbackToken = process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+            const res2 = await fetch(`/api/import/status?requestId=${encodeURIComponent(currentRid)}`, { headers: curToken ? { Authorization: `Bearer ${curToken}` } : (fallbackToken ? { Authorization: `Bearer ${fallbackToken}` } : {}) });
             const j2 = await res2.json().catch(()=>null);
             if (res2.ok && j2 && j2.counts) {
               setCounts(j2.counts);
@@ -399,16 +608,28 @@ export default function ImportPage() {
               const totalStr = (() => { try { return localStorage.getItem(totalKey) || ""; } catch { return ""; } })();
               const total = parseInt(totalStr || "0", 10) || 0;
               const processedVal = typeof j2.counts.processed === 'number' ? j2.counts.processed : 0;
-              if (total > 0 && processedVal >= total) {
+              const queueEmptyVal = j2 && typeof j2.queueEmpty === 'boolean' ? j2.queueEmpty : false;
+              if (total > 0 && processedVal >= total && queueEmptyVal) {
                 try { localStorage.removeItem('importRequestId'); } catch {}
                 try { localStorage.removeItem('importSource'); } catch {}
-                if (evt) { try { const supabase = getSupabaseBrowser(); if (supabase) supabase.removeChannel(evt); subscribedRef.current = null; } catch {} setEvt(null); }
-                if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
-                if (statsPing) { clearInterval(statsPing); setStatsPing(null); }
+                if (evtRef.current) { try { const supabase = getSupabaseBrowser(); if (supabase) supabase.removeChannel(evtRef.current); subscribedRef.current = null; } catch {} setEvt(null); }
+                if (runnerPingRef.current) { clearInterval(runnerPingRef.current); setRunnerPing(null); }
+                if (statsPingRef.current) { clearInterval(statsPingRef.current); setStatsPing(null); }
                 setRid(null);
                 setMessage('任务已完成');
               }
             }
+          }
+        } catch {}
+        try {
+          const curToken = tokenRef.current;
+          const fallbackToken = process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+          const r3 = await fetch(`/api/import/history?page=${pageRef.current}`, { headers: curToken ? { Authorization: `Bearer ${curToken}` } : (fallbackToken ? { Authorization: `Bearer ${fallbackToken}` } : {}) });
+          const j3 = await r3.json().catch(()=>null);
+          if (r3.ok && Array.isArray(j3?.items)) {
+            setHistory(j3.items);
+            setTotalRecords(parseInt(String(j3.total_records || 0), 10) || 0);
+            setMaxPages(parseInt(String(j3.max_pages || 1), 10) || 1);
           }
         } catch {}
       } catch {}
@@ -427,7 +648,7 @@ export default function ImportPage() {
       if (evt) { try { const supabase = getSupabaseBrowser(); if (supabase) supabase.removeChannel(evt); subscribedRef.current = null; } catch {} }
       if (runnerPing) clearInterval(runnerPing);
       if (statsPing) clearInterval(statsPing);
-      try { (window as any).__wsActive = false; } catch {}
+      try { (window as unknown as { __wsActive?: boolean }).__wsActive = false; } catch {}
     };
   }, [evt, runnerPing, statsPing]);
 
@@ -559,7 +780,7 @@ export default function ImportPage() {
               setMessage('已结束任务');
               try { localStorage.removeItem('importRequestId'); } catch {}
               try { localStorage.removeItem('importSource'); } catch {}
-          if (evt) { try { evt.close(); } catch {} setEvt(null); }
+          if (evt) { try { await evt.unsubscribe(); } catch {} setEvt(null); }
           if (runnerPing) { clearInterval(runnerPing); setRunnerPing(null); }
           if (statsPing) { clearInterval(statsPing); setStatsPing(null); }
           setRid(null);
@@ -585,6 +806,8 @@ export default function ImportPage() {
             <div className="text-sm">进度：{counts.processed}/{(()=>{try{const t=localStorage.getItem(`importTotal:${rid}`)||"";return parseInt(t||"0",10)||0;}catch{return 0;}})()}，成功 {counts.successCount}，部分成功 {counts.partialCount}，失败 {counts.errorCount}</div>
           ) : null}
         </div>
+
+        {/*
         <div className="mt-2 border rounded p-3">
           <div className="text-sm font-medium mb-2">实时日志</div>
           <div className="max-h-64 overflow-auto text-xs">
@@ -597,14 +820,19 @@ export default function ImportPage() {
             ))}
           </div>
         </div>
+
+        */
+       }
+
       </div>
       <div className="mt-6">
         <h2 className="text-lg font-semibold mb-2">导入记录</h2>
         <div className="space-y-2">
           {history.map((h) => (
-            <div key={`${h.requestId}-${h.itemKey}`} className="grid grid-cols-3 gap-2 items-center border rounded px-3 py-2">
+            <div key={`${h.requestId}-${h.itemKey}`} className="grid grid-cols-4 gap-2 items-center border rounded px-3 py-2">
               <div className="text-xs text-gray-500">{new Date(h.createdAt).toLocaleString()}</div>
               <div className="text-sm truncate">{h.name || h.itemKey}</div>
+              <div className="text-xs text-gray-600">{h.action === 'add' ? '新增' : (h.action === 'update' ? '更新' : '')}</div>
               <div className={`text-xs justify-self-end ${h.status === 'error' ? 'text-red-600' : (h.status === 'partial' ? 'text-yellow-600' : 'text-green-600')}`}>{h.status || ''}</div>
             </div>
           ))}
@@ -651,15 +879,103 @@ export default function ImportPage() {
         </div>
       </div>
       {debugOpen && (
-        <div className="fixed bottom-4 right-4 w-[480px] max-h-[50vh] overflow-auto bg-black text-green-300 text-xs p-3 rounded shadow-lg">
-          <div className="mb-2 text-white">调试日志（Ctrl+, 切换）</div>
-          {logs.map((l, idx) => (
-            <div key={idx} className="mb-1">
-              <span className="mr-2 text-yellow-300">[{l.level}]</span>
-              <span className="mr-2 text-gray-400">{new Date(l.createdAt).toLocaleTimeString()}</span>
-              <span>{l.message}</span>
+        <div className="fixed bottom-4 right-4 w-[520px] max-h-[60vh] overflow-hidden bg-black text-green-300 text-xs rounded shadow-lg">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700">
+            <div className="flex items-center gap-2">
+              <button onClick={()=>{ setDebugTab("log"); try{localStorage.setItem("debugTab","log");}catch{} }} className={`px-2 py-1 rounded ${debugTab==='log'?'bg-green-700 text-white':'bg-gray-800 text-gray-200'}`}>日志</button>
+              <button onClick={()=>{ setDebugTab("scrape"); try{localStorage.setItem("debugTab","scrape");}catch{} }} className={`px-2 py-1 rounded ${debugTab==='scrape'?'bg-green-700 text-white':'bg-gray-800 text-gray-200'}`}>抓取测试</button>
+              <button onClick={()=>{ setDebugTab("health"); try{localStorage.setItem("debugTab","health");}catch{} }} className={`px-2 py-1 rounded ${debugTab==='health'?'bg-green-700 text-white':'bg-gray-800 text-gray-200'}`}>健康</button>
             </div>
-          ))}
+            <div className="flex items-center gap-2">
+              <label className="text-gray-300">
+                <input type="checkbox" className="mr-1 align-middle" onChange={(e)=>{ try{ localStorage.setItem("debug_default_open", e.target.checked?"1":"0"); }catch{} }} />默认打开
+              </label>
+              <button className="px-2 py-1 rounded bg-gray-800 text-gray-200" onClick={()=>setDebugOpen(false)}>关闭</button>
+            </div>
+          </div>
+          <div className="p-3 overflow-auto max-h-[calc(60vh-40px)]">
+            {debugTab === 'log' ? (
+              <div>
+                {logs.map((l, idx) => (
+                  <div key={idx} className="mb-1">
+                    <span className="mr-2 text-yellow-300">[{l.level}]</span>
+                    <span className="mr-2 text-gray-400">{new Date(l.createdAt).toLocaleTimeString()}</span>
+                    <span>{l.message}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {debugTab === 'scrape' ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <select value={dbgSource} onChange={(e)=>{ setDbgSource(e.target.value); try{ localStorage.setItem('debugSource', e.target.value); }catch{} }} className="border rounded px-2 py-1 bg-gray-900 text-gray-100">
+                    <option value="wordpress">WordPress</option>
+                    <option value="wix">Wix</option>
+                  </select>
+                  <input value={dbgUrl} onChange={(e)=>setDbgUrl(e.target.value)} placeholder="输入产品页面URL" className="flex-1 border rounded px-3 py-2 bg-gray-900 text-gray-100" />
+                </div>
+                <button disabled={!dbgUrl || dbgLoading} onClick={async()=>{
+                  setDbgLoading(true); setDbgError(null); setDbgData(null);
+                  try{
+                    const controller = new AbortController();
+                    const timer = setTimeout(()=>controller.abort(), 8000);
+                    const r = await fetch(`/api/debug/scrape?url=${encodeURIComponent(dbgUrl)}&source=${encodeURIComponent(dbgSource)}`, { cache: 'no-store', signal: controller.signal });
+                    clearTimeout(timer);
+                    const j = await r.json().catch(()=>null);
+                    if (!r.ok || !j) setDbgError(typeof j?.error==='string'?j.error:`请求失败 ${r.status}`);
+                    else setDbgData(j as ScrapeResult);
+                  }catch(e){ setDbgError(String((e as Error)?.message||e||'unknown')); }
+                  finally{ setDbgLoading(false); }
+                }} className="px-3 py-1 rounded bg-blue-600 text-white disabled:opacity-50">{dbgLoading?"请求中...":"抓取"}</button>
+                {dbgError ? (<div className="text-red-400">{dbgError}</div>) : null}
+                {dbgData ? (
+                  <div>
+                    <div className="mb-1">最终URL：{String((dbgData as ScrapeResult).finalUrl||"")}</div>
+                    <div className="mb-1">选定图片数量：{Number((dbgData as ScrapeResult).selectedCount||0)}</div>
+                    {dbgData.variationsPreview ? (
+                      <div className="mt-2">
+                        <div className="font-semibold text-green-200 mb-1">变体预览（只读）</div>
+                        <div className="mb-1">规格：{String((dbgData.variationsPreview.attributes||[]).map(a=>a.name).join(' / '))}</div>
+                        <div className="mb-1">组合数量：{Number(dbgData.variationsPreview.variations?.length||0)}</div>
+                        <div className="border rounded p-2 whitespace-pre-wrap">{JSON.stringify({ attributes: dbgData.variationsPreview.attributes, default_attributes: dbgData.variationsPreview.default_attributes, sample: (dbgData.variationsPreview.variations||[]).slice(0, 20) }, null, 2)}</div>
+                      </div>
+                    ) : null}
+                    <div className="border rounded p-2 whitespace-pre-wrap">{JSON.stringify(dbgData, null, 2)}</div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {debugTab === 'health' ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <button onClick={async()=>{
+                    setHLoading(true); setHError(null); setHData(null);
+                    try{
+                      const controller = new AbortController();
+                      const timer = setTimeout(()=>controller.abort(), 5000);
+                      const tk = process.env.NEXT_PUBLIC_RUNNER_TOKEN || '';
+                      const u = tk ? `/api/import/health?token=${encodeURIComponent(tk)}` : `/api/import/health`;
+                      const r = await fetch(u, { cache: 'no-store', signal: controller.signal });
+                      clearTimeout(timer);
+                      const j = await r.json().catch(()=>null);
+                      if (!r.ok || !j) setHError(typeof j?.error==='string'?j.error:`请求失败 ${r.status}`);
+                      else setHData(j as HealthResponse);
+                    }catch(e){ setHError(String((e as Error)?.message||e||'unknown')); }
+                    finally{ setHLoading(false); }
+                  }} disabled={hLoading} className="px-3 py-1 rounded bg-emerald-600 text-white disabled:opacity-50">{hLoading?"检查中...":"健康检查"}</button>
+                </div>
+                {hError ? (<div className="text-red-400">{hError}</div>) : null}
+                {hData ? (
+                  <div>
+                    <div className="mb-1">服务可用：{String(hData.ok)}</div>
+                    <div className="mb-1">Supabase存储：{String(hData.supabase.storage_access)}</div>
+                    <div className="mb-1">PGMQ RPC：{String(hData.supabase.pgmq_rpc)}</div>
+                    <div className="border rounded p-2 whitespace-pre-wrap">{JSON.stringify(hData, null, 2)}</div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
     </div>

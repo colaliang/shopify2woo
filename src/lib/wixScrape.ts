@@ -91,6 +91,32 @@ export function buildWixPayload(linkUrl: string, html: string) {
   return { payload, categories, tags, ld };
 }
 
+export function buildWixVariationsFromHtml(html: string) {
+  const opts = extractWixOptions(html);
+  const price = extractWixPrice(html);
+  const attributes = opts.map((o) => ({ name: o.name, visible: true, variation: true, options: o.options }));
+  const default_attributes = opts.map((o) => ({ name: o.name, option: o.options[0] })).filter((x) => x.option);
+  type VarAttr = { name: string; option: string };
+  const variations: Array<{ attributes: VarAttr[]; regular_price?: string }> = [];
+  function cartesian(names: string[], lists: string[], acc: VarAttr[]) {
+    if (!names.length) {
+      const v: { attributes: VarAttr[]; regular_price?: string } = { attributes: acc.slice() };
+      if (price) v.regular_price = String(price);
+      variations.push(v);
+      return;
+    }
+    const [n, ...restNames] = names;
+    const [list, ...restLists] = lists;
+    for (const opt of list) cartesian(restNames, restLists, [...acc, { name: n, option: opt }]);
+  }
+  if (opts.length) {
+    const names = opts.map((o) => o.name);
+    const lists = opts.map((o) => o.options);
+    cartesian(names, lists, []);
+  }
+  return { attributes, default_attributes, variations };
+}
+
 function extractLinksFromHtml(base: string, html: string) {
   const out: string[] = [];
   const re = /<a[^>]*href="([^"]+)"[^>]*>/gi;

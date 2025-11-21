@@ -15,10 +15,10 @@ export function getSupabaseServer() {
 // 本地配置缓存（Edge/浏览器安全实现，无文件系统）
 type LocalConfig = { wordpressUrl: string; consumerKey: string; consumerSecret: string };
 type LocalConfigStore = { users?: Record<string, LocalConfig> } & Partial<LocalConfig>;
-const globalAny = globalThis as any;
+const globalObj = globalThis as unknown as { __localConfigStore?: LocalConfigStore };
 function getMemStore(): LocalConfigStore {
-  if (!globalAny.__localConfigStore) globalAny.__localConfigStore = {};
-  return globalAny.__localConfigStore as LocalConfigStore;
+  if (!globalObj.__localConfigStore) globalObj.__localConfigStore = {} as LocalConfigStore;
+  return globalObj.__localConfigStore as LocalConfigStore;
 }
 export function readLocalConfig(userId?: string) {
   try {

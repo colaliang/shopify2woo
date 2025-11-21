@@ -17,24 +17,34 @@ export default function ConfigPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const disableAuth = process.env.NEXT_PUBLIC_DISABLE_AUTH === "1";
+  const envUrl = process.env.NEXT_PUBLIC_WOO_TEST_URL || "";
+  const envKey = process.env.NEXT_PUBLIC_WOO_TEST_KEY || "";
+  const envSecret = process.env.NEXT_PUBLIC_WOO_TEST_SECRET || "";
 
   useEffect(() => {
     (async () => {
       const supabase = getSupabaseBrowser();
-      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+      const { data } = supabase && !disableAuth ? await supabase.auth.getSession() : { data: { session: null } };
       const t = data.session?.access_token || null;
       setToken(t);
-      
       try {
-        const res = await fetch("/api/config/get", { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+        const res = await fetch("/api/config/get", { headers: t && !disableAuth ? { Authorization: `Bearer ${t}` } : {} });
         const data = await res.json();
         if (res.ok) {
           const cfg = data?.data || data?.config;
           if (cfg) setConfig(cfg);
         }
       } catch {}
+      if (envUrl || envKey || envSecret) {
+        setConfig((prev) => ({
+          wordpressUrl: prev.wordpressUrl || envUrl,
+          consumerKey: prev.consumerKey || envKey,
+          consumerSecret: prev.consumerSecret || envSecret,
+        }));
+      }
     })();
-  }, []);
+  }, [disableAuth, envUrl, envKey, envSecret]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,14 +52,14 @@ export default function ConfigPage() {
     setMessage(null);
     try {
       let authToken = token;
-      if (!authToken) {
+      if (!authToken && !disableAuth) {
         const supabase = getSupabaseBrowser();
         const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
         authToken = data.session?.access_token || null;
         setToken(authToken);
       }
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+      if (authToken && !disableAuth) headers["Authorization"] = `Bearer ${authToken}`;
       const res = await fetch("/api/config/save", {
         method: "POST",
         headers,

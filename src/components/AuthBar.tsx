@@ -4,6 +4,7 @@ import { getSupabaseBrowser } from '@/lib/supabaseClient'
 
 export default function AuthBar() {
   const [email, setEmail] = useState<string | null>(null)
+  const disableAuth = process.env.NEXT_PUBLIC_DISABLE_AUTH === '1'
 
   useEffect(() => {
     const supabase = getSupabaseBrowser()
@@ -35,9 +36,9 @@ export default function AuthBar() {
   return (
     <div className="w-full border-b bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="max-w-5xl mx-auto p-3 flex items-center justify-between text-sm">
-        <button onClick={signIn} className="px-3 py-1.5 border rounded">使用 Google 登录</button>
-        <div className="flex-1 text-center text-gray-700">{email ? `已登录：${email}` : '未登录'}</div>
-        <button onClick={signOut} className="px-3 py-1.5 border rounded">退出登录</button>
+        {disableAuth ? <div className="px-3 py-1.5 text-gray-700">本地开发模式：免登录</div> : <button onClick={signIn} className="px-3 py-1.5 border rounded">使用 Google 登录</button>}
+        <div className="flex-1 text-center text-gray-700">{disableAuth ? '本地环境' : (email ? `已登录：${email}` : '未登录')}</div>
+        {!disableAuth && <button onClick={signOut} className="px-3 py-1.5 border rounded">退出登录</button>}
       </div>
     </div>
   )

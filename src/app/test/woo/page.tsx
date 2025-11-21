@@ -42,7 +42,7 @@ export default function WooTestPage() {
       <h1 className="text-xl font-semibold">WordPress Woo API 测试</h1>
       <div className="grid grid-cols-2 gap-4">
         <input className="border px-2 py-1" placeholder="站点URL，如 https://example.com/" value={url} onChange={(e)=>setUrl(e.target.value)} />
-        <select className="border px-2 py-1" value={authMode} onChange={(e)=>setAuthMode(e.target.value as any)}>
+        <select className="border px-2 py-1" value={authMode} onChange={(e)=>setAuthMode(e.target.value === "basic" ? "basic" : "query")}>
           <option value="query">Query Auth</option>
           <option value="basic">Basic Auth</option>
         </select>

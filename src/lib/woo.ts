@@ -14,7 +14,7 @@
 //    - 可根据业务需求调整最大重试次数与等待策略。
 //
 // 4) 常见问题：
-//    - Cloudflare/WAF：可能对含密钥的查询参数敏感，需在站点侧放行 Woo API 路径 `wp-json/wc/v3/*`。
+//    - Cloudflare/WAF：可能对含密钥的查询参数敏感，需在站点侧放行 Woo API 路径 `index.php/wp-json/wc/v3/*`。
 //    - 站点 URL：使用站点根域名，如 `https://example.com/`，不要包含 `/wp-admin` 或子路径。
 //    - 响应格式：Woo REST API 返回 JSON；部分站点可能返回 HTML 错误页，需要在调用处做异常兜底与日志记录。
 //
@@ -66,14 +66,13 @@ async function wooFetch(
   retry = 2
 ) {
   function applyIndexPhp(ep: string) {
-    const useIndex = (process.env.WOO_USE_INDEXPHP || "1") === "1";
-    if (!useIndex) return ep;
     const clean = ep.replace(/^\//, "");
     if (clean.startsWith("index.php/")) return clean;
     if (clean.startsWith("wp-json/")) return `index.php/${clean}`;
     return ep;
   }
   const url = new URL(applyIndexPhp(endpoint), cfg.url.replace(/\/$/, ""));
+  const logCtx = (init as unknown as { __logCtx?: LogCtx })?.__logCtx || defaultLogCtx;
   const dispatcher = getDispatcherFromEnv();
   const started = Date.now();
   const method = (init?.method || "GET").toUpperCase();
@@ -83,7 +82,7 @@ async function wooFetch(
   for (let i = 0; i <= maxRetry; i++) {
     const authMode = (process.env.WOO_AUTH_MODE || "query").toLowerCase();
     const apiUrl = new URL(url.toString());
-    let headers: Record<string, string> = {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "Accept": "application/json",
       ...(init?.headers || {}) as Record<string, string>,
@@ -94,6 +93,12 @@ async function wooFetch(
     } else {
       apiUrl.searchParams.set("consumer_key", cfg.consumerKey);
       apiUrl.searchParams.set("consumer_secret", cfg.consumerSecret);
+    }
+    if (logCtx?.userId && logCtx?.requestId) {
+      try {
+        const { appendLog } = await import("./logs");
+        await appendLog(logCtx.userId, logCtx.requestId, "info", `resolved ${authMode} ${redact(apiUrl.toString())}`);
+      } catch {}
     }
     
     // 详细的请求日志记录
@@ -111,6 +116,10 @@ async function wooFetch(
         endpointResolved: apiUrl.pathname
       };
       console.log(JSON.stringify(requestLogData));
+      if (logCtx?.userId && logCtx?.requestId) {
+        const { appendLog } = await import("./logs");
+        await appendLog(logCtx.userId, logCtx.requestId, "info", `wp_request_start method=${init?.method || "GET"} url=${redact(apiUrl.toString())} retry=${i}`);
+      }
     } catch (logError) {
       console.error(`请求日志记录失败: ${logError}`);
     }
@@ -142,6 +151,10 @@ async function wooFetch(
           error: (err as Error)?.message || String(err),
         };
         console.error(JSON.stringify(errorLogData));
+        if (logCtx?.userId && logCtx?.requestId) {
+          const { appendLog } = await import("./logs");
+          await appendLog(logCtx.userId, logCtx.requestId, "error", `wp_request_network_error method=${init?.method || "GET"} url=${redact(apiUrl.toString())} retry=${i} err=${(err as Error)?.message || String(err)}`);
+        }
       } catch {}
       if (i < maxRetry) {
         await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
@@ -175,8 +188,16 @@ async function wooFetch(
           bodyLength: body.length
         };
         console.error(JSON.stringify(errorLogData));
+        if (logCtx?.userId && logCtx?.requestId) {
+          const { appendLog } = await import("./logs");
+          await appendLog(logCtx.userId, logCtx.requestId, "error", `wp_response_error method=${init?.method || "GET"} status=${res.status} ct=${ct} url=${redact(apiUrl.toString())} retry=${i} preview=${errorLogData.bodyPreview}`);
+        }
       } else {
         console.log(JSON.stringify(logData));
+        if (logCtx?.userId && logCtx?.requestId) {
+          const { appendLog } = await import("./logs");
+          await appendLog(logCtx.userId, logCtx.requestId, "info", `wp_response method=${init?.method || "GET"} status=${res.status} ct=${ct} url=${redact(apiUrl.toString())} retry=${i}`);
+        }
         
         // 对于成功的响应，也记录响应体信息（调试用）
         if (process.env.DEBUG_WOO_RESPONSE === "1") {
@@ -209,8 +230,8 @@ async function wooFetch(
   throw new Error("Woo 请求重试后仍失败");
 }
 
-export async function wooGet(cfg: WooConfig, endpoint: string) {
-  return wooFetch(cfg, endpoint, { method: "GET" });
+export async function wooGet(cfg: WooConfig, endpoint: string, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
+  return wooFetch(cfg, endpoint, { method: "GET", ...(logContext ? { __logCtx: { userId: logContext.userId, requestId: logContext.requestId, productHandle: logContext.productHandle } } : {}) } as unknown as RequestInit);
 }
 
 export async function wooPost(cfg: WooConfig, endpoint: string, body: unknown, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
@@ -235,7 +256,7 @@ export async function wooPost(cfg: WooConfig, endpoint: string, body: unknown, l
     }
   }
   try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "POST", endpoint, bodySize: payload.length })); } catch {}
-  return wooFetch(cfg, endpoint, { method: "POST", body: payload });
+  return wooFetch(cfg, endpoint, { method: "POST", body: payload, ...(logContext ? { __logCtx: { userId: logContext.userId, requestId: logContext.requestId, productHandle: logContext.productHandle } } : {}) } as unknown as RequestInit);
 }
 
 export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
@@ -260,7 +281,7 @@ export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown, lo
     }
   }
   try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "PUT", endpoint, bodySize: payload.length })); } catch {}
-  return wooFetch(cfg, endpoint, { method: "PUT", body: payload });
+  return wooFetch(cfg, endpoint, { method: "PUT", body: payload, ...(logContext ? { __logCtx: { userId: logContext.userId, requestId: logContext.requestId, productHandle: logContext.productHandle } } : {}) } as unknown as RequestInit);
 }
 
 export async function wooDelete(cfg: WooConfig, endpoint: string, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
@@ -282,7 +303,7 @@ export async function ensureTerms(
   logContext?: { userId?: string; requestId?: string; productHandle?: string }
 ) {
   const result: { id: number }[] = [];
-  const endpoint = kind === "category" ? "wp-json/wc/v3/products/categories" : "wp-json/wc/v3/products/tags";
+  const endpoint = kind === "category" ? "index.php/wp-json/wc/v3/products/categories" : "index.php/wp-json/wc/v3/products/tags";
   const kindName = kind === "category" ? "分类" : "标签";
   
   if (logContext?.userId && logContext?.requestId) {
@@ -298,7 +319,7 @@ export async function ensureTerms(
     if (!nameStr) continue;
     
     try {
-      const searchResponse = await wooGet(cfg, `${endpoint}?search=${encodeURIComponent(nameStr)}`);
+      const searchResponse = await wooGet(cfg, `${endpoint}?search=${encodeURIComponent(nameStr)}`, logContext);
       if (!searchResponse.ok) {
         if (logContext?.userId && logContext?.requestId) {
           try { 
@@ -306,6 +327,29 @@ export async function ensureTerms(
             await appendLog(logContext.userId, logContext.requestId, "error", 
               `${kindName}搜索请求失败 name=${nameStr} handle=${logContext.productHandle || ""} 状态=${searchResponse.status}`);
           } catch {}
+        }
+        const createResponse = await wooPost(cfg, endpoint, { name: nameStr }, logContext);
+        if (!createResponse.ok) {
+          if (logContext?.userId && logContext?.requestId) {
+            try { 
+              const { appendLog } = await import('./logs');
+              await appendLog(logContext.userId, logContext.requestId, "error", 
+                `${kindName}创建失败 name=${nameStr} handle=${logContext.productHandle || ""} 状态=${createResponse.status}`);
+            } catch {}
+          }
+          continue;
+        }
+        const created = await createResponse.json();
+        const id0 = created?.id;
+        if (typeof id0 === "number") {
+          result.push({ id: id0 });
+          if (logContext?.userId && logContext?.requestId) {
+            try { 
+              const { appendLog } = await import('./logs');
+              await appendLog(logContext.userId, logContext.requestId, "info", 
+                `${kindName}处理完成 name=${nameStr} id=${id0} handle=${logContext.productHandle || ""}`);
+            } catch {}
+          }
         }
         continue;
       }
@@ -383,7 +427,7 @@ export async function findProductBySkuOrSlug(cfg: WooConfig, sku?: string, slug?
             `按SKU查找产品 sku=${sku} handle=${logContext.productHandle || ""}`);
         } catch {}
       }
-      res = await wooGet(cfg, `wp-json/wc/v3/products?sku=${encodeURIComponent(sku)}`);
+      res = await wooGet(cfg, `index.php/wp-json/wc/v3/products?sku=${encodeURIComponent(sku)}`, logContext);
     } else if (slug) {
       if (logContext?.userId && logContext?.requestId) {
         try { 
@@ -392,7 +436,7 @@ export async function findProductBySkuOrSlug(cfg: WooConfig, sku?: string, slug?
             `按slug查找产品 slug=${slug} handle=${logContext.productHandle || ""}`);
         } catch {}
       }
-      res = await wooGet(cfg, `wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`);
+      res = await wooGet(cfg, `index.php/wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`, logContext);
     }
     
     if (!res || !res.ok) {
@@ -429,3 +473,7 @@ export async function findProductBySkuOrSlug(cfg: WooConfig, sku?: string, slug?
     return null;
   }
 }
+type LogCtx = { userId?: string; requestId?: string; productHandle?: string };
+let defaultLogCtx: LogCtx | null = null;
+export function setWooLogContext(ctx: LogCtx) { defaultLogCtx = ctx; }
+export function clearWooLogContext() { defaultLogCtx = null; }

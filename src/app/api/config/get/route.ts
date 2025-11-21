@@ -6,8 +6,9 @@ export async function GET(req: Request) {
     const auth = req.headers.get("authorization") || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const userId = await getUserIdFromToken(token);
-    if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
-    const local = readLocalConfig(userId);
+    const disableAuth = process.env.NEXT_PUBLIC_DISABLE_AUTH === "1" || process.env.DISABLE_AUTH === "1";
+
+    const local = readLocalConfig(userId || undefined) || readLocalConfig();
     const hasLocal = !!(local?.wordpressUrl || local?.consumerKey || local?.consumerSecret);
     if (hasLocal) {
       return NextResponse.json({ success: true, data: {
@@ -16,8 +17,16 @@ export async function GET(req: Request) {
         consumerSecret: local?.consumerSecret || "",
       }, source: "local" });
     }
+
     const supabase = getSupabaseServer();
-    if (!supabase) return NextResponse.json({ error: "服务未配置" }, { status: 500 });
+    if (!supabase) {
+      return NextResponse.json({ success: true, data: { wordpressUrl: "", consumerKey: "", consumerSecret: "" }, source: "empty" });
+    }
+    if (!userId && disableAuth) {
+      return NextResponse.json({ success: true, data: { wordpressUrl: "", consumerKey: "", consumerSecret: "" }, source: "empty" });
+    }
+    if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
+
     const { data, error } = await supabase
       .from("user_configs")
       .select("wordpress_url, consumer_key, consumer_secret")

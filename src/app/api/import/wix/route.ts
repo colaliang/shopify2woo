@@ -66,12 +66,21 @@ export async function POST(req: Request) {
 
     const q = pgmqQueueName("wix");
     const items = (mode === "all" ? discovered : links).map((l) => ({ userId, requestId, source: "wix", link: l, sourceUrl }));
-    const chunk = 300;
-    for (let i = 0; i < items.length; i += chunk) {
-      await pgmqSendBatch(q, items.slice(i, i + chunk));
+    try {
+      const chunk = 300;
+      let sent = 0;
+      for (let i = 0; i < items.length; i += chunk) {
+        const batch = items.slice(i, i + chunk);
+        await pgmqSendBatch(q, batch);
+        sent += batch.length;
+      }
+      await appendLog(userId, requestId, "info", `pgmq queued ${sent}/${jobTotal} links from ${sourceUrl} q=${q}`);
+      return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
+      await appendLog(userId, requestId, "error", `pgmq enqueue failed q=${q}: ${msg}`);
+      return NextResponse.json({ error: `enqueue_failed: ${msg}` }, { status: 500 });
     }
-    await appendLog(userId, requestId, "info", `pgmq queued ${jobTotal} links from ${sourceUrl}`);
-    return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
     return NextResponse.json({ error: msg }, { status: 500 });

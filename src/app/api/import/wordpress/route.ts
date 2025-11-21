@@ -16,10 +16,12 @@ export async function POST(req: Request) {
     if (mode !== "all" && mode !== "links") return NextResponse.json({ error: "缺少或非法导入模式" }, { status: 400 });
     if (mode === "all" && !sourceUrl) return NextResponse.json({ error: "全站模式需提供源站 URL" }, { status: 400 });
 
-    const auth = req.headers.get("authorization") || "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    const userId = await getUserIdFromToken(token);
-    if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const userId = await getUserIdFromToken(token);
+  const disableAuth = process.env.NEXT_PUBLIC_DISABLE_AUTH === "1" || process.env.DISABLE_AUTH === "1";
+  const uid = (!userId && disableAuth) ? "__LOCAL__" : (userId || "");
+  if (!userId && !disableAuth) return NextResponse.json({ error: "未登录" }, { status: 401 });
 
     let wordpressUrl = "";
     let consumerKey = "";
@@ -30,17 +32,25 @@ export async function POST(req: Request) {
       const { data } = await supabase
         .from("user_configs")
         .select("wordpress_url, consumer_key, consumer_secret")
-        .eq("user_id", userId)
+        .eq("user_id", uid)
         .limit(1)
         .maybeSingle();
       wordpressUrl = data?.wordpress_url || "";
       consumerKey = data?.consumer_key || "";
       consumerSecret = data?.consumer_secret || "";
       if (!wordpressUrl && !consumerKey && !consumerSecret) {
-        const local = readLocalConfig(userId);
+        const local = readLocalConfig(uid);
         wordpressUrl = local?.wordpressUrl || "";
         consumerKey = local?.consumerKey || "";
         consumerSecret = local?.consumerSecret || "";
+      }
+      if (!wordpressUrl && !consumerKey && !consumerSecret) {
+        const envUrl = process.env.NEXT_PUBLIC_WOO_TEST_URL || "";
+        const envKey = process.env.NEXT_PUBLIC_WOO_TEST_KEY || "";
+        const envSec = process.env.NEXT_PUBLIC_WOO_TEST_SECRET || "";
+        wordpressUrl = envUrl || wordpressUrl;
+        consumerKey = envKey || consumerKey;
+        consumerSecret = envSec || consumerSecret;
       }
     }
     if (!wordpressUrl || !consumerKey || !consumerSecret) return NextResponse.json({ error: "目标站 Woo 配置未设置" }, { status: 400 });
@@ -59,15 +69,20 @@ export async function POST(req: Request) {
       discovered = Array.from(new Set(discovered)).filter((u) => /^https?:\/\//.test(u));
       jobTotal = discovered.length;
     } else {
-      // 预处理：类型、去重、标准化
+      // 预处理：保留绝对URL；对非绝对输入仅标准化末段并拼接到sourceUrl
       const arr = Array.isArray(productLinks) ? productLinks : [];
-      links = Array.from(new Set(arr.map((s: string) => normalizeWpSlugOrLink(String(s || "")))))
-        .filter(Boolean);
+      links = Array.from(new Set(arr.map((s: string) => String(s || "").trim())))
+        .filter(Boolean)
+        .map((s) => {
+          if (/^https?:\/\//.test(s)) return s;
+          const slugOrPath = normalizeWpSlugOrLink(s);
+          return new URL(slugOrPath, sourceUrl).toString();
+        });
       jobTotal = links.length;
     }
 
     const q = pgmqQueueName(priority === "high" ? "wordpress_high" : "wordpress");
-    const items = (mode === "all" ? discovered : links).map((l) => ({ userId, requestId, source: "wordpress", priority: priority === "high" ? "high" : "normal", link: /^https?:\/\//.test(l) ? l : new URL(l, sourceUrl).toString(), sourceUrl }));
+    const items = (mode === "all" ? discovered : links).map((l) => ({ userId: uid, requestId, source: "wordpress", priority: priority === "high" ? "high" : "normal", link: l, sourceUrl }));
     try {
       const chunk = 300;
       let sent = 0;
@@ -76,11 +91,11 @@ export async function POST(req: Request) {
         await pgmqSendBatch(q, batch);
         sent += batch.length;
       }
-      await appendLog(userId, requestId, "info", `pgmq queued ${sent}/${jobTotal} links from ${sourceUrl} q=${q}`);
+      await appendLog(uid, requestId, "info", `pgmq queued ${sent}/${jobTotal} links from ${sourceUrl} q=${q}`);
       return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
-      await appendLog(userId, requestId, "error", `pgmq enqueue failed q=${q}: ${msg}`);
+      await appendLog(uid, requestId, "error", `pgmq enqueue failed q=${q}: ${msg}`);
       return NextResponse.json({ error: `enqueue_failed: ${msg}` }, { status: 500 });
     }
 

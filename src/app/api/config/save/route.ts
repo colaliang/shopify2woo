@@ -12,9 +12,11 @@ export async function POST(req: Request) {
     const auth = req.headers.get("authorization") || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const userId = await getUserIdFromToken(token);
-    if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
     const supabase = getSupabaseServer();
-    if (!supabase) return NextResponse.json({ error: "服务未配置" }, { status: 500 });
+    if (!supabase || !userId) {
+      writeLocalConfig({ wordpressUrl, consumerKey, consumerSecret });
+      return NextResponse.json({ success: true, source: "local" });
+    }
     const { error } = await supabase
       .from("user_configs")
       .upsert({
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
       }, { onConflict: "user_id" });
     if (error) throw error;
     writeLocalConfig({ wordpressUrl, consumerKey, consumerSecret }, userId);
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, source: "supabase" });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));
     return NextResponse.json({ error: msg }, { status: 500 });
