@@ -12,8 +12,10 @@ export async function POST(req: Request) {
     const auth = req.headers.get("authorization") || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const userId = await getUserIdFromToken(token);
-    if (!userId) return NextResponse.json({ error: "未登录" }, { status: 401 });
-    await appendLog(userId, requestId, "info", "canceled by user");
+    const disableAuth = process.env.NEXT_PUBLIC_DISABLE_AUTH === "1" || process.env.DISABLE_AUTH === "1";
+    const uid = (!userId && disableAuth) ? "__LOCAL__" : (userId || "");
+    if (!userId && !disableAuth) return NextResponse.json({ error: "未登录" }, { status: 401 });
+    await appendLog(uid, requestId, "info", "canceled by user");
     let removed = 0;
     if (process.env.USE_PGMQ === "1") {
       const sources = ["shopify", "wordpress", "wix"];

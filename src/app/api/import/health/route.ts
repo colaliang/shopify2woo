@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 
 function auth(req: Request) {
   if (process.env.RUNNER_ALLOW_ANON === "1") return true;
+  if (process.env.NEXT_PUBLIC_DISABLE_AUTH === "1" || process.env.DISABLE_AUTH === "1") return true;
   const token = process.env.RUNNER_TOKEN || "";
   if (!token) return true;
   const auth = req.headers.get("authorization") || "";
