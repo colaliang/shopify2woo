@@ -9,7 +9,7 @@ type Result = {
   name?: string;
   productId?: number;
   status: "success" | "error" | "partial";
-  action?: "add" | "update";
+  action?: "add" | "update" | "skipped_duplicate";
   createdAt: string;
 };
 
@@ -32,7 +32,7 @@ function writeLocal(arr: Result[]) {
   try { (globalThis as unknown as { __importResults?: Result[] }).__importResults = arr; } catch {}
 }
 
-export async function recordResult(userId: string, source: string, requestId: string, itemKey: string, name: string | undefined, productId: number | undefined, status: "success" | "error" | "partial", errorMessage?: string, action?: "add" | "update") {
+export async function recordResult(userId: string, source: string, requestId: string, itemKey: string, name: string | undefined, productId: number | undefined, status: "success" | "error" | "partial", errorMessage?: string, action?: "add" | "update" | "skipped_duplicate") {
   const supabase = getSupabaseServer();
   const now = new Date().toISOString();
   if (supabase) {
@@ -127,7 +127,7 @@ export async function listResults(userId: string, page = 1, pageSize = 20) {
       .order("created_at", { ascending: false })
       .range(from, to);
     const { data } = userId === "__ALL__" ? await q : await q.eq("user_id", userId);
-    return (data || []).map((d: DbResultRow) => ({ requestId: d.request_id, source: d.source, itemKey: d.item_key, name: d.name, productId: d.product_id, status: d.status, action: d.action as ("add"|"update"|undefined), createdAt: d.created_at }));
+    return (data || []).map((d: DbResultRow) => ({ requestId: d.request_id, source: d.source, itemKey: d.item_key, name: d.name, productId: d.product_id, status: d.status, action: d.action as ("add"|"update"|"skipped_duplicate"|undefined), createdAt: d.created_at }));
   }
   const arr = (userId === "__ALL__" ? readLocal() : readLocal().filter((r) => r.userId === userId)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const from = (page - 1) * pageSize;

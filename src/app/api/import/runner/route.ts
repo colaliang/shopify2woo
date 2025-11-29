@@ -238,6 +238,15 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         }
         return { ok: true };
       } else {
+        // Check for specific WooCommerce errors that should be treated as success (e.g. duplicates)
+        if (responseData?.code === "product_invalid_sku") {
+             await appendLog(userId, requestId, "info", `Product SKU already exists, marking as success/skipped: ${built.sku || "unknown"}`);
+             // Mark as success so it counts towards progress and stops retrying
+             await recordResult(userId, "wordpress", requestId, built.slug || built.sku || link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate");
+             await pgmqDelete(queue, msg.msg_id);
+             return { ok: true };
+        }
+
         // Non-exception failure: apply retry policy
         const readCt = msg.read_ct || 1;
         const maxRetries = parseInt(process.env.IMAGE_UPLOAD_RETRY || "3", 10);

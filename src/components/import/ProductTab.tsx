@@ -44,16 +44,6 @@ export default function ProductTab() {
     }
   }, [error, clearError]);
 
-  // Resume subscriptions on mount if running
-  useEffect(() => {
-    const { currentRequestId, status, startLogsForRequest, startResultsForRequest, startRunnerAutoCall } = useImportStore.getState();
-    if (currentRequestId && (status === 'running' || status === 'parsing')) {
-      startLogsForRequest(currentRequestId);
-      startResultsForRequest(currentRequestId);
-      startRunnerAutoCall();
-    }
-  }, []);
-
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-64px)]">
       <main className="flex-1 p-6 space-y-6 overflow-y-auto">
