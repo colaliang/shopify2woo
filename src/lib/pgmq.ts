@@ -1,6 +1,6 @@
 import { getSupabaseServer } from "./supabaseServer";
 
-type PgmqMessage = { msg_id: number; vt: string; read_ct: number; enqueued_at: string; message: unknown };
+export type PgmqMessage = { msg_id: number; vt: string; read_ct: number; enqueued_at: string; message: unknown };
 
 export function pgmqQueueName(source: string) {
   const isHigh = source.endsWith("_high");

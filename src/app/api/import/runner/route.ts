@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer, readLocalConfig, getUserIdFromToken, withTimeout } from "@/lib/supabaseServer";
-import { pgmqQueueName, pgmqRead, pgmqDelete, pgmqSetVt, pgmqArchive, pgmqPurgeRequest } from "@/lib/pgmq";
+import { pgmqQueueName, pgmqRead, pgmqDelete, pgmqSetVt, pgmqArchive, pgmqPurgeRequest, type PgmqMessage } from "@/lib/pgmq";
 import { appendLog } from "@/lib/logs";
 import { buildWpPayloadFromHtml, fetchHtmlMeta } from "@/lib/wordpressScrape";
 import { wooPost, wooPut, ensureTerms, type WooConfig } from "@/lib/woo";
@@ -424,10 +424,28 @@ export async function GET(req: Request) {
       const msRpc = parseInt(process.env.SUPABASE_TIMEOUT_MS || "5000", 10) || 5000;
       const msProc = parseInt(process.env.RUNNER_PROCESS_TIMEOUT_MS || "60000", 10) || 60000;
       // Increase visibility timeout to 60s to allow for parallel processing overhead
-      const messages = await withTimeout(pgmqRead(q, 60, 10), msRpc).catch(() => [] as { msg_id: number; message: unknown; read_ct?: number }[]);
+      // Explicitly type messages array to avoid 'never' type inference when array is empty
+      const messages = await withTimeout(pgmqRead(q, 60, 10), msRpc).catch(() => [] as PgmqMessage[]);
       
-      // Process messages concurrently
-      const promises = messages.map(async (m) => {
+      // Group messages by user to ensure sequential processing per user
+      const userGroups = new Map<string, PgmqMessage[]>();
+      const noUserMsgs: PgmqMessage[] = [];
+
+      for (const m of messages) {
+        const payload = m.message as { userId?: string };
+        const uid = payload?.userId;
+        if (uid) {
+          if (!userGroups.has(uid)) userGroups.set(uid, []);
+          userGroups.get(uid)!.push(m);
+        } else {
+          noUserMsgs.push(m);
+        }
+      }
+
+      // Process each user group sequentially, but groups can run in parallel
+      // Also process no-user messages (maybe error or system msgs)
+      
+      const processMessage = async (m: typeof messages[0]) => {
         try {
           const r = await withTimeout(
             processOne(q, { msg_id: m.msg_id, message: m.message, read_ct: m.read_ct }),
@@ -435,25 +453,16 @@ export async function GET(req: Request) {
           );
           return { queue: q, msg_id: m.msg_id, result: r };
         } catch (e: unknown) {
-          // If processing times out or fails unexpectedly, ensure we don't lose the message
-          // by NOT deleting it. It will become visible again after VT expires.
-          // But we should log this.
           const msgPayload = m.message as { userId?: string; requestId?: string };
           const uid = msgPayload?.userId || "";
           const rid = msgPayload?.requestId || "";
           if (uid && rid) {
-             // Log error but don't be too noisy if it's just a timeout that will retry
              const errMsg = e instanceof Error ? e.message : (typeof e === 'object' ? JSON.stringify(e) : String(e));
-             // If timeout, maybe we should extend VT? For now just log.
              await appendLog(uid, rid, "error", `processOne exception/timeout: ${errMsg}`);
-             // If we timeout, we should explicitly extend VT so it doesn't become visible immediately if the processing is actually still running in background
-             // But here we assume it failed.
-             // Let's extend VT by another 60s to give it breathing room before retry
              await pgmqSetVt(q, m.msg_id, 60).catch((vtErr)=>{
                 console.error(`Failed to set VT on timeout cleanup: ${vtErr}`);
              });
           }
-          // IMPORTANT: Do NOT delete message here. It will be retried after VT (60s).
           return {
             queue: q,
             msg_id: m.msg_id,
@@ -463,10 +472,35 @@ export async function GET(req: Request) {
             },
           };
         }
-      });
+      };
 
-      const results = await Promise.all(promises);
-      out.push(...results);
+      const groupPromises: Promise<any>[] = [];
+
+      // For each user, process their messages sequentially
+      for (const [uid, msgs] of userGroups) {
+        groupPromises.push((async () => {
+           const results = [];
+           for (const m of msgs) {
+             // If we are running out of time, stop processing this user's remaining messages
+             // But we already read them, so they are hidden for 60s. 
+             // That's acceptable, they will reappear.
+             if (Date.now() - t0 > budgetMs) break;
+             results.push(await processMessage(m));
+           }
+           return results;
+        })());
+      }
+
+      // Process no-user messages in parallel (or sequential, doesn't matter much as they are likely invalid)
+      if (noUserMsgs.length > 0) {
+        groupPromises.push((async () => {
+           return await Promise.all(noUserMsgs.map(m => processMessage(m)));
+        })());
+      }
+
+      const groupResults = await Promise.all(groupPromises);
+      const flatResults = groupResults.flat();
+      out.push(...flatResults);
     }
     return NextResponse.json({ ok: true, processed: out.length, details: out });
   } catch (e: unknown) {
