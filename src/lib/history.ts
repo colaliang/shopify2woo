@@ -144,17 +144,37 @@ export async function getResultCounts(userId: string, requestId: string) {
       const { count: err } = userId === "__ALL__" ? await qBase2.eq("status", "error") : await qBase2.eq("user_id", userId).eq("status", "error");
       const qBase3 = supabase.from("import_results").select("*", { count: "exact", head: true }).eq("request_id", requestId);
       const { count: part } = userId === "__ALL__" ? await qBase3.eq("status", "partial") : await qBase3.eq("user_id", userId).eq("status", "partial");
+      
+      // Count updates separately
+      const qBase4 = supabase.from("import_results").select("*", { count: "exact", head: true }).eq("request_id", requestId).eq("action", "update");
+      const { count: upd } = userId === "__ALL__" ? await qBase4.eq("status", "success") : await qBase4.eq("user_id", userId).eq("status", "success");
+
       const successCount = typeof succ === "number" ? succ : 0;
       const errorCount = typeof err === "number" ? err : 0;
       const partialCount = typeof part === "number" ? part : 0;
-      return { successCount, errorCount, partialCount, processed: successCount + errorCount + partialCount };
+      const updateCount = typeof upd === "number" ? upd : 0;
+
+      // Merge with local cache to handle cases where supabase exists but writes fell back to local
+      const localArr = readLocal().filter((r) => (userId === "__ALL__" ? r.requestId === requestId : (r.userId === userId && r.requestId === requestId)));
+      const ls = localArr.filter((r) => r.status === "success").length;
+      const le = localArr.filter((r) => r.status === "error").length;
+      const lp = localArr.filter((r) => r.status === "partial").length;
+      const lu = localArr.filter((r) => r.status === "success" && r.action === "update").length;
+
+      const mergedSuccess = successCount + ls;
+      const mergedError = errorCount + le;
+      const mergedPartial = partialCount + lp;
+      const mergedUpdate = updateCount + lu;
+      
+      return { successCount: mergedSuccess, errorCount: mergedError, partialCount: mergedPartial, updateCount: mergedUpdate, processed: mergedSuccess + mergedError + mergedPartial };
     } catch {}
   }
   const arr = readLocal().filter((r) => (userId === "__ALL__" ? r.requestId === requestId : (r.userId === userId && r.requestId === requestId)));
   const successCount = arr.filter((r) => r.status === "success").length;
   const errorCount = arr.filter((r) => r.status === "error").length;
   const partialCount = arr.filter((r) => r.status === "partial").length;
-  return { successCount, errorCount, partialCount, processed: successCount + errorCount + partialCount };
+  const updateCount = arr.filter((r) => r.status === "success" && r.action === "update").length;
+  return { successCount, errorCount, partialCount, updateCount, processed: successCount + errorCount + partialCount };
 }
 
 export async function countResults(userId: string) {

@@ -62,7 +62,7 @@ function getDispatcherFromEnv() {
 async function wooFetch(
   cfg: WooConfig,
   endpoint: string,
-  init?: RequestInit,
+  init?: RequestInit & { retries?: number },
   retry = 2
 ) {
   function applyIndexPhp(ep: string) {
@@ -76,9 +76,11 @@ async function wooFetch(
   const dispatcher = getDispatcherFromEnv();
   const started = Date.now();
   const method = (init?.method || "GET").toUpperCase();
-  const maxRetry = method !== "GET"
-    ? (parseInt(process.env.WOO_WRITE_RETRY || "3", 10) || 3)
-    : (parseInt(process.env.WOO_READ_RETRY || String(retry), 10) || retry);
+  const maxRetry = init?.retries !== undefined 
+    ? init.retries 
+    : (method !== "GET"
+      ? (parseInt(process.env.WOO_WRITE_RETRY || "3", 10) || 3)
+      : (parseInt(process.env.WOO_READ_RETRY || String(retry), 10) || retry));
   for (let i = 0; i <= maxRetry; i++) {
     const authMode = (process.env.WOO_AUTH_MODE || "query").toLowerCase();
     const apiUrl = new URL(url.toString());
@@ -234,7 +236,7 @@ export async function wooGet(cfg: WooConfig, endpoint: string, logContext?: { us
   return wooFetch(cfg, endpoint, { method: "GET", ...(logContext ? { __logCtx: { userId: logContext.userId, requestId: logContext.requestId, productHandle: logContext.productHandle } } : {}) } as unknown as RequestInit);
 }
 
-export async function wooPost(cfg: WooConfig, endpoint: string, body: unknown, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
+export async function wooPost(cfg: WooConfig, endpoint: string, body: unknown, logContext?: { userId?: string; requestId?: string; productHandle?: string }, options?: { retries?: number }) {
   let payload = "";
   try { 
     payload = JSON.stringify(body); 
@@ -256,10 +258,15 @@ export async function wooPost(cfg: WooConfig, endpoint: string, body: unknown, l
     }
   }
   try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "POST", endpoint, bodySize: payload.length })); } catch {}
-  return wooFetch(cfg, endpoint, { method: "POST", body: payload, ...(logContext ? { __logCtx: { userId: logContext.userId, requestId: logContext.requestId, productHandle: logContext.productHandle } } : {}) } as unknown as RequestInit);
+  return wooFetch(cfg, endpoint, { 
+    method: "POST", 
+    body: payload, 
+    ...(logContext ? { __logCtx: { userId: logContext.userId, requestId: logContext.requestId, productHandle: logContext.productHandle } } : {}),
+    ...(options?.retries !== undefined ? { retries: options.retries } : {})
+  } as unknown as RequestInit);
 }
 
-export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
+export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown, logContext?: { userId?: string; requestId?: string; productHandle?: string }, options?: { retries?: number }) {
   let payload = "";
   try { 
     payload = JSON.stringify(body); 
@@ -281,10 +288,15 @@ export async function wooPut(cfg: WooConfig, endpoint: string, body: unknown, lo
     }
   }
   try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "PUT", endpoint, bodySize: payload.length })); } catch {}
-  return wooFetch(cfg, endpoint, { method: "PUT", body: payload, ...(logContext ? { __logCtx: { userId: logContext.userId, requestId: logContext.requestId, productHandle: logContext.productHandle } } : {}) } as unknown as RequestInit);
+  return wooFetch(cfg, endpoint, { 
+    method: "PUT", 
+    body: payload, 
+    ...(logContext ? { __logCtx: { userId: logContext.userId, requestId: logContext.requestId, productHandle: logContext.productHandle } } : {}),
+    ...(options?.retries !== undefined ? { retries: options.retries } : {})
+  } as unknown as RequestInit);
 }
 
-export async function wooDelete(cfg: WooConfig, endpoint: string, logContext?: { userId?: string; requestId?: string; productHandle?: string }) {
+export async function wooDelete(cfg: WooConfig, endpoint: string, logContext?: { userId?: string; requestId?: string; productHandle?: string }, options?: { retries?: number }) {
   if (logContext?.userId && logContext?.requestId) {
     try { 
       const { appendLog } = await import('./logs');
@@ -293,7 +305,11 @@ export async function wooDelete(cfg: WooConfig, endpoint: string, logContext?: {
     } catch {}
   }
   try { console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", event: "wp_request", method: "DELETE", endpoint })); } catch {}
-  return wooFetch(cfg, endpoint, { method: "DELETE" });
+  return wooFetch(cfg, endpoint, { 
+    method: "DELETE", 
+    ...(logContext ? { __logCtx: { userId: logContext.userId, requestId: logContext.requestId, productHandle: logContext.productHandle } } : {}),
+    ...(options?.retries !== undefined ? { retries: options.retries } : {})
+  } as unknown as RequestInit);
 }
 
 export async function ensureTerms(

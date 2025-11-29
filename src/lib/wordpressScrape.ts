@@ -1,6 +1,20 @@
 import { cleanImageUrl } from "./importMap";
 import { normalizeWpSlugOrLink } from "./wordpress";
 
+let ProxyAgentRef: (new (proxy: string) => unknown) | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const undici = require("undici");
+  ProxyAgentRef = undici?.ProxyAgent || null;
+} catch {}
+function getDispatcherFromEnv() {
+  try {
+    const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+    if (ProxyAgentRef && proxy) return new ProxyAgentRef(proxy);
+  } catch {}
+  return undefined;
+}
+
 type LdProduct = {
   name?: string;
   description?: string;
@@ -53,7 +67,9 @@ export async function fetchHtml(url: string) {
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       const headers = { ...defaultHeaders } as Record<string, string>;
       try { headers["Referer"] = new URL(url).origin; } catch {}
-      const res = await fetch(url, { headers, signal: controller.signal, redirect: "follow" });
+      type UndiciRequestInit = RequestInit & { dispatcher?: unknown };
+      const dispatcher = getDispatcherFromEnv();
+      const res = await fetch(url, { headers, signal: controller.signal, redirect: "follow", ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}) });
       clearTimeout(timer);
       if (res.status === 404) throw new Error(`无法获取页面 404`);
       if (!res.ok) throw new Error(`无法获取页面 ${res.status}`);
@@ -75,7 +91,9 @@ export async function fetchHtmlMeta(url: string) {
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       const headers = { ...defaultHeaders } as Record<string, string>;
       try { headers["Referer"] = new URL(url).origin; } catch {}
-      const res = await fetch(url, { headers, redirect: "follow", signal: controller.signal });
+      type UndiciRequestInit = RequestInit & { dispatcher?: unknown };
+      const dispatcher = getDispatcherFromEnv();
+      const res = await fetch(url, { headers, redirect: "follow", signal: controller.signal, ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}) });
       clearTimeout(timer);
       const text = await res.text();
       const ct = res.headers.get("content-type") || "";
@@ -316,7 +334,9 @@ export async function discoverProductLinksFromSitemaps(base: string) {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), parseInt(process.env.SCRAPE_FETCH_TIMEOUT_MS || "15000", 10) || 15000);
-      const res = await fetch(new URL(u, base.replace(/\/$/, "")).toString(), { signal: controller.signal });
+      type UndiciRequestInit = RequestInit & { dispatcher?: unknown };
+      const dispatcher = getDispatcherFromEnv();
+      const res = await fetch(new URL(u, base.replace(/\/$/, "")).toString(), { signal: controller.signal, ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}) });
       clearTimeout(timer);
       if (!res.ok) continue;
       const xml = await res.text();
@@ -326,7 +346,7 @@ export async function discoverProductLinksFromSitemaps(base: string) {
           try {
             const controller2 = new AbortController();
             const timer2 = setTimeout(() => controller2.abort(), parseInt(process.env.SCRAPE_FETCH_TIMEOUT_MS || "15000", 10) || 15000);
-            const r = await fetch(loc, { signal: controller2.signal });
+            const r = await fetch(loc, { signal: controller2.signal, ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}) });
             clearTimeout(timer2);
             if (!r.ok) continue;
             const child = await r.text();

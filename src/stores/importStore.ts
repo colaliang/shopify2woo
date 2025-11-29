@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { importApi, ProductData, LogEntry, ParseListingRequest } from '@/services/importApi';
 import supabase from '@/lib/supabase';
 import { useUserStore } from '@/stores/userStore';
@@ -10,6 +11,7 @@ interface ImportStore {
   status: ImportState;
   products: ProductData[];
   logs: LogEntry[];
+  results: Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string }>;
   stats: {
     fetched: number;
     queue: number;
@@ -27,6 +29,7 @@ interface ImportStore {
   parseListing: (url: string, options?: ParseListingRequest['options']) => Promise<void>;
   importProduct: (productId: string) => Promise<void>;
   importSelectedProducts: () => Promise<void>;
+  enqueueLinks: (links: string[], sourceHint?: string) => Promise<void>;
   stopImport: () => Promise<void>;
   toggleProductSelection: (productId: string) => void;
   selectAllProducts: () => void;
@@ -38,13 +41,18 @@ interface ImportStore {
   startLogsForRequest: (requestId: string) => void;
   stopLogs: () => void;
   currentRequestId: string | null;
+  startResultsForRequest: (requestId: string) => void;
+  stopResults: () => void;
+  startRunnerAutoCall: () => void;
+  stopRunnerAutoCall: () => void;
 }
 
-export const useImportStore = create<ImportStore>((set, get) => ({
+export const useImportStore = create<ImportStore>()(persist((set, get) => ({
   // Initial state
   status: 'idle',
   products: [],
   logs: [],
+  results: [],
   stats: {
     fetched: 0,
     queue: 0,
@@ -119,16 +127,37 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       set({ error: 'Product not found' });
       return;
     }
-    set({ isLoading: true, error: null, status: 'running' });
+    // Reset stats for new single import
+    set((state) => ({
+      isLoading: true,
+      error: null,
+      status: 'running',
+      stats: {
+        ...state.stats,
+        queue: 0,
+        imported: 0,
+        errors: 0,
+        progress: 0,
+      }
+    }));
     try {
-      const origin = (() => { try { return new URL(product.link).origin; } catch { return ''; } })();
-      const res = await importApi.enqueueWordpress({ sourceUrl: origin, mode: 'links', productLinks: [product.link], cap: 1, priority: 'normal' });
+      const res = await importApi.enqueueWordpress({ sourceUrl: '', mode: 'links', productLinks: [product.link], cap: 1, priority: 'normal' });
       set({ currentRequestId: res.requestId });
       get().startLogsForRequest(res.requestId);
-      set((state) => ({ stats: { ...state.stats, queue: state.stats.queue + 1 } }));
+      get().startResultsForRequest(res.requestId);
+      get().startRunnerAutoCall();
+      set((state) => ({ stats: { ...state.stats, queue: res.count || 1 } }));
+      await get().refreshStatus();
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'enqueue failed';
       set({ error: msg, status: 'error' });
+      const errorLog: LogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        message: `Import failed: ${msg}`,
+      };
+      set((state) => ({ logs: [errorLog, ...state.logs].slice(0, 100) }));
     } finally {
       set({ isLoading: false });
     }
@@ -137,22 +166,83 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   // Import selected products
   importSelectedProducts: async () => {
     const { selectedProducts, products } = get();
+    try { if (!useUserStore.getState().isAuthenticated) { useUserStore.getState().openLoginModal(); return; } } catch {}
     if (selectedProducts.size === 0) {
       set({ error: 'No products selected' });
       return;
     }
     const list = products.filter(p => selectedProducts.has(p.id));
     const links = list.map(p => p.link).filter(Boolean);
-    set({ isLoading: true, error: null, status: 'running' });
+    // Reset stats for new batch import
+    set((state) => ({
+      isLoading: true,
+      error: null,
+      status: 'running',
+      stats: {
+        ...state.stats,
+        queue: 0,
+        imported: 0,
+        errors: 0,
+        progress: 0,
+      }
+    }));
     try {
-      const origin = (() => { try { return new URL(list[0].link).origin; } catch { return ''; } })();
-      const res = await importApi.enqueueWordpress({ sourceUrl: origin, mode: 'links', productLinks: links, cap: links.length, priority: 'normal' });
+      const res = await importApi.enqueueWordpress({ sourceUrl: '', mode: 'links', productLinks: links, cap: links.length, priority: 'normal' });
       set({ selectedProducts: new Set(), currentRequestId: res.requestId });
       get().startLogsForRequest(res.requestId);
-      set((state) => ({ stats: { ...state.stats, queue: links.length } }));
+      get().startResultsForRequest(res.requestId);
+      get().startRunnerAutoCall();
+      set((state) => ({ stats: { ...state.stats, queue: res.count || links.length } }));
+      await get().refreshStatus();
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'enqueue failed';
       set({ error: msg, status: 'error' });
+      const errorLog: LogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        message: `Batch import failed: ${msg}`,
+      };
+      set((state) => ({ logs: [errorLog, ...state.logs].slice(0, 100) }));
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  enqueueLinks: async (links: string[], sourceHint?: string) => {
+    if (!links || links.length === 0) return;
+    try { if (!useUserStore.getState().isAuthenticated) { useUserStore.getState().openLoginModal(); return; } } catch {}
+    // Reset stats for new direct link import
+    set((state) => ({
+      isLoading: true,
+      error: null,
+      status: 'running',
+      stats: {
+        ...state.stats,
+        queue: 0,
+        imported: 0,
+        errors: 0,
+        progress: 0,
+      }
+    }));
+    try {
+      const res = await importApi.enqueueWordpress({ sourceUrl: sourceHint || '', mode: 'links', productLinks: links, cap: links.length, priority: 'normal' });
+      set({ currentRequestId: res.requestId });
+      get().startLogsForRequest(res.requestId);
+      get().startResultsForRequest(res.requestId);
+      get().startRunnerAutoCall();
+      set((state) => ({ stats: { ...state.stats, queue: res.count || links.length } }));
+      await get().refreshStatus();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'enqueue failed';
+      set({ error: msg, status: 'error' });
+      const errorLog: LogEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        message: `Enqueue failed: ${msg}`,
+      };
+      set((state) => ({ logs: [errorLog, ...state.logs].slice(0, 100) }));
     } finally {
       set({ isLoading: false });
     }
@@ -160,6 +250,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
 
   // Stop import
   stopImport: async () => {
+    set({ isLoading: true });
     try {
       const rid = get().currentRequestId;
       if (rid) {
@@ -167,13 +258,16 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       }
       set({ status: 'stopped', isLoading: false, currentRequestId: null });
       get().stopLogs();
+      get().stopResults();
+      get().stopRunnerAutoCall();
+      await get().refreshStatus();
 
       // Add stopped log
       const stoppedLog: LogEntry = {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
         level: 'info',
-        message: 'Import stopped by user',
+        message: '任务已停止（用户取消）',
       };
       
       set((state) => ({
@@ -181,6 +275,12 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       }));
     } catch (error) {
       console.error('Failed to stop import:', error);
+      // Force stop UI even if API fails, assuming job is lost or unreachable
+      set({ status: 'stopped', isLoading: false, currentRequestId: null });
+      get().stopLogs();
+      get().stopResults();
+      get().stopRunnerAutoCall();
+      await get().refreshStatus();
     }
   },
 
@@ -212,17 +312,24 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   // Refresh status
   refreshStatus: async () => {
     try {
-      const status = await importApi.getImportStatus();
-      set({
-        status: status.status,
-        stats: {
-          fetched: status.fetched,
-          queue: status.queue,
-          imported: status.imported,
-          errors: status.errors,
-          progress: status.progress,
-        },
-      });
+      const rid = get().currentRequestId || '';
+      const qs = await importApi.getQueueStats(rid);
+      const s = get();
+      const imported = typeof qs.counts?.imported === 'number' ? qs.counts!.imported : s.stats.imported;
+      const errors = typeof qs.counts?.errors === 'number' ? qs.counts!.errors : s.stats.errors;
+      const processed = imported + errors;
+      let queue = s.stats.queue;
+      if (qs && qs.queueEmptyForRequest === true) {
+        queue = processed;
+      }
+      const progress = queue ? Math.round((processed / queue) * 100) : 0;
+      set({ stats: { ...s.stats, queue, imported, errors, progress } });
+      if (s.status === 'running' && qs && qs.queueEmptyForRequest === true) {
+        set({ status: 'completed', currentRequestId: null });
+        get().stopRunnerAutoCall();
+        try { get().stopLogs(); } catch {}
+        try { get().stopResults(); } catch {}
+      }
     } catch (error) {
       console.error('Failed to refresh status:', error);
     }
@@ -255,7 +362,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       try { supabase.removeChannel(st.__realtimeChannel); } catch {}
     }
     const uid = useUserStore.getState().user?.id || '';
-    const ch = supabase.channel('import_logs_ui')
+    const ch = supabase.channel('import_logs')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_logs', ...(uid ? { filter: `user_id=eq.${uid}` } : {}), filter: `request_id=eq.${requestId}` }, (payload) => {
         const n = payload.new as { level: 'info' | 'error'; message: string; created_at: string };
         const item: LogEntry = {
@@ -264,6 +371,8 @@ export const useImportStore = create<ImportStore>((set, get) => ({
           level: n.level === 'error' ? 'error' : 'info',
           message: n.message,
         };
+        // Debug log to console as per request for "Detailed logs in debug window"
+        console.log(`[Import Log] ${item.timestamp} [${item.level}] ${item.message}`);
         set((state) => ({ logs: [item, ...state.logs].slice(0, 100) }));
       })
       .subscribe();
@@ -278,4 +387,130 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     }
     set({ logs: [] });
   },
+
+  startResultsForRequest: (requestId: string) => {
+    set({ results: [] });
+    const st = get() as unknown as { __resultsChannel?: ReturnType<typeof supabase.channel> };
+    if (st.__resultsChannel) {
+      try { supabase.removeChannel(st.__resultsChannel); } catch {}
+    }
+    const uid = useUserStore.getState().user?.id || '';
+    const ch = supabase.channel('import_results')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', ...(uid ? { filter: `user_id=eq.${uid}` } : {}), filter: `request_id=eq.${requestId}` }, (payload) => {
+        const n = payload.new as { status: 'success' | 'error'; message?: string; name?: string; product_id?: string; item_key?: string; created_at: string };
+        const item = {
+          id: Math.random().toString(36).slice(2),
+          timestamp: n.created_at,
+          status: n.status,
+          message: n.message,
+          name: n.name,
+          productId: n.product_id,
+          itemKey: n.item_key,
+        };
+        set((state) => {
+          const imported = state.stats.imported + (n.status === 'success' ? 1 : 0);
+          const errors = state.stats.errors + (n.status === 'error' ? 1 : 0);
+          const processed = imported + errors;
+          const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
+          return {
+            results: [item, ...state.results].slice(0, 200),
+            stats: { ...state.stats, imported, errors, progress },
+          };
+        });
+        const s = get();
+        const processedNow = s.stats.imported + s.stats.errors;
+        if (s.status === 'running' && s.stats.queue > 0 && processedNow >= s.stats.queue) {
+          set({ status: 'completed', currentRequestId: null });
+          s.stopRunnerAutoCall();
+          try { s.stopLogs(); } catch {}
+          try { s.stopResults(); } catch {}
+        }
+      })
+      .subscribe();
+    (st as { __resultsChannel?: ReturnType<typeof supabase.channel> }).__resultsChannel = ch;
+  },
+
+  stopResults: () => {
+    const st = get() as unknown as { __resultsChannel?: ReturnType<typeof supabase.channel> };
+    if (st.__resultsChannel) {
+      try { supabase.removeChannel(st.__resultsChannel); } catch {}
+      (st as { __resultsChannel?: ReturnType<typeof supabase.channel> }).__resultsChannel = undefined;
+    }
+    set({ results: [] });
+  },
+
+  startRunnerAutoCall: () => {
+    const st = get() as unknown as { __runnerInterval?: number; __runnerRunning?: boolean; __idleCount?: number };
+    if (st.__runnerInterval) return;
+    const token = (process.env.NEXT_PUBLIC_RUNNER_TOKEN || '').trim();
+    st.__idleCount = 0; // Reset idle count
+    
+    const call = async () => {
+      if ((get() as unknown as { __runnerRunning?: boolean }).__runnerRunning) return;
+      (st as { __runnerRunning?: boolean }).__runnerRunning = true;
+      try {
+        const url = token ? `/api/import/runner?token=${encodeURIComponent(token)}` : '/api/import/runner';
+        let bearer: string | null = null;
+        try {
+          const { data } = await supabase.auth.getSession();
+          bearer = data.session?.access_token || null;
+        } catch {}
+        const headers: Record<string, string> = {};
+        if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+        const res = await fetch(url, { method: 'GET', headers });
+        
+        // Auto-stop logic if runner is idle for too long
+        if (res.ok) {
+           const json = await res.json().catch(() => ({}));
+           // If processed is explicitly 0, we count it as an idle cycle
+           if (json && typeof json.processed === 'number' && json.processed === 0) {
+             const idle = (st.__idleCount || 0) + 1;
+             st.__idleCount = idle;
+             // If we have been idle for 6 cycles (60 seconds) and we are still 'running',
+             // and we haven't received updates, maybe we should stop?
+             // However, for large files, processing might take time without returning 'processed'.
+             // But usually 'processed' means "completed items".
+             // Let's be conservative: 6 cycles = 1 minute of doing nothing.
+             if (idle >= 6 && get().status === 'running') {
+                // Try to refresh status from server to double check
+                await get().refreshStatus();
+                const s = get();
+                const processedNow = s.stats.imported + s.stats.errors;
+                if (processedNow >= s.stats.queue) {
+                   set({ status: 'completed', currentRequestId: null });
+                   get().stopRunnerAutoCall();
+                   try { get().stopLogs(); } catch {}
+                   try { get().stopResults(); } catch {}
+                }
+             }
+           } else {
+             st.__idleCount = 0;
+           }
+        }
+      } catch {}
+      (st as { __runnerRunning?: boolean }).__runnerRunning = false;
+    };
+    const id = window.setInterval(call, 10000);
+    (st as { __runnerInterval?: number }).__runnerInterval = id as unknown as number;
+    void call();
+  },
+
+  stopRunnerAutoCall: () => {
+    const st = get() as unknown as { __runnerInterval?: number };
+    if (st.__runnerInterval) {
+      try { clearInterval(st.__runnerInterval as unknown as number); } catch {}
+      (st as { __runnerInterval?: number }).__runnerInterval = undefined;
+    }
+  },
+}), {
+  name: 'import-storage',
+  storage: createJSONStorage(() => localStorage),
+  partialize: (state) => ({
+    currentRequestId: state.currentRequestId,
+    status: state.status,
+    products: state.products,
+    logs: state.logs,
+    results: state.results,
+    stats: state.stats,
+  }),
 }));

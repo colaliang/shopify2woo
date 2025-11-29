@@ -13,8 +13,17 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { sourceUrl, mode, productLinks = [], cap, priority } = body || {};
-    if (mode !== "all" && mode !== "links") return NextResponse.json({ error: "缺少或非法导入模式" }, { status: 400 });
-    if (mode === "all" && !sourceUrl) return NextResponse.json({ error: "全站模式需提供源站 URL" }, { status: 400 });
+
+    let finalSourceUrl = sourceUrl;
+    // Auto-infer sourceUrl from productLinks if not provided
+    if (!finalSourceUrl && mode === "links" && Array.isArray(productLinks)) {
+      const firstAbs = (productLinks as string[]).find((l: string) => typeof l === 'string' && /^https?:\/\//.test(l));
+      if (firstAbs) {
+        try { finalSourceUrl = new URL(firstAbs).origin; } catch {}
+      }
+    }
+
+    if (mode === "all" && !finalSourceUrl) return NextResponse.json({ error: "全站模式需提供源站 URL" }, { status: 400 });
 
   const auth = req.headers.get("authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
@@ -64,7 +73,7 @@ export async function POST(req: Request) {
     let discovered: string[] = [];
     let links: string[] = [];
     if (mode === "all") {
-      discovered = await discoverAllProductLinks(sourceUrl, maxCap);
+      discovered = await discoverAllProductLinks(finalSourceUrl, maxCap);
       // 预处理：去重与格式校验
       discovered = Array.from(new Set(discovered)).filter((u) => /^https?:\/\//.test(u));
       jobTotal = discovered.length;
@@ -76,13 +85,13 @@ export async function POST(req: Request) {
         .map((s) => {
           if (/^https?:\/\//.test(s)) return s;
           const slugOrPath = normalizeWpSlugOrLink(s);
-          return new URL(slugOrPath, sourceUrl).toString();
+          return new URL(slugOrPath, finalSourceUrl).toString();
         });
       jobTotal = links.length;
     }
 
     const q = pgmqQueueName(priority === "high" ? "wordpress_high" : "wordpress");
-    const items = (mode === "all" ? discovered : links).map((l) => ({ userId: uid, requestId, source: "wordpress", priority: priority === "high" ? "high" : "normal", link: l, sourceUrl }));
+    const items = (mode === "all" ? discovered : links).map((l) => ({ userId: uid, requestId, source: "wordpress", priority: priority === "high" ? "high" : "normal", link: l, sourceUrl: finalSourceUrl }));
     try {
       const chunk = 300;
       let sent = 0;
@@ -91,7 +100,15 @@ export async function POST(req: Request) {
         await pgmqSendBatch(q, batch);
         sent += batch.length;
       }
-      await appendLog(uid, requestId, "info", `pgmq queued ${sent}/${jobTotal} links from ${sourceUrl} q=${q}`);
+      await appendLog(uid, requestId, "info", `pgmq queued ${sent}/${jobTotal} links from ${finalSourceUrl} q=${q}`);
+      try {
+        const tokenKick = process.env.RUNNER_TOKEN || "";
+        const { GET: runnerGET } = await import("@/app/api/import/runner/route");
+        const urlKick = new URL("/api/import/runner", "http://localhost");
+        if (tokenKick) urlKick.searchParams.set("token", tokenKick);
+        const reqKick = new Request(urlKick.toString(), { method: "GET", headers: tokenKick ? { Authorization: `Bearer ${tokenKick}` } : undefined });
+        await runnerGET(reqKick);
+      } catch {}
       return NextResponse.json({ success: true, requestId, count: jobTotal }, { status: 202 });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : (typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e));

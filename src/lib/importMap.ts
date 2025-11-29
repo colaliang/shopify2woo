@@ -71,11 +71,17 @@ export interface WooProductPayload {
   tags?: Array<{ id?: number; name?: string }>;
 }
 
-export function buildVariationFromShopifyVariant(variant: NonNullable<ShopifyProduct["variants"]>[number]): WooVariationPartial {
+export function buildVariationFromShopifyVariant(
+  variant: NonNullable<ShopifyProduct["variants"]>[number],
+  productOptions: NonNullable<ShopifyProduct["options"]>
+): WooVariationPartial {
   const attrs: Array<{ name?: string; option?: string }> = [];
-  [variant.option1, variant.option2, variant.option3].forEach((opt, idx) => {
-    if (!opt) return;
-    attrs.push({ name: idx === 0 ? undefined : undefined, option: opt });
+  const opts = [variant.option1, variant.option2, variant.option3];
+  productOptions.forEach((pOpt, idx) => {
+    const val = opts[idx];
+    if (val && pOpt.name) {
+      attrs.push({ name: pOpt.name, option: val });
+    }
   });
   const prices = computePriceFields(variant);
   const img = cleanImageUrl(variant?.image?.src || undefined);
@@ -83,7 +89,7 @@ export function buildVariationFromShopifyVariant(variant: NonNullable<ShopifyPro
     sku: variant?.sku,
     ...prices,
     image: img ? { src: img } : undefined,
-    attributes: attrs.filter((a) => a.option),
+    attributes: attrs.filter((a) => a.option && a.name),
   };
 }
 
@@ -100,7 +106,7 @@ export function buildWooProductPayload(product: ShopifyProduct): WooProductPaylo
   if (!isVariable) {
     const v = product.variants?.[0];
     if (v) {
-      const variation = buildVariationFromShopifyVariant(v);
+      const variation = buildVariationFromShopifyVariant(v, product.options || []);
       Object.assign(payload, {
         sku: variation.sku,
         regular_price: variation.regular_price,

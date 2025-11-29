@@ -45,6 +45,8 @@ export interface ImportProductRequest {
   };
 }
 
+import supabase from '@/lib/supabase';
+
 class ImportApiService {
   private baseUrl = '/api/import';
 
@@ -91,26 +93,22 @@ class ImportApiService {
   }
 
   async getImportStatus(): Promise<ImportStatus> {
-    try {
-      const response = await fetch(`${this.baseUrl}/status`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+    // Deprecated: prefer getQueueStats, keeping for compatibility
+    return {
+      status: 'idle',
+      fetched: 0,
+      queue: 0,
+      imported: 0,
+      errors: 0,
+      progress: 0,
+    };
+  }
 
-      return await response.json();
-    } catch (error) {
-      console.error('Failed to get import status:', error);
-      // Return default status on error
-      return {
-        status: 'idle',
-        fetched: 0,
-        queue: 0,
-        imported: 0,
-        errors: 0,
-        progress: 0,
-      };
-    }
+  async getQueueStats(requestId?: string): Promise<{ warn: boolean; rows: { queue: string; ready: number | null; vt: number | null; total: number | null; archived: number | null }[]; queueEmptyForRequest?: boolean; thresholds?: { warn: number }; reasons?: string[]; counts?: { imported: number; errors: number; partial: number; processed: number } }> {
+    const url = requestId ? `${this.baseUrl}/queue/stats?requestId=${encodeURIComponent(requestId)}` : `${this.baseUrl}/queue/stats`;
+    const res = await fetch(url);
+    const j = await res.json().catch(() => ({ warn: false, rows: [] }));
+    return j as { warn: boolean; rows: { queue: string; ready: number | null; vt: number | null; total: number | null; archived: number | null }[]; queueEmptyForRequest?: boolean; thresholds?: { warn: number }; reasons?: string[]; counts?: { imported: number; errors: number; partial: number; processed: number } };
   }
 
   async getLogs(limit: number = 100): Promise<LogEntry[]> {
@@ -147,9 +145,11 @@ class ImportApiService {
 
   async cancel(requestId: string): Promise<{ ok: boolean; removed: number }> {
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || '';
       const response = await fetch(`${this.baseUrl}/cancel`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ requestId }),
       });
       const j = await response.json().catch(()=>null);
@@ -166,9 +166,11 @@ class ImportApiService {
 
   async enqueueWordpress(params: { sourceUrl: string; mode: 'all' | 'links'; productLinks?: string[]; cap?: number; priority?: 'normal' | 'high' }): Promise<{ success: boolean; requestId: string; count: number }> {
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || '';
       const response = await fetch(`${this.baseUrl}/wordpress`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(params),
       });
       if (!response.ok) {

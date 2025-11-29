@@ -134,7 +134,7 @@ export default function DebugPanel() {
               </div>
               <div className="space-y-2">
                 {logs.map((lg, i) => (
-                  <div key={i} className="border rounded p-2 bg-gray-900">
+                  <div key={i} className="border rounded p-2 bg-gray-50">
                     <LogItem data={lg} />
                   </div>
                 ))}

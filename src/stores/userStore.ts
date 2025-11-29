@@ -57,26 +57,14 @@ export const useUserStore = create<UserStore>((set) => ({
   settingsModalOpen: false,
   debugModalOpen: false,
   
-  login: async (email: string, _password: string) => {
-    void _password;
-    // Mock login - in real app, this would call your API
+  login: async (email: string, password: string) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock user data
-      const user: User = {
-        id: '1',
-        email: email,
-        name: email.split('@')[0],
-      };
-      
-      set({ 
-        user, 
-        isAuthenticated: true,
-        loginModalOpen: false
-      });
-      
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      const u = data.user;
+      if (!u) return false;
+      const name = (u.user_metadata && (u.user_metadata.full_name as string)) || (email.split('@')[0] || '');
+      set({ user: { id: u.id, email, name }, isAuthenticated: true, loginModalOpen: false });
       return true;
     } catch (error) {
       console.error('Login failed:', error);

@@ -19,27 +19,53 @@ export default function LogItem({ data }: LogItemProps) {
   const getIcon = () => {
     switch (data.level) {
       case "error":
-        return <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />;
+        return <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />;
       case "warn":
-        return <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5" />;
+        return <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" />;
       case "success":
-        return <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />;
+        return <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />;
       default:
         return <Info className="w-4 h-4 text-blue-500 mt-0.5" />;
     }
   };
 
+  const getContainerClass = () => {
+    switch (data.level) {
+      case "error":
+        return "bg-red-50 border-l-2 border-red-500";
+      case "warn":
+        return "bg-amber-50 border-l-2 border-amber-500";
+      case "success":
+        return "bg-green-50 border-l-2 border-green-500";
+      default:
+        return "hover:bg-gray-50";
+    }
+  };
+
+  const getTextColor = () => {
+    switch (data.level) {
+      case "error":
+        return "text-red-800";
+      case "warn":
+        return "text-amber-800";
+      case "success":
+        return "text-green-800";
+      default:
+        return "text-gray-700";
+    }
+  };
+
   return (
-    <div className="flex items-start gap-2 text-sm">
+    <div className={`flex items-start gap-2 text-sm p-2 rounded ${getContainerClass()}`}>
       {getIcon()}
       <div className="flex-1 min-w-0">
-        <div className="text-gray-700">
+        <div className={getTextColor()}>
           {data.link ? (
             <a
               href={data.link}
               target="_blank"
               rel="noreferrer"
-              className="text-blue-600 hover:underline"
+              className="underline hover:no-underline"
             >
               {data.message}
             </a>
@@ -47,7 +73,7 @@ export default function LogItem({ data }: LogItemProps) {
             <span>{data.message}</span>
           )}
         </div>
-        <div className="text-xs text-gray-400 mt-1">{time}</div>
+        <div className={`text-xs mt-1 ${data.level === 'info' ? 'text-gray-400' : 'text-opacity-80 ' + getTextColor()}`}>{time}</div>
       </div>
     </div>
   );

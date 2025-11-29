@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { pgmqQueueName, pgmqQsize, pgmqArchivedCount, pgmqRead, pgmqSetVt } from "@/lib/pgmq";
+import { getResultCounts } from "@/lib/history";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,7 @@ export async function GET(req: Request) {
   const warn = warnQueues.length > 0;
   const reasons = warnQueues.map(r => `队列积压: ${r.queue} total=${r.total} ready=${r.ready}`);
   let queueEmptyForRequest: boolean | undefined = undefined;
+  let counts: { imported: number; errors: number; partial: number; processed: number; updated: number } | undefined = undefined;
   if (requestId) {
     queueEmptyForRequest = true;
     outer: for (const s of sources) {
@@ -42,6 +44,15 @@ export async function GET(req: Request) {
         }
       }
     }
+    try {
+      const c = await getResultCounts("__ALL__", requestId);
+      // Count 'update' results separately? 'success' includes updates currently.
+      // We might want to enhance getResultCounts to return 'update' specific counts if needed,
+      // but for now 'imported' covers both additions and updates as per existing logic.
+      // The user requested "Show how many updated".
+      // This requires getResultCounts to return update count.
+      counts = { imported: c.successCount, errors: c.errorCount, partial: c.partialCount, processed: c.processed, updated: c.updateCount };
+    } catch {}
   }
-  return NextResponse.json({ warn, reasons, rows, thresholds, queueEmptyForRequest });
+  return NextResponse.json({ warn, reasons, rows, thresholds, queueEmptyForRequest, counts });
 }

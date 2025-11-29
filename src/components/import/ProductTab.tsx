@@ -1,58 +1,39 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useImportStore } from "@/stores/importStore";
+import { useUserStore } from "@/stores/userStore";
 import URLInputCard from "@/components/import/URLInputCard";
-import ProductItem, { ProductItemData } from "@/components/import/ProductItem";
 import RightPanel from "@/components/import/RightPanel";
 
 export default function ProductTab() {
   const [url, setUrl] = useState("");
   
   const {
-    products,
     logs,
     stats,
     isLoading,
     error,
     importProduct,
     clearError,
-    setProducts,
+    results,
+    status,
   } = useImportStore();
 
   const handleExtract = async (u: string) => {
     if (!u) return;
-    try {
-      const link = u.trim();
-      let title = link;
-      try {
-        const p = new URL(link);
-        const segs = p.pathname.split('/').filter(Boolean);
-        title = segs[segs.length - 1] || link;
-      } catch {}
-      setProducts([{ id: 'single', title, link, thumbnail: 'https://via.placeholder.com/64', price: '', attributesCount: 0, reviewsCount: 0, galleryCount: 0, inStock: true }]);
-    } catch {}
-  };
-
-  const handleImport = async () => {
-    if (products.length > 0) {
-      await importProduct(products[0].id);
+    if (!useUserStore.getState().isAuthenticated) {
+      useUserStore.getState().openLoginModal();
+      return;
     }
+    const tokens = u
+      .split(/[\n\r\t\s,，;；、]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const uniq = Array.from(new Set(tokens));
+    if (uniq.length === 0) return;
+    await useImportStore.getState().enqueueLinks(uniq, uniq[0]);
   };
 
-  const mappedProduct: ProductItemData | null = useMemo(() => {
-    if (products.length === 0) return null;
-    const firstProduct = products[0];
-    return {
-      id: firstProduct.id,
-      title: firstProduct.title,
-      link: firstProduct.link,
-      thumbnail: firstProduct.thumbnail,
-      price: firstProduct.price,
-      attributesCount: firstProduct.attributesCount || 0,
-      reviewsCount: firstProduct.reviewsCount || 0,
-      galleryCount: firstProduct.galleryCount || 0,
-      inStock: firstProduct.inStock,
-    };
-  }, [products]);
+  void importProduct;
 
   // Show error notification
   useEffect(() => {
@@ -63,7 +44,15 @@ export default function ProductTab() {
     }
   }, [error, clearError]);
 
-  
+  // Resume subscriptions on mount if running
+  useEffect(() => {
+    const { currentRequestId, status, startLogsForRequest, startResultsForRequest, startRunnerAutoCall } = useImportStore.getState();
+    if (currentRequestId && (status === 'running' || status === 'parsing')) {
+      startLogsForRequest(currentRequestId);
+      startResultsForRequest(currentRequestId);
+      startRunnerAutoCall();
+    }
+  }, []);
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-64px)]">
@@ -79,20 +68,26 @@ export default function ProductTab() {
           <button
             onClick={() => useImportStore.getState().stopImport()}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-            disabled={isLoading}
+            disabled={status !== 'running' && status !== 'parsing'}
           >
             结束
           </button>
         </div>
 
-        {mappedProduct && (
-          <ProductItem
-            data={mappedProduct}
-            selected={false}
-            onSelect={() => {}}
-            onImport={handleImport}
-          />
-        )}
+        <div className="space-y-3">
+          {results.length === 0 && (
+            <div className="text-gray-500">暂无导入结果，点击上方“导入”开始</div>
+          )}
+          {results.map((r) => (
+            <div key={r.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
+              <div className="flex-1">
+                <div className="text-sm font-medium">{r.name || r.itemKey || '未知商品'}</div>
+                {r.message && <div className="text-xs text-gray-500 mt-1">{r.message}</div>}
+              </div>
+              <div className={"text-xs px-2 py-1 rounded " + (r.status === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>{r.status === 'success' ? '成功' : '失败'}</div>
+            </div>
+          ))}
+        </div>
 
         {/* Error Display */}
         {error && (
@@ -109,7 +104,9 @@ export default function ProductTab() {
         logs={logs}
         fetched={stats.fetched}
         queue={stats.queue}
+        imported={stats.imported}
         errors={stats.errors}
+        status={status}
         waitSeconds={0}
         setWaitSeconds={() => {}}
       />

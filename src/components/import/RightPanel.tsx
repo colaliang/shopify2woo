@@ -6,33 +6,40 @@ export interface LogItemData {
   timestamp?: string;
 }
 
-import { useEffect, useState } from "react";
-import LogItem from "./LogItem";
+import { useState } from "react";
 
 interface RightPanelProps {
   logs: LogItemData[];
   fetched: number;
   queue: number;
+  imported?: number;
   errors: number;
+  status?: 'idle' | 'parsing' | 'running' | 'stopped' | 'completed' | 'error';
   waitSeconds: number;
   setWaitSeconds: (v: number) => void;
 }
 
 export default function RightPanel({
-  logs,
   fetched,
   queue,
+  imported = 0,
   errors,
+  status = 'idle',
   waitSeconds,
   setWaitSeconds,
 }: RightPanelProps) {
   const [open, setOpen] = useState(false);
 
-  // Auto-scroll to bottom on new log
-  useEffect(() => {
-    const el = document.getElementById("log-scroll");
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [logs]);
+  const summaryLines = (() => {
+    const out: Array<{ text: string; level: 'info' | 'success' | 'error' }> = [];
+    if (status === 'running' || status === 'parsing') out.push({ text: '任务开始', level: 'info' });
+    if (status === 'completed') out.push({ text: '任务结束', level: 'success' });
+    if (status === 'stopped') out.push({ text: '任务已停止', level: 'info' });
+    if (status === 'error') out.push({ text: '任务异常', level: 'error' });
+    out.push({ text: `导入成功 ${imported}`, level: 'success' });
+    out.push({ text: `导入失败 ${errors}`, level: 'error' });
+    return out;
+  })();
 
   return (
     <>
@@ -54,9 +61,12 @@ export default function RightPanel({
             />
           </div>
         </div>
-        <div id="log-scroll" className="flex-1 overflow-y-auto p-4 space-y-3">
-          {logs.map((log, i) => (
-            <LogItem key={i} data={log} />
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {summaryLines.map((l, i) => (
+            <div key={i} className={
+              "text-sm px-3 py-2 rounded border " +
+              (l.level === 'success' ? 'bg-green-50 border-green-200 text-green-700' : l.level === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-800')
+            }>{l.text}</div>
           ))}
         </div>
       </aside>
@@ -67,7 +77,7 @@ export default function RightPanel({
           onClick={() => setOpen(true)}
           className="px-4 py-2 bg-primary-600 text-white rounded-full shadow"
         >
-          日志 ({logs.length})
+          概要
         </button>
       </div>
 
@@ -81,8 +91,11 @@ export default function RightPanel({
               已获取: {fetched} | 队列: {queue} | 错误: {errors}
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
-              {logs.map((log, i) => (
-                <LogItem key={i} data={log} />
+              {summaryLines.map((l, i) => (
+                <div key={i} className={
+                  "text-sm px-3 py-2 rounded border " +
+                  (l.level === 'success' ? 'bg-green-50 border-green-200 text-green-700' : l.level === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-800')
+                }>{l.text}</div>
               ))}
             </div>
           </div>
