@@ -230,7 +230,12 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
       if (ok) {
         await recordResult(userId, "wordpress", requestId, built.slug || built.sku || link, name, productId, "success", undefined, "update"); // Mark as update/add success
         await appendLog(userId, requestId, "info", `product processed id=${productId || "?"} name=${name || ""}`);
-        await pgmqDelete(queue, msg.msg_id);
+        try {
+          await pgmqDelete(queue, msg.msg_id);
+        } catch (delErr) {
+           await appendLog(userId, requestId, "error", `[WARN] processed success but failed to delete msg=${msg.msg_id}: ${delErr}`);
+           // Do not throw, allow success return so we don't retry logic
+        }
         return { ok: true };
       } else {
         // Non-exception failure: apply retry policy
@@ -324,7 +329,11 @@ async function processOne(queue: string, msg: { msg_id: number; message: unknown
     }
     const res = await processShopifyJob(payload, cfg);
     if (res.ok) {
-      await pgmqDelete(queue, msg.msg_id);
+      try {
+        await pgmqDelete(queue, msg.msg_id);
+      } catch (e) {
+        console.error(`[WARN] Shopify job success but failed to delete msg=${msg.msg_id}: ${e}`);
+      }
     } else {
       const readCt = msg.read_ct || 1;
       const maxRetries = parseInt(process.env.IMAGE_UPLOAD_RETRY || "3", 10);
@@ -366,7 +375,11 @@ async function processOne(queue: string, msg: { msg_id: number; message: unknown
     }
     const res = await processWixJob(payload);
     if (res.ok) {
-      await pgmqDelete(queue, msg.msg_id);
+      try {
+        await pgmqDelete(queue, msg.msg_id);
+      } catch (e) {
+        console.error(`[WARN] Wix job success but failed to delete msg=${msg.msg_id}: ${e}`);
+      }
     } else {
       const readCt = msg.read_ct || 1;
       const maxRetries = parseInt(process.env.IMAGE_UPLOAD_RETRY || "3", 10);

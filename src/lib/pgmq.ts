@@ -57,20 +57,21 @@ export async function pgmqSetVt(queue: string, msgId: number, vtSeconds: number)
   
   // Fix for "function pgmq.set_vt(text, bigint, interval) does not exist" error.
   // The error "42883" indicates that Postgres cannot find a function matching the signature.
-  // Supabase RPC might be trying to cast `vt` (number) to `interval` automatically if the function expects it,
-  // OR the function expects `integer` but receives something else.
   
   // Attempt 1: Try 'vt' parameter name (most common).
   const { error } = await supabase.rpc("pgmq_set_vt", { q: queue, mid: msgId, vt: vtSeconds });
   
   if (error) {
      // If function signature mismatch (42883 or PGRST202), try 'vt_seconds'.
-     // We don't throw immediately, we try the alternative.
      const { error: err2 } = await supabase.rpc("pgmq_set_vt", { q: queue, mid: msgId, vt_seconds: vtSeconds });
      if (err2) {
-        // If both fail, throw the original error as it might be more relevant (or the second one).
-        // But wait, if the first error was "function does not exist", maybe the second one is the key?
-        // Let's throw the second error if it exists.
+        const code = (err2 as any)?.code || "";
+        // If still failing with signature/function errors, just log and suppress.
+        // This prevents the runner from crashing when it tries to set retry delay.
+        if (code === "42883" || code === "PGRST202") {
+            console.warn(`[pgmq] Warning: pgmq_set_vt failed (signature mismatch ${code}). Msg ${msgId} VT not updated.`);
+            return false;
+        }
         throw err2;
      }
      return true;
