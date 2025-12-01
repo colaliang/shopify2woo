@@ -50,7 +50,8 @@ export async function POST(request: NextRequest) {
         const title = String(p?.name || '');
         const thumbnail = String(p.images?.[0]?.src || '');
         const price = extractProductPrice(html) || '';
-            
+        const breadcrumbs = data.catNames?.join(' > ') || '';
+
         return {
           id: `${idx + 1}`,
           title: title || link,
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
           reviewsCount: 0, // Not currently scraped
           galleryCount: p.images?.length || 0,
           inStock: true, // Simplified assumption
+          categoryBreadcrumbs: breadcrumbs,
         };
       } catch (e) {
         console.error(`Failed to scrape details for ${link}:`, e);

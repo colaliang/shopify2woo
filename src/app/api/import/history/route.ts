@@ -17,11 +17,14 @@ export async function GET(req: Request) {
   const tokenOk = (!!runnerToken && token === runnerToken) || runnerAllowAnon;
   const preferredUser = (!userId && (disableAuth || tokenOk)) ? "__ALL__" : (userId || "__ALL__");
   if (!userId && !(disableAuth || tokenOk)) return NextResponse.json({ error: "未登录" }, { status: 401 });
-  const pageSize = 20;
+  const limitStr = url.searchParams.get("limit");
+  const pageSize = limitStr ? Math.max(1, parseInt(limitStr, 10) || 20) : 20;
+  const requestId = url.searchParams.get("requestId") || undefined;
+
   let listUser = preferredUser;
-  let total = await countResults(listUser);
+  let total = await countResults(listUser, requestId);
   if (disableAuth && total === 0) {
-    const totalAll = await countResults("__ALL__");
+    const totalAll = await countResults("__ALL__", requestId);
     if (totalAll > 0) {
       listUser = "__ALL__";
       total = totalAll;
@@ -29,7 +32,7 @@ export async function GET(req: Request) {
   }
   const maxPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(Math.max(1, page), maxPages);
-  const items = await listResults(listUser, safePage, pageSize);
+  const items = await listResults(listUser, safePage, pageSize, requestId);
   return NextResponse.json({ success: true, items, total_records: total, current_page: safePage, max_pages: maxPages });
 }
 

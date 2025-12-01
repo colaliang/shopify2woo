@@ -64,7 +64,7 @@ async function wooFetch(
   endpoint: string,
   init?: RequestInit & { retries?: number },
   retry = 2
-) {
+): Promise<Response> {
   function applyIndexPhp(ep: string) {
     const clean = ep.replace(/^\//, "");
     if (clean.startsWith("index.php/")) return clean;
@@ -127,7 +127,7 @@ async function wooFetch(
     }
     
     const timeoutMs = method !== "GET"
-      ? (parseInt(process.env.WOO_WRITE_TIMEOUT_MS || "40000", 10) || 40000)
+      ? (parseInt(process.env.WOO_WRITE_TIMEOUT_MS || "60000", 10) || 40000)
       : (parseInt(process.env.WOO_FETCH_TIMEOUT_MS || "20000", 10) || 20000);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -156,6 +156,56 @@ async function wooFetch(
         if (logCtx?.userId && logCtx?.requestId) {
           const { appendLog } = await import("./logs");
           await appendLog(logCtx.userId, logCtx.requestId, "error", `wp_request_network_error method=${init?.method || "GET"} url=${redact(apiUrl.toString())} retry=${i} err=${(err as Error)?.message || String(err)}`);
+        }
+
+        // Timeout Recovery: Check if the operation actually succeeded despite the timeout
+        // Only for POST/PUT/DELETE on products
+        const isTimeout = (err as Error).name === 'AbortError' || (err as Error).message?.includes('aborted');
+        const isWrite = method !== 'GET';
+        const isProduct = endpoint.includes('products');
+        
+        if (isTimeout && isWrite && isProduct) {
+            try {
+                const bodyStr = String(init?.body || '{}');
+                if (bodyStr.trim().startsWith('{')) {
+                    const body = JSON.parse(bodyStr);
+                    const sku = body.sku;
+                    const slug = body.slug;
+                    
+                    if (sku || slug) {
+                        if (logCtx?.userId && logCtx?.requestId) {
+                            const { appendLog } = await import("./logs");
+                            await appendLog(logCtx.userId, logCtx.requestId, "info", `[Timeout Recovery] Checking if product exists: sku=${sku || 'N/A'} slug=${slug || 'N/A'}`);
+                        }
+
+                        // Construct verification URL
+                        let verifyQuery = '';
+                        if (sku) verifyQuery = `sku=${encodeURIComponent(sku)}`;
+                        else if (slug) verifyQuery = `slug=${encodeURIComponent(slug)}`;
+                        
+                        if (verifyQuery) {
+                             const verifyRes = await wooFetch(cfg, `products?${verifyQuery}`, { method: 'GET', retries: 1 });
+                             if (verifyRes.ok) {
+                                 const verifyData = await verifyRes.json();
+                                 if (Array.isArray(verifyData) && verifyData.length > 0) {
+                                     const found = verifyData[0];
+                                     if (logCtx?.userId && logCtx?.requestId) {
+                                         const { appendLog } = await import("./logs");
+                                         await appendLog(logCtx.userId, logCtx.requestId, "info", `[Timeout Recovery] Product found (ID=${found.id}). Treating timeout as success.`);
+                                     }
+                                     return new Response(JSON.stringify(found), {
+                                         status: 200,
+                                         statusText: "OK (Recovered)",
+                                         headers: { "Content-Type": "application/json" }
+                                     });
+                                 }
+                             }
+                        }
+                    }
+                }
+            } catch (recErr) {
+                console.error("[Timeout Recovery] Failed:", recErr);
+            }
         }
       } catch {}
       if (i < maxRetry) {
@@ -217,11 +267,18 @@ async function wooFetch(
       console.error(`日志记录失败: ${logError}`);
     }
     if (!res.ok || ((init?.method || "GET") !== "GET" && !ct.includes("application/json"))) {
-      if (i < maxRetry) {
+      // Only retry on server errors (5xx) or rate limits (429)
+      // Do NOT retry on client errors (4xx) unless it's 429
+      const isClientError = res.status >= 400 && res.status < 500 && res.status !== 429;
+      
+      if (!isClientError && i < maxRetry) {
         await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
         continue;
       }
-      throw new Error(`Woo 请求失败: 状态=${res.status} CT=${ct}`);
+      
+      // If retries exhausted or it's a client error, return the response
+      // Do NOT throw, so the caller can handle the error body (e.g. duplicate SKU)
+      return res;
     }
     if (res.status >= 500 || res.status === 429) {
       await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
@@ -229,6 +286,7 @@ async function wooFetch(
     }
     return res;
   }
+  // If we exit the loop (should be unreachable given returns above, but for safety)
   throw new Error("Woo 请求重试后仍失败");
 }
 

@@ -95,24 +95,28 @@ export function buildVariationFromShopifyVariant(
 
 export function buildWooProductPayload(product: ShopifyProduct): WooProductPayload {
   const isVariable = (product.options || []).length > 0 && (product.variants || []).length > 1;
+  
+  // Compute base prices from first variant (useful for variable products too)
+  const firstVariant = product.variants?.[0];
+  const prices = firstVariant ? computePriceFields(firstVariant) : { regular_price: undefined, sale_price: undefined };
+
   const payload: WooProductPayload = {
     name: product.title,
     type: isVariable ? "variable" : "simple",
     description: product.body_html || "",
+    short_description: "", // Explicitly added as empty by default for Shopify
+    regular_price: prices.regular_price,
+    sale_price: prices.sale_price,
     images: buildImages(product),
     attributes: createAttributes(product),
     default_attributes: buildDefaultAttributes(product),
   };
-  if (!isVariable) {
-    const v = product.variants?.[0];
-    if (v) {
-      const variation = buildVariationFromShopifyVariant(v, product.options || []);
-      Object.assign(payload, {
-        sku: variation.sku,
-        regular_price: variation.regular_price,
-        sale_price: variation.sale_price
-      });
-    }
+
+  if (!isVariable && firstVariant) {
+    const variation = buildVariationFromShopifyVariant(firstVariant, product.options || []);
+    Object.assign(payload, {
+      sku: variation.sku,
+    });
   }
   return payload;
 }

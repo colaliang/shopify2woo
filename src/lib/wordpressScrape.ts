@@ -307,6 +307,27 @@ export function extractFormAttributes(html: string) {
   return out;
 }
 
+export function extractAdditionalAttributes(html: string) {
+  const out: Array<{ name: string; options: string[] }> = [];
+  const tableMatch = html.match(/<table[^>]*class="[^"]*woocommerce-product-attributes[^"]*"[\s\S]*?<\/table>/i);
+  if (tableMatch) {
+    const rowRe = /<tr[^>]*class="[^"]*woocommerce-product-attributes-item[^"]*"[\s\S]*?<\/tr>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = rowRe.exec(tableMatch[0]))) {
+      const row = m[0];
+      const label = row.match(/<th[^>]*class="[^"]*woocommerce-product-attributes-item__label[^"]*"[^>]*>([\s\S]*?)<\/th>/i)?.[1];
+      const value = row.match(/<td[^>]*class="[^"]*woocommerce-product-attributes-item__value[^"]*"[^>]*>([\s\S]*?)<\/td>/i)?.[1];
+      if (label && value) {
+        const name = label.replace(/<[^>]+>/g, "").trim();
+        const valTxt = value.replace(/<p>/gi, "").replace(/<\/p>/gi, "\n").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+        const options = valTxt.split(/\n|,/).map((s) => s.trim()).filter(Boolean);
+        if (name && options.length) out.push({ name, options });
+      }
+    }
+  }
+  return out;
+}
+
 export function buildVariationsFromForm(attrs: Array<{ name: string; options: string[] }>, price?: string, cap = 100) {
   if (!attrs.length) return [] as ScrapedVariation[];
   const lists = attrs.map((a) => a.options);
@@ -391,18 +412,91 @@ export async function discoverAllProductLinks(base: string, cap = 1000) {
   return all.slice(0, cap);
 }
 
-export function extractDescriptionHtml(html: string) {
+function extractOuterHtml(html: string, startRegex: RegExp) {
+  const m = html.match(startRegex);
+  if (!m || m.index === undefined) return "";
+  
+  const startIndex = m.index;
+  // Find the opening tag
+  const openTag = m[0];
+  const openTagEnd = startIndex + openTag.length;
+  
+  let balance = 1;
+  let pos = openTagEnd;
+  
+  // Heuristic to find balanced closing tag
+  while (balance > 0 && pos < html.length) {
+    const nextOpen = html.indexOf("<div", pos);
+    const nextClose = html.indexOf("</div>", pos);
+    
+    if (nextClose === -1) break; // Unbalanced
+    
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      balance++;
+      pos = nextOpen + 4; // move past <div
+    } else {
+      balance--;
+      pos = nextClose + 6; // move past </div>
+    }
+  }
+  
+  if (balance === 0) {
+    return html.substring(startIndex, pos);
+  }
+  
+  // Fallback: if we can't find balanced, maybe just return the match? 
+  // No, better to return empty than garbage.
+  return "";
+}
+
+export function extractShortDescription(html: string) {
   const candidates = [
-    /<div[^>]*class="[^"]*woocommerce-product-details__short-description[^"]*"[\s\S]*?<\/div>/i,
-    /<div[^>]*class="[^"]*entry-content[^"]*"[\s\S]*?<\/div>/i,
-    /<div[^>]*class="[^"]*woocommerce-Tabs-panel[^"]*description[^"]*"[\s\S]*?<\/div>/i,
+    /<div[^>]*class="[^"]*woocommerce-product-details__short-description[^"]*"[^>]*>/i,
+    /<div[^>]*class="[^"]*short-description[^"]*"[^>]*>/i,
+    /<div[^>]*class="[^"]*product-short-description[^"]*"[^>]*>/i
   ];
   for (const re of candidates) {
-    const m = html.match(re);
-    if (m) return m[0];
+    const out = extractOuterHtml(html, re);
+    if (out) return out;
   }
-  const json = extractJsonLdProduct(html);
-  return json?.description || "";
+  return "";
+}
+
+export function extractTabsContent(html: string) {
+  const result = {
+    description: "",
+    additional_information: "",
+    reviews: ""
+  };
+
+  // Extract Description Tab
+  const descMatch = html.match(/<div[^>]*id="tab-description"[^>]*>([\s\S]*?)<\/div>/i) || 
+                    html.match(/<div[^>]*class="[^"]*woocommerce-Tabs-panel--description[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+  if (descMatch) result.description = descMatch[1];
+
+  // Extract Additional Information Tab
+  const infoMatch = html.match(/<div[^>]*id="tab-additional_information"[^>]*>([\s\S]*?)<\/div>/i) || 
+                    html.match(/<div[^>]*class="[^"]*woocommerce-Tabs-panel--additional_information[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+  if (infoMatch) result.additional_information = infoMatch[1];
+
+  return result;
+}
+
+export function extractDescriptionHtml(html: string) {
+  // Try tabs first
+  const tabs = extractTabsContent(html);
+  if (tabs.description) return tabs.description;
+
+  // Fallback to generic content
+  const candidates = [
+    /<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>/i,
+    /<div[^>]*class="[^"]*woocommerce-Tabs-panel[^"]*description[^"]*"[^>]*>/i,
+  ];
+  for (const re of candidates) {
+    const out = extractOuterHtml(html, re);
+    if (out) return out;
+  }
+  return "";
 }
 
 export function extractGalleryImages(html: string) {
@@ -527,23 +621,60 @@ export function buildWpPayloadFromHtml(html: string, srcUrl: string, finalUrl?: 
     const contents = extractContentImages(html);
     images = Array.from(new Set([...(ogs || []), ...(contents || [])]));
   }
-  const descHtml = extractDescriptionHtml(html) || ld?.description || "";
+  const descHtml = extractDescriptionHtml(html);
+  const shortDescHtml = extractShortDescription(html);
   const chosen = selectImages(ld, images);
   const abs = chosen.map((u) => new URL(u, finalUrl || srcUrl).toString());
   const maxImages = parseInt(process.env.RUNNER_MAX_IMAGES_PER_PRODUCT || "10", 10) || 10;
   const v = buildWpVariationsFromHtml(html);
+  
+  // Prefer attributes from tab if available
+  const tabs = extractTabsContent(html);
+  const additionalAttrs = extractAdditionalAttributes(tabs.additional_information || html);
+
+  const mergedAttributes = [...(v.attributes || [])];
+  for (const a of additionalAttrs) {
+    const nameLower = a.name.toLowerCase();
+    const exists = mergedAttributes.some(ex => {
+       const n = ex.name.toLowerCase();
+       const norm = normalizeAttrName(ex.name).toLowerCase();
+       return n === nameLower || norm === nameLower;
+    });
+    if (!exists) {
+      mergedAttributes.push({
+        name: a.name,
+        visible: true,
+        variation: false,
+        options: a.options
+      });
+    }
+  }
+
+  let finalDesc = descHtml;
+  // If short description is found inside the main description container (e.g. inside .entry-content), remove it to avoid duplication
+  if (shortDescHtml && finalDesc.includes(shortDescHtml)) {
+    finalDesc = finalDesc.replace(shortDescHtml, "");
+  }
+
+  // If we found additional attributes in the tab, we might not want to append them if they are already displayed in the tab on the target site.
+  // However, to preserve data, we append them as a table if they were extracted.
+  if (additionalAttrs.length > 0) {
+    const rows = additionalAttrs.map(a => `<tr><th>${a.name}</th><td>${a.options.join(", ")}</td></tr>`).join("");
+    finalDesc += `<br/><h3>Additional Information</h3><table class="woocommerce-product-attributes shop_attributes">${rows}</table>`;
+  }
+
   const payload = {
     name: ld?.name || slug,
     slug,
     sku,
-    description: descHtml,
-    short_description: descHtml,
+    description: finalDesc,
+    short_description: shortDescHtml,
     type: (v.variations && v.variations.length > 1) ? "variable" : "simple",
-    attributes: v.attributes?.length ? v.attributes : undefined,
+    attributes: mergedAttributes.length ? mergedAttributes : undefined,
     default_attributes: v.default_attributes?.length ? v.default_attributes : undefined,
     images: Array.from(new Set(abs)).slice(0, maxImages).map((src) => ({ src }))
   };
-  const result = { source: "wordpress", url: (finalUrl || srcUrl), slug, sku, name: payload.name, description: payload.description, short_description: payload.short_description, imagesAbs: Array.from(new Set(abs)), catNames: finalCats, tagNames: tags, payload };
+  const result = { source: "wordpress", url: (finalUrl || srcUrl), slug, sku, name: payload.name, description: payload.description, short_description: payload.short_description, imagesAbs: Array.from(new Set(abs)), catNames: finalCats, tagNames: tags, payload, variations: v.variations };
   return result;
 }
 

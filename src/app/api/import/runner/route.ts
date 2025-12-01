@@ -3,6 +3,7 @@ import { getSupabaseServer, readLocalConfig, getUserIdFromToken, withTimeout } f
 import { pgmqQueueName, pgmqRead, pgmqDelete, pgmqSetVt, pgmqArchive, pgmqPurgeRequest, type PgmqMessage } from "@/lib/pgmq";
 import { appendLog } from "@/lib/logs";
 import { buildWpPayloadFromHtml, fetchHtmlMeta } from "@/lib/wordpressScrape";
+import { getImportCache, saveImportCache, isCacheValid, sha256 } from "@/lib/cache";
 import { wooPost, wooPut, ensureTerms, type WooConfig } from "@/lib/woo";
 import { recordResult } from "@/lib/history";
 import { processShopifyJob, ShopifyJobMessage } from "@/lib/shopifyRunner";
@@ -143,14 +144,29 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         }
       }
     } catch {}
-    await appendLog(userId, requestId, "info", `runner: fetching ${link}`);
-    const meta = await fetchHtmlMeta(link);
-    const built = buildWpPayloadFromHtml(meta.html, link, meta.finalUrl);
+    let built: ReturnType<typeof buildWpPayloadFromHtml> | null = null;
+    try {
+       const c = await getImportCache(link);
+       if (c && isCacheValid(c) && c.result_json) {
+          await appendLog(userId, requestId, "info", `runner: using cached scrape for ${link}`);
+          built = c.result_json as ReturnType<typeof buildWpPayloadFromHtml>;
+       }
+    } catch {}
 
-    // Deduplicate: if this item already has a final result (by slug/sku/link), drop message
+    if (!built) {
+      await appendLog(userId, requestId, "info", `runner: fetching ${link}`);
+      const meta = await fetchHtmlMeta(link);
+      built = buildWpPayloadFromHtml(meta.html, link, meta.finalUrl);
+      try {
+         await saveImportCache(link, sha256(meta.html), built);
+      } catch {}
+    }
+
+    // Deduplicate: if this item already has a final result (by link), drop message
     try {
       const supabase = getSupabaseServer();
-      const keys = [built.slug, built.sku, link].filter(Boolean) as string[];
+      // We use link as the unique key for the import task result to ensure 1-to-1 mapping with user input
+      const keys = [link]; 
       if (supabase && keys.length) {
         const { data: existing } = await supabase
           .from("import_results")
@@ -193,7 +209,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
       let productId: number | undefined = undefined;
       let name: string | undefined = undefined;
       let parseError = false;
-      let responseData: any = {};
+      let responseData: { code?: string; data?: { resource_id?: number }; [key: string]: unknown } = {};
 
       try {
         const j = JSON.parse(txt);
@@ -228,7 +244,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
       const ok = res.ok && /application\/json/i.test(ct) && productId && !parseError;
 
       if (ok) {
-        await recordResult(userId, "wordpress", requestId, built.slug || built.sku || link, name, productId, "success", undefined, "update"); // Mark as update/add success
+        await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update"); // Mark as update/add success. Use link as itemKey.
         await appendLog(userId, requestId, "info", `product processed id=${productId || "?"} name=${name || ""}`);
         try {
           await pgmqDelete(queue, msg.msg_id);
@@ -241,8 +257,8 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         // Check for specific WooCommerce errors that should be treated as success (e.g. duplicates)
         if (responseData?.code === "product_invalid_sku") {
              await appendLog(userId, requestId, "info", `Product SKU already exists, marking as success/skipped: ${built.sku || "unknown"}`);
-             // Mark as success so it counts towards progress and stops retrying
-             await recordResult(userId, "wordpress", requestId, built.slug || built.sku || link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate");
+             // Mark as success so it counts towards progress and stops retrying. Use link as itemKey.
+             await recordResult(userId, "wordpress", requestId, link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate");
              await pgmqDelete(queue, msg.msg_id);
              return { ok: true };
         }
@@ -266,9 +282,8 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
 
         if (readCt > maxRetries || errorReason === "invalid_sku") {
           // If it's an invalid SKU error, we should probably stop retrying immediately because it won't fix itself
-          const isFatal = errorReason === "invalid_sku" || readCt > maxRetries;
           
-          await recordResult(userId, "wordpress", requestId, built.slug || built.sku || link, name, productId, "error", txt);
+          await recordResult(userId, "wordpress", requestId, link, name, productId, "error", txt);
           await appendLog(userId, requestId, "error", `${errMsg} (fatal error or max retries) msg=${msg.msg_id}`);
           await pgmqArchive(queue, msg.msg_id);
           
@@ -483,12 +498,12 @@ export async function GET(req: Request) {
         }
       };
 
-      const groupPromises: Promise<any>[] = [];
+      const groupPromises: Promise<Record<string, unknown>[]>[] = [];
 
       // For each user, process their messages sequentially
-      for (const [uid, msgs] of userGroups) {
+      for (const msgs of userGroups.values()) {
         groupPromises.push((async () => {
-           const results = [];
+           const results: Record<string, unknown>[] = [];
            for (const m of msgs) {
              // If we are running out of time, stop processing this user's remaining messages
              // But we already read them, so they are hidden for 60s. 

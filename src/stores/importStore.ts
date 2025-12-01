@@ -29,7 +29,7 @@ interface ImportStore {
   parseListing: (url: string, options?: ParseListingRequest['options']) => Promise<void>;
   importProduct: (productId: string) => Promise<void>;
   importSelectedProducts: () => Promise<void>;
-  enqueueLinks: (links: string[], sourceHint?: string) => Promise<void>;
+  enqueueLinks: (links: string[], sourceHint?: string, platform?: 'wordpress' | 'shopify' | 'wix') => Promise<void>;
   stopImport: () => Promise<void>;
   toggleProductSelection: (productId: string) => void;
   selectAllProducts: () => void;
@@ -134,6 +134,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       status: 'running',
       stats: {
         ...state.stats,
+        fetched: 1,
         queue: 0,
         imported: 0,
         errors: 0,
@@ -150,7 +151,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       await get().refreshStatus();
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'enqueue failed';
-      set({ error: msg, status: 'error' });
+      set({ error: msg, status: 'error', isLoading: false });
       const errorLog: LogEntry = {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
@@ -158,8 +159,6 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
         message: `Import failed: ${msg}`,
       };
       set((state) => ({ logs: [errorLog, ...state.logs].slice(0, 100) }));
-    } finally {
-      set({ isLoading: false });
     }
   },
 
@@ -180,6 +179,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       status: 'running',
       stats: {
         ...state.stats,
+        fetched: links.length,
         queue: 0,
         imported: 0,
         errors: 0,
@@ -196,7 +196,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       await get().refreshStatus();
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'enqueue failed';
-      set({ error: msg, status: 'error' });
+      set({ error: msg, status: 'error', isLoading: false });
       const errorLog: LogEntry = {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
@@ -204,12 +204,10 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
         message: `Batch import failed: ${msg}`,
       };
       set((state) => ({ logs: [errorLog, ...state.logs].slice(0, 100) }));
-    } finally {
-      set({ isLoading: false });
     }
   },
 
-  enqueueLinks: async (links: string[], sourceHint?: string) => {
+  enqueueLinks: async (links: string[], sourceHint?: string, platform: 'wordpress' | 'shopify' | 'wix' = 'wordpress') => {
     if (!links || links.length === 0) return;
     try { if (!useUserStore.getState().isAuthenticated) { useUserStore.getState().openLoginModal(); return; } } catch {}
     // Reset stats for new direct link import
@@ -219,6 +217,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       status: 'running',
       stats: {
         ...state.stats,
+        fetched: links.length,
         queue: 0,
         imported: 0,
         errors: 0,
@@ -226,7 +225,15 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       }
     }));
     try {
-      const res = await importApi.enqueueWordpress({ sourceUrl: sourceHint || '', mode: 'links', productLinks: links, cap: links.length, priority: 'normal' });
+      let res;
+      const baseUrl = sourceHint || (links[0] ? new URL(links[0]).origin : '');
+      if (platform === 'shopify') {
+        res = await importApi.enqueueShopify({ shopifyBaseUrl: baseUrl, mode: 'links', productLinks: links, cap: links.length });
+      } else if (platform === 'wix') {
+        res = await importApi.enqueueWix({ sourceUrl: baseUrl, mode: 'links', productLinks: links, cap: links.length });
+      } else {
+        res = await importApi.enqueueWordpress({ sourceUrl: baseUrl, mode: 'links', productLinks: links, cap: links.length, priority: 'normal' });
+      }
       set({ currentRequestId: res.requestId });
       get().startLogsForRequest(res.requestId);
       get().startResultsForRequest(res.requestId);
@@ -235,7 +242,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       await get().refreshStatus();
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'enqueue failed';
-      set({ error: msg, status: 'error' });
+      set({ error: msg, status: 'error', isLoading: false });
       const errorLog: LogEntry = {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
@@ -243,8 +250,6 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
         message: `Enqueue failed: ${msg}`,
       };
       set((state) => ({ logs: [errorLog, ...state.logs].slice(0, 100) }));
-    } finally {
-      set({ isLoading: false });
     }
   },
 
@@ -325,10 +330,19 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       const progress = queue ? Math.round((processed / queue) * 100) : 0;
       set({ stats: { ...s.stats, queue, imported, errors, progress } });
       if (s.status === 'running' && qs && qs.queueEmptyForRequest === true) {
-        set({ status: 'completed', currentRequestId: null });
+        set({ status: 'completed', currentRequestId: null, isLoading: false });
         get().stopRunnerAutoCall();
         try { get().stopLogs(); } catch {}
         try { get().stopResults(); } catch {}
+
+        // Add success log
+        const doneLog: LogEntry = {
+          id: Date.now().toString(),
+          timestamp: new Date().toISOString(),
+          level: 'success',
+          message: `任务完成 (队列已空)。成功: ${imported}, 失败: ${errors}`,
+        };
+        set((state) => ({ logs: [doneLog, ...state.logs].slice(0, 100) }));
       }
     } catch (error) {
       console.error('Failed to refresh status:', error);
@@ -385,45 +399,121 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       try { supabase.removeChannel(st.__realtimeChannel); } catch {}
       (st as { __realtimeChannel?: ReturnType<typeof supabase.channel> }).__realtimeChannel = undefined;
     }
-    set({ logs: [] });
+    // Do not clear logs here, keep them for display
   },
 
   startResultsForRequest: (requestId: string) => {
     set({ results: [] });
+
+    // Fetch existing results
+    importApi.getResults(requestId).then(items => {
+       set(state => {
+         const existingKeys = new Set(state.results.map(r => r.itemKey));
+         const newItems = items.filter(i => !existingKeys.has(i.itemKey));
+         return { results: [...state.results, ...newItems] };
+       });
+    });
+
     const st = get() as unknown as { __resultsChannel?: ReturnType<typeof supabase.channel> };
     if (st.__resultsChannel) {
       try { supabase.removeChannel(st.__resultsChannel); } catch {}
     }
     const uid = useUserStore.getState().user?.id || '';
     const ch = supabase.channel('import_results')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'import_results', ...(uid ? { filter: `user_id=eq.${uid}` } : {}), filter: `request_id=eq.${requestId}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'import_results', ...(uid ? { filter: `user_id=eq.${uid}` } : {}), filter: `request_id=eq.${requestId}` }, (payload) => {
         const n = payload.new as { status: 'success' | 'error'; message?: string; name?: string; product_id?: string; item_key?: string; created_at: string };
-        const item = {
-          id: Math.random().toString(36).slice(2),
-          timestamp: n.created_at,
-          status: n.status,
-          message: n.message,
-          name: n.name,
-          productId: n.product_id,
-          itemKey: n.item_key,
-        };
-        set((state) => {
-          const imported = state.stats.imported + (n.status === 'success' ? 1 : 0);
-          const errors = state.stats.errors + (n.status === 'error' ? 1 : 0);
-          const processed = imported + errors;
-          const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
-          return {
-            results: [item, ...state.results].slice(0, 200),
-            stats: { ...state.stats, imported, errors, progress },
-          };
-        });
+        
+        // Handle different event types
+        if (payload.eventType === 'INSERT') {
+            const item = {
+              id: Math.random().toString(36).slice(2),
+              timestamp: n.created_at,
+              status: n.status,
+              message: n.message,
+              name: n.name,
+              productId: n.product_id,
+              itemKey: n.item_key,
+            };
+            set((state) => {
+              const imported = state.stats.imported + (n.status === 'success' ? 1 : 0);
+              const errors = state.stats.errors + (n.status === 'error' ? 1 : 0);
+              const processed = imported + errors;
+              const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
+              return {
+                results: [item, ...state.results].slice(0, 200),
+                stats: { ...state.stats, imported, errors, progress },
+              };
+            });
+        } else if (payload.eventType === 'UPDATE') {
+            set((state) => {
+                const existingIdx = state.results.findIndex(r => r.itemKey === n.item_key);
+                if (existingIdx === -1) {
+                    // Treat as insert if not found (shouldn't happen often if synced)
+                    const item = {
+                        id: Math.random().toString(36).slice(2),
+                        timestamp: n.created_at,
+                        status: n.status,
+                        message: n.message,
+                        name: n.name,
+                        productId: n.product_id,
+                        itemKey: n.item_key,
+                    };
+                    const imported = state.stats.imported + (n.status === 'success' ? 1 : 0);
+                    const errors = state.stats.errors + (n.status === 'error' ? 1 : 0);
+                    const processed = imported + errors;
+                    const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
+                    return {
+                        results: [item, ...state.results].slice(0, 200),
+                        stats: { ...state.stats, imported, errors, progress },
+                    };
+                } else {
+                    // Update existing
+                    const oldItem = state.results[existingIdx];
+                    const newResults = [...state.results];
+                    newResults[existingIdx] = {
+                        ...oldItem,
+                        status: n.status,
+                        message: n.message,
+                        name: n.name || oldItem.name,
+                        productId: n.product_id || oldItem.productId,
+                    };
+                    
+                    let imported = state.stats.imported;
+                    let errors = state.stats.errors;
+                    
+                    if (oldItem.status !== n.status) {
+                        if (oldItem.status === 'success') imported--;
+                        if (oldItem.status === 'error') errors--;
+                        if (n.status === 'success') imported++;
+                        if (n.status === 'error') errors++;
+                    }
+                    
+                    const processed = imported + errors;
+                    const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
+                    return {
+                        results: newResults,
+                        stats: { ...state.stats, imported, errors, progress },
+                    };
+                }
+            });
+        }
+
         const s = get();
         const processedNow = s.stats.imported + s.stats.errors;
         if (s.status === 'running' && s.stats.queue > 0 && processedNow >= s.stats.queue) {
-          set({ status: 'completed', currentRequestId: null });
+          set({ status: 'completed', currentRequestId: null, isLoading: false });
           s.stopRunnerAutoCall();
           try { s.stopLogs(); } catch {}
           try { s.stopResults(); } catch {}
+
+          // Add success log
+          const doneLog: LogEntry = {
+            id: Date.now().toString(),
+            timestamp: new Date().toISOString(),
+            level: 'success',
+            message: `任务完成。成功: ${s.stats.imported}, 失败: ${s.stats.errors}`,
+          };
+          set((state) => ({ logs: [doneLog, ...state.logs].slice(0, 100) }));
         }
       })
       .subscribe();
@@ -436,7 +526,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       try { supabase.removeChannel(st.__resultsChannel); } catch {}
       (st as { __resultsChannel?: ReturnType<typeof supabase.channel> }).__resultsChannel = undefined;
     }
-    set({ results: [] });
+    // Do not clear results here, keep them for display
   },
 
   startRunnerAutoCall: () => {
@@ -477,10 +567,19 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                 const s = get();
                 const processedNow = s.stats.imported + s.stats.errors;
                 if (processedNow >= s.stats.queue) {
-                   set({ status: 'completed', currentRequestId: null });
+                   set({ status: 'completed', currentRequestId: null, isLoading: false });
                    get().stopRunnerAutoCall();
                    try { get().stopLogs(); } catch {}
                    try { get().stopResults(); } catch {}
+
+                   // Add success log
+                   const doneLog: LogEntry = {
+                     id: Date.now().toString(),
+                     timestamp: new Date().toISOString(),
+                     level: 'success',
+                     message: `任务完成 (自动检测)。成功: ${s.stats.imported}, 失败: ${s.stats.errors}`,
+                   };
+                   set((state) => ({ logs: [doneLog, ...state.logs].slice(0, 100) }));
                 }
              }
            } else {

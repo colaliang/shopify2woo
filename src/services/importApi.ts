@@ -126,6 +126,30 @@ class ImportApiService {
     }
   }
 
+  async getResults(requestId: string, limit: number = 200): Promise<Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string }>> {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || '';
+      const response = await fetch(`${this.baseUrl}/history?requestId=${encodeURIComponent(requestId)}&limit=${limit}`, {
+         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!response.ok) return [];
+      const j = await response.json();
+      return (j.items || []).map((i: any) => ({
+        id: i.id || i.itemKey || Math.random().toString(36).slice(2),
+        timestamp: i.createdAt || i.timestamp,
+        status: i.status,
+        message: i.message,
+        name: i.name,
+        productId: i.productId,
+        itemKey: i.itemKey
+      }));
+    } catch (error) {
+      console.error('Failed to get results:', error);
+      return [];
+    }
+  }
+
   async stopImport(): Promise<{ success: boolean }> {
     try {
       const response = await fetch(`${this.baseUrl}/stop`, {
@@ -181,6 +205,48 @@ class ImportApiService {
       return await response.json();
     } catch (error) {
       console.error('Failed to enqueue wordpress:', error);
+      throw error;
+    }
+  }
+
+  async enqueueShopify(params: { shopifyBaseUrl: string; mode: 'all' | 'links'; productLinks?: string[]; cap?: number; categories?: string[]; tags?: string[] }): Promise<{ success: boolean; requestId: string; count: number }> {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || '';
+      const response = await fetch(`${this.baseUrl}/shopify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) {
+        const j = await response.json().catch(()=>null);
+        const msg = (j && typeof j.error === 'string') ? j.error : `HTTP ${response.status}`;
+        throw new Error(msg);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to enqueue shopify:', error);
+      throw error;
+    }
+  }
+
+  async enqueueWix(params: { sourceUrl: string; mode: 'all' | 'links'; productLinks?: string[]; cap?: number }): Promise<{ success: boolean; requestId: string; count: number }> {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || '';
+      const response = await fetch(`${this.baseUrl}/wix`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) {
+        const j = await response.json().catch(()=>null);
+        const msg = (j && typeof j.error === 'string') ? j.error : `HTTP ${response.status}`;
+        throw new Error(msg);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to enqueue wix:', error);
       throw error;
     }
   }

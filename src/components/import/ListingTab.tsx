@@ -10,10 +10,12 @@ export default function ListingTab() {
   const {
     products,
     logs,
+    results,
     stats,
     selectedProducts,
     isLoading,
     error,
+    status,
     parseListing,
     importProduct,
     importSelectedProducts,
@@ -111,7 +113,7 @@ export default function ListingTab() {
             <button
               onClick={() => useImportStore.getState().stopImport()}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-              disabled={isLoading}
+              disabled={status !== 'running' && status !== 'parsing'}
             >
               结束
             </button>
@@ -153,9 +155,13 @@ export default function ListingTab() {
       {/* Right Panel */}
       <RightPanel
         logs={logs}
+        results={results}
+        products={products}
         fetched={stats.fetched}
         queue={stats.queue}
+        imported={stats.imported}
         errors={stats.errors}
+        status={status}
         waitSeconds={waitSeconds}
         setWaitSeconds={setWaitSeconds}
       />

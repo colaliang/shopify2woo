@@ -1,3 +1,7 @@
+import { useState } from "react";
+import Image from "next/image";
+import { ProductData } from "@/services/importApi";
+
 export interface LogItemData {
   level: "info" | "warn" | "error" | "success";
   message: string;
@@ -6,10 +10,20 @@ export interface LogItemData {
   timestamp?: string;
 }
 
-import { useState } from "react";
+export interface ResultItemData {
+  id: string;
+  timestamp: string;
+  status: 'success' | 'error';
+  message?: string;
+  name?: string;
+  productId?: string;
+  itemKey?: string;
+}
 
 interface RightPanelProps {
   logs: LogItemData[];
+  results?: ResultItemData[];
+  products?: ProductData[];
   fetched: number;
   queue: number;
   imported?: number;
@@ -25,6 +39,8 @@ export default function RightPanel({
   imported = 0,
   errors,
   status = 'idle',
+  results = [],
+  products = [],
   waitSeconds,
   setWaitSeconds,
 }: RightPanelProps) {
@@ -36,10 +52,68 @@ export default function RightPanel({
     if (status === 'completed') out.push({ text: '任务结束', level: 'success' });
     if (status === 'stopped') out.push({ text: '任务已停止', level: 'info' });
     if (status === 'error') out.push({ text: '任务异常', level: 'error' });
-    out.push({ text: `导入成功 ${imported}`, level: 'success' });
-    out.push({ text: `导入失败 ${errors}`, level: 'error' });
+
     return out;
   })();
+
+  const renderResultItem = (res: ResultItemData) => {
+    const product = products.find(p => p.link === res.itemKey || p.id === res.itemKey);
+    const title = res.name || product?.title || res.itemKey || "Unknown Product";
+    const thumb = product?.thumbnail;
+    // Use product data if available, otherwise defaults
+    const attrCount = product?.attributesCount ?? 0;
+    const revCount = product?.reviewsCount ?? 0;
+    const galCount = product?.galleryCount ?? 0;
+    const inStock = product?.inStock ?? false;
+    // Assuming breadcrumbs might be in product data if casted, but for now just title
+    const breadcrumbs = (product as any)?.categoryBreadcrumbs || ""; 
+
+    return (
+      <div key={res.id} className="flex gap-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+        {/* Thumbnail */}
+        <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded overflow-hidden relative">
+           {thumb ? (
+             <Image src={thumb} alt={title} fill className="object-cover" sizes="64px" />
+           ) : (
+             <div className="w-full h-full flex items-center justify-center text-gray-300">
+               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+             </div>
+           )}
+        </div>
+        
+        {/* Content */}
+        <div className="flex-1 min-w-0 flex flex-col justify-center">
+          <div className="flex items-start justify-between gap-2">
+             <h4 className="text-sm font-bold text-gray-900 truncate" title={title}>{title}</h4>
+             {res.status === 'success' ? (
+               <span className="text-xs text-green-600 font-medium bg-green-50 px-1.5 py-0.5 rounded flex-shrink-0">Success</span>
+             ) : (
+               <span className="text-xs text-red-600 font-medium bg-red-50 px-1.5 py-0.5 rounded flex-shrink-0">Error</span>
+             )}
+          </div>
+          
+          {breadcrumbs && (
+            <div className="text-xs text-gray-500 truncate mt-0.5">{breadcrumbs}</div>
+          )}
+          
+          <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-1.5">
+            <span className="whitespace-nowrap">Attributes: {attrCount}</span>
+            <span className="text-gray-300">|</span>
+            <span className="whitespace-nowrap">Reviews: {revCount}</span>
+            <span className="text-gray-300">|</span>
+            <span className="whitespace-nowrap">Gallery: {galCount}</span>
+            <span className="text-gray-300">|</span>
+            <span className={inStock ? "text-green-600 font-medium whitespace-nowrap" : "text-gray-500 whitespace-nowrap"}>
+              {inStock ? "In stock" : "Out of stock"}
+            </span>
+          </div>
+          {res.message && res.status === 'error' && (
+            <div className="text-[10px] text-red-500 mt-1 truncate" title={res.message}>{res.message}</div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -47,18 +121,7 @@ export default function RightPanel({
       <aside className="hidden md:flex w-full md:w-1/3 lg:w-1/4 h-[calc(100vh-64px)] flex-col border-l border-gray-200 bg-gray-50">
         <div className="p-4 border-b border-gray-200">
           <div className="text-sm text-gray-700">
-            已获取: {fetched} | 队列: {queue} | 错误: {errors}
-          </div>
-          <div className="mt-3">
-            <label className="block text-xs font-medium text-gray-600">执行等待时间 (秒)</label>
-            <input
-              type="number"
-              min={0}
-              max={60}
-              value={waitSeconds}
-              onChange={(e) => setWaitSeconds(Number(e.target.value))}
-              className="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-sm"
-            />
+            已获取: {fetched} | 成功: {imported} | 队列: {queue} | 错误: {errors}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -68,6 +131,14 @@ export default function RightPanel({
               (l.level === 'success' ? 'bg-green-50 border-green-200 text-green-700' : l.level === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-800')
             }>{l.text}</div>
           ))}
+          
+          {/* Results List */}
+          {results.length > 0 && (
+            <div className="pt-2 space-y-3">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Results ({results.length})</div>
+              {results.map(res => renderResultItem(res))}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -88,7 +159,7 @@ export default function RightPanel({
           <div className="relative w-full h-2/3 bg-white rounded-t-2xl p-4 flex flex-col">
             <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-3" />
             <div className="text-sm text-gray-700 mb-2">
-              已获取: {fetched} | 队列: {queue} | 错误: {errors}
+              已获取: {fetched} | 成功: {imported} | 队列: {queue} | 错误: {errors}
             </div>
             <div className="flex-1 overflow-y-auto space-y-2">
               {summaryLines.map((l, i) => (
@@ -97,6 +168,14 @@ export default function RightPanel({
                   (l.level === 'success' ? 'bg-green-50 border-green-200 text-green-700' : l.level === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-800')
                 }>{l.text}</div>
               ))}
+              
+              {/* Results List Mobile */}
+              {results.length > 0 && (
+                <div className="pt-2 space-y-3">
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Results ({results.length})</div>
+                  {results.map(res => renderResultItem(res))}
+                </div>
+              )}
             </div>
           </div>
         </div>

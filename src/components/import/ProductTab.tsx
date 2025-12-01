@@ -3,9 +3,11 @@ import { useImportStore } from "@/stores/importStore";
 import { useUserStore } from "@/stores/userStore";
 import URLInputCard from "@/components/import/URLInputCard";
 import RightPanel from "@/components/import/RightPanel";
+import ChoosePlatform, { PlatformType } from "@/components/import/ChoosePlatform";
 
 export default function ProductTab() {
   const [url, setUrl] = useState("");
+  const [platform, setPlatform] = useState<PlatformType>('wordpress');
   
   const {
     logs,
@@ -30,7 +32,7 @@ export default function ProductTab() {
       .filter(Boolean);
     const uniq = Array.from(new Set(tokens));
     if (uniq.length === 0) return;
-    await useImportStore.getState().enqueueLinks(uniq, uniq[0]);
+    await useImportStore.getState().enqueueLinks(uniq, uniq[0], platform);
   };
 
   void importProduct;
@@ -47,6 +49,11 @@ export default function ProductTab() {
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-64px)]">
       <main className="flex-1 p-6 space-y-6 overflow-y-auto">
+        <ChoosePlatform
+          selected={platform}
+          onSelect={setPlatform}
+          disabled={status === 'running' || status === 'parsing'}
+        />
         <URLInputCard
           value={url}
           onChange={setUrl}

@@ -116,20 +116,27 @@ export async function recordResult(userId: string, source: string, requestId: st
   }
 }
 
-export async function listResults(userId: string, page = 1, pageSize = 20) {
+export async function listResults(userId: string, page = 1, pageSize = 20, requestId?: string) {
   const supabase = getSupabaseServer();
   if (supabase) {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
-    const q = supabase
+    let q = supabase
       .from("import_results")
       .select("request_id, source, item_key, name, product_id, status, action, created_at")
       .order("created_at", { ascending: false })
       .range(from, to);
+    
+    if (requestId) {
+      q = q.eq("request_id", requestId);
+    }
+    
     const { data } = userId === "__ALL__" ? await q : await q.eq("user_id", userId);
     return (data || []).map((d: DbResultRow) => ({ requestId: d.request_id, source: d.source, itemKey: d.item_key, name: d.name, productId: d.product_id, status: d.status, action: d.action as ("add"|"update"|"skipped_duplicate"|undefined), createdAt: d.created_at }));
   }
-  const arr = (userId === "__ALL__" ? readLocal() : readLocal().filter((r) => r.userId === userId)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const arr = (userId === "__ALL__" ? readLocal() : readLocal().filter((r) => r.userId === userId))
+    .filter(r => !requestId || r.requestId === requestId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const from = (page - 1) * pageSize;
   return arr.slice(from, from + pageSize);
 }
@@ -177,15 +184,21 @@ export async function getResultCounts(userId: string, requestId: string) {
   return { successCount, errorCount, partialCount, updateCount, processed: successCount + errorCount + partialCount };
 }
 
-export async function countResults(userId: string) {
+export async function countResults(userId: string, requestId?: string) {
   const supabase = getSupabaseServer();
   if (supabase) {
-    const q = supabase
+    let q = supabase
       .from("import_results")
       .select("*", { count: "exact", head: true });
+    
+    if (requestId) {
+      q = q.eq("request_id", requestId);
+    }
+
     const { count } = userId === "__ALL__" ? await q : await q.eq("user_id", userId);
     return typeof count === "number" ? count : 0;
   }
   const arr = readLocal();
-  return userId === "__ALL__" ? arr.length : arr.filter((r) => r.userId === userId).length;
+  return (userId === "__ALL__" ? arr : arr.filter((r) => r.userId === userId))
+    .filter(r => !requestId || r.requestId === requestId).length;
 }

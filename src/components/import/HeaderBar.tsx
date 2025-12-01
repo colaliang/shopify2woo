@@ -54,6 +54,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
             产品导入
           </button>
 
+          {/* 
           <button
             onClick={() => onTabChange("listing")}
             className={`px-3 py-1 text-sm font-medium border-b-2 ${
@@ -64,6 +65,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
           >
             全站导入
           </button>
+          */}
 
         </nav>
       </div>

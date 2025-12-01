@@ -65,7 +65,7 @@ export async function pgmqSetVt(queue: string, msgId: number, vtSeconds: number)
      // If function signature mismatch (42883 or PGRST202), try 'vt_seconds'.
      const { error: err2 } = await supabase.rpc("pgmq_set_vt", { q: queue, mid: msgId, vt_seconds: vtSeconds });
      if (err2) {
-        const code = (err2 as any)?.code || "";
+        const code = (err2 as unknown as { code?: string })?.code || "";
         // If still failing with signature/function errors, just log and suppress.
         // This prevents the runner from crashing when it tries to set retry delay.
         if (code === "42883" || code === "PGRST202") {
