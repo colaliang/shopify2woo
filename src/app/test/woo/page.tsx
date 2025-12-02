@@ -16,6 +16,11 @@ export default function WooTestPage() {
   const [slug, setSlug] = useState("");
   const [productName, setProductName] = useState("");
   const [productDesc, setProductDesc] = useState("");
+  const [productShortDesc, setProductShortDesc] = useState("");
+  const [regularPrice, setRegularPrice] = useState("");
+  const [salePrice, setSalePrice] = useState("");
+  const [categoryIds, setCategoryIds] = useState("");
+  const [productSku, setProductSku] = useState("");
 
   async function call(action: string, payload: Record<string, unknown> = {}) {
     setOut("");
@@ -68,11 +73,31 @@ export default function WooTestPage() {
 
       <div className="grid grid-cols-3 gap-4 items-end">
         <input className="border px-2 py-1" placeholder="产品名称" value={productName} onChange={(e)=>setProductName(e.target.value)} />
-        <input className="border px-2 py-1" placeholder="产品slug" value={slug} onChange={(e)=>setSlug(e.target.value)} />
-        <input className="border px-2 py-1" placeholder="产品描述" value={productDesc} onChange={(e)=>setProductDesc(e.target.value)} />
+        <input className="border px-2 py-1" placeholder="产品SKU" value={productSku} onChange={(e)=>setProductSku(e.target.value)} />
+        <input className="border px-2 py-1" placeholder="Slug (可选)" value={slug} onChange={(e)=>setSlug(e.target.value)} />
+        
+        <input className="border px-2 py-1" placeholder="常规价格 (regular_price)" value={regularPrice} onChange={(e)=>setRegularPrice(e.target.value)} />
+        <input className="border px-2 py-1" placeholder="促销价格 (sale_price)" value={salePrice} onChange={(e)=>setSalePrice(e.target.value)} />
+        <input className="border px-2 py-1" placeholder="分类ID (逗号分隔)" value={categoryIds} onChange={(e)=>setCategoryIds(e.target.value)} />
+        
+        <textarea className="border px-2 py-1 col-span-3" placeholder="产品短描述 (short_description)" rows={2} value={productShortDesc} onChange={(e)=>setProductShortDesc(e.target.value)} />
+        <textarea className="border px-2 py-1 col-span-3" placeholder="产品详细描述 (description)" rows={4} value={productDesc} onChange={(e)=>setProductDesc(e.target.value)} />
       </div>
       <div>
-        <button className="border px-3 py-1" onClick={()=>call("createProduct", { name: productName || slug, slug, description: productDesc || slug })}>创建产品</button>
+        <button className="border px-3 py-1 bg-blue-500 text-white" onClick={()=>{
+          const cats = categoryIds.split(",").map(s=>s.trim()).filter(Boolean).map(id=>({ id: parseInt(id) }));
+          call("createProduct", { 
+            name: productName || "测试产品", 
+            sku: productSku,
+            slug, 
+            type: "simple",
+            regular_price: regularPrice,
+            sale_price: salePrice,
+            short_description: productShortDesc,
+            description: productDesc,
+            categories: cats.length ? cats : undefined
+          });
+        }}>创建产品 (Create Product)</button>
       </div>
 
       <pre className="border p-3 whitespace-pre-wrap text-xs" style={{ minHeight: 160 }}>{out}</pre>

@@ -41,7 +41,7 @@ interface ImportStore {
   startLogsForRequest: (requestId: string) => void;
   stopLogs: () => void;
   currentRequestId: string | null;
-  startResultsForRequest: (requestId: string) => void;
+  startResultsForRequest: (requestId: string, clear?: boolean) => void;
   stopResults: () => void;
   startRunnerAutoCall: () => void;
   stopRunnerAutoCall: () => void;
@@ -402,15 +402,23 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
     // Do not clear logs here, keep them for display
   },
 
-  startResultsForRequest: (requestId: string) => {
-    set({ results: [] });
+  startResultsForRequest: (requestId: string, clear = true) => {
+    if (clear) set({ results: [] });
 
     // Fetch existing results
     importApi.getResults(requestId).then(items => {
        set(state => {
+         // If we cleared, just set. If not, append unique.
+         // Actually, getResults might return overlap.
          const existingKeys = new Set(state.results.map(r => r.itemKey));
          const newItems = items.filter(i => !existingKeys.has(i.itemKey));
-         return { results: [...state.results, ...newItems] };
+         // Sort by timestamp descending if needed? API returns desc.
+         // We append new items? Or prepend? 
+         // API returns descending (newest first).
+         // Existing results (if not cleared) might be old or new?
+         // If we merge, we should probably re-sort.
+         const merged = [...state.results, ...newItems].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+         return { results: merged };
        });
     });
 

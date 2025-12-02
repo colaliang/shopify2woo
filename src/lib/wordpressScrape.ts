@@ -264,23 +264,60 @@ export function extractTags(html: string) {
   return Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean)));
 }
 
-export function extractProductPrice(html: string) {
-  const json = extractJsonLdProduct(html);
-  if (json?.offers) {
-    if (Array.isArray(json.offers)) {
-      const first = (json.offers as LdOffer[]).find((o: LdOffer) => o?.price);
-      if (first?.price) return String(first.price);
-    } else {
-      const o = json.offers as { price?: string | number };
-      if (o?.price) return String(o.price);
-    }
-  }
+export function extractProductPrices(html: string) {
+  let regular_price: string | undefined;
+  let sale_price: string | undefined;
+
+  // 1. Try HTML for sale/regular pair
   const priceBlock = html.match(/<p[^>]*class="[^"]*price[^"]*"[\s\S]*?<\/p>/i);
   if (priceBlock) {
-    const num = priceBlock[0].match(/([0-9]+[\.,]?[0-9]*)/);
-    if (num) return num[1].replace(/,/g, "");
+    const block = priceBlock[0];
+    // Clean HTML entities to avoid matching &#36; as 36. Keep tags for structure check.
+    const cleanBlock = block.replace(/&#[0-9]+;/g, "").replace(/&#x[0-9a-f]+;/ig, "");
+    
+    const delMatch = block.match(/<del[^>]*>([\s\S]*?)<\/del>/i);
+    const insMatch = block.match(/<ins[^>]*>([\s\S]*?)<\/ins>/i);
+    
+    if (delMatch && insMatch) {
+        const regText = delMatch[1].replace(/&#[0-9]+;/g, "").replace(/&#x[0-9a-f]+;/ig, "");
+        const saleText = insMatch[1].replace(/&#[0-9]+;/g, "").replace(/&#x[0-9a-f]+;/ig, "");
+        
+        const regNum = regText.match(/([0-9]+[\.,]?[0-9]*)/);
+        const saleNum = saleText.match(/([0-9]+[\.,]?[0-9]*)/);
+        if (regNum) regular_price = regNum[1].replace(/,/g, "");
+        if (saleNum) sale_price = saleNum[1].replace(/,/g, "");
+    } else {
+        const num = cleanBlock.match(/([0-9]+[\.,]?[0-9]*)/);
+        if (num) regular_price = num[1].replace(/,/g, "");
+    }
   }
-  return undefined;
+
+  // 2. Fallback/Supplement with JSON-LD
+  const json = extractJsonLdProduct(html);
+  if (json?.offers) {
+     if (!regular_price) {
+         const offers = Array.isArray(json.offers) ? json.offers : [json.offers];
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         const first = offers.find((o: any) => o?.price || o?.priceSpecification) as any;
+         if (first) {
+            if (first.price) {
+               regular_price = String(first.price);
+            } else if (first.priceSpecification) {
+               // eslint-disable-next-line @typescript-eslint/no-explicit-any
+               const specs = Array.isArray(first.priceSpecification) ? first.priceSpecification : [first.priceSpecification];
+               // eslint-disable-next-line @typescript-eslint/no-explicit-any
+               const spec = specs.find((s: any) => s.price);
+               if (spec) regular_price = String(spec.price);
+            }
+         }
+     }
+  }
+  return { regular_price, sale_price };
+}
+
+export function extractProductPrice(html: string) {
+  const p = extractProductPrices(html);
+  return p.regular_price;
 }
 
 export function extractFormAttributes(html: string) {
@@ -421,22 +458,26 @@ function extractOuterHtml(html: string, startRegex: RegExp) {
   const openTag = m[0];
   const openTagEnd = startIndex + openTag.length;
   
+  // Detect tag name
+  const tagMatch = openTag.match(/^<([a-z0-9]+)/i);
+  const tagName = tagMatch ? tagMatch[1].toLowerCase() : "div";
+
   let balance = 1;
   let pos = openTagEnd;
   
   // Heuristic to find balanced closing tag
   while (balance > 0 && pos < html.length) {
-    const nextOpen = html.indexOf("<div", pos);
-    const nextClose = html.indexOf("</div>", pos);
+    const nextOpen = html.indexOf("<" + tagName, pos);
+    const nextClose = html.indexOf("</" + tagName + ">", pos);
     
     if (nextClose === -1) break; // Unbalanced
     
     if (nextOpen !== -1 && nextOpen < nextClose) {
       balance++;
-      pos = nextOpen + 4; // move past <div
+      pos = nextOpen + tagName.length + 1; 
     } else {
       balance--;
-      pos = nextClose + 6; // move past </div>
+      pos = nextClose + tagName.length + 3; 
     }
   }
   
@@ -444,20 +485,33 @@ function extractOuterHtml(html: string, startRegex: RegExp) {
     return html.substring(startIndex, pos);
   }
   
-  // Fallback: if we can't find balanced, maybe just return the match? 
-  // No, better to return empty than garbage.
   return "";
+}
+
+
+export function getInnerHtml(fullTag: string) {
+  const match = fullTag.match(/^<[^>]+>/);
+  if (!match) return fullTag;
+  const openTagLen = match[0].length;
+  // Remove open tag and the last closing tag (heuristic: </tag>)
+  // But we don't know the tag name easily unless we parse.
+  // Simple heuristic: remove last </...> 
+  const lastClose = fullTag.lastIndexOf("</");
+  if (lastClose > openTagLen) {
+      return fullTag.substring(openTagLen, lastClose);
+  }
+  return fullTag;
 }
 
 export function extractShortDescription(html: string) {
   const candidates = [
-    /<div[^>]*class="[^"]*woocommerce-product-details__short-description[^"]*"[^>]*>/i,
-    /<div[^>]*class="[^"]*short-description[^"]*"[^>]*>/i,
-    /<div[^>]*class="[^"]*product-short-description[^"]*"[^>]*>/i
+    /<(div|p|span)[^>]*class="[^"]*woocommerce-product-details__short-description[^"]*"[^>]*>/i,
+    /<(div|p|span)[^>]*class="[^"]*short-description[^"]*"[^>]*>/i,
+    /<(div|p|span)[^>]*class="[^"]*product-short-description[^"]*"[^>]*>/i
   ];
   for (const re of candidates) {
     const out = extractOuterHtml(html, re);
-    if (out) return out;
+    if (out) return getInnerHtml(out);
   }
   return "";
 }
@@ -470,14 +524,20 @@ export function extractTabsContent(html: string) {
   };
 
   // Extract Description Tab
-  const descMatch = html.match(/<div[^>]*id="tab-description"[^>]*>([\s\S]*?)<\/div>/i) || 
-                    html.match(/<div[^>]*class="[^"]*woocommerce-Tabs-panel--description[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-  if (descMatch) result.description = descMatch[1];
+  // Try ID first
+  let descOut = extractOuterHtml(html, /<div[^>]*id="tab-description"[^>]*>/i);
+  if (!descOut) {
+    // Try class
+    descOut = extractOuterHtml(html, /<div[^>]*class="[^"]*woocommerce-Tabs-panel--description[^"]*"[^>]*>/i);
+  }
+  if (descOut) result.description = getInnerHtml(descOut);
 
   // Extract Additional Information Tab
-  const infoMatch = html.match(/<div[^>]*id="tab-additional_information"[^>]*>([\s\S]*?)<\/div>/i) || 
-                    html.match(/<div[^>]*class="[^"]*woocommerce-Tabs-panel--additional_information[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-  if (infoMatch) result.additional_information = infoMatch[1];
+  let infoOut = extractOuterHtml(html, /<div[^>]*id="tab-additional_information"[^>]*>/i);
+  if (!infoOut) {
+    infoOut = extractOuterHtml(html, /<div[^>]*class="[^"]*woocommerce-Tabs-panel--additional_information[^"]*"[^>]*>/i);
+  }
+  if (infoOut) result.additional_information = getInnerHtml(infoOut);
 
   return result;
 }
@@ -663,13 +723,17 @@ export function buildWpPayloadFromHtml(html: string, srcUrl: string, finalUrl?: 
     finalDesc += `<br/><h3>Additional Information</h3><table class="woocommerce-product-attributes shop_attributes">${rows}</table>`;
   }
 
+  const prices = extractProductPrices(html);
+
   const payload = {
     name: ld?.name || slug,
     slug,
     sku,
     description: finalDesc,
-    short_description: shortDescHtml,
-    type: (v.variations && v.variations.length > 1) ? "variable" : "simple",
+    short_description: shortDescHtml ? shortDescHtml.trim() : "",
+    regular_price: prices.regular_price,
+    sale_price: prices.sale_price,
+    type: (v.isRealVariable && v.variations && v.variations.length > 0) ? "variable" : "simple",
     attributes: mergedAttributes.length ? mergedAttributes : undefined,
     default_attributes: v.default_attributes?.length ? v.default_attributes : undefined,
     images: Array.from(new Set(abs)).slice(0, maxImages).map((src) => ({ src }))
@@ -680,10 +744,11 @@ export function buildWpPayloadFromHtml(html: string, srcUrl: string, finalUrl?: 
 
 export function buildWpVariationsFromHtml(html: string) {
   let vars = extractProductVariations(html);
+  const isRealVariable = vars.length > 0;
   if (!vars.length) {
     const attrs = extractFormAttributes(html);
-    const price = extractProductPrice(html);
-    vars = buildVariationsFromForm(attrs, price);
+    const prices = extractProductPrices(html);
+    vars = buildVariationsFromForm(attrs, prices.regular_price);
   }
   const names = Array.from(new Set(vars.flatMap((v) => Object.keys(v.attributes || {}))));
   const attributes = names.map((n) => {
@@ -704,7 +769,7 @@ export function buildWpVariationsFromHtml(html: string) {
     if (image?.src) out.image = image;
     return out;
   });
-  return { attributes, default_attributes, variations };
+  return { attributes, default_attributes, variations, isRealVariable };
 }
 
 export function extractOgImages(html: string) {

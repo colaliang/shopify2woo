@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchHtmlMeta, buildWpPayloadFromHtml } from "@/lib/wordpressScrape";
+import { fetchHtmlMeta, buildWpPayloadFromHtml, extractProductPrices } from "@/lib/wordpressScrape";
 import type { WooProductPayload } from "@/lib/importMap";
 
 export const runtime = "nodejs";
@@ -19,12 +19,15 @@ export async function GET(req: Request) {
     }
 
     const built = buildWpPayloadFromHtml(meta.html, meta.originalUrl, meta.finalUrl);
+    const rawPrices = extractProductPrices(meta.html);
     const p = built.payload as WooProductPayload;
     const name = String(p?.name || "");
     const skuRaw = String(p?.sku || "");
     const skuNormalized = String(p?.sku || "");
     const description = String(p?.description || "");
     const short_description = String(built.short_description || "");
+    const regular_price = String(p?.regular_price || "");
+    const sale_price = String(p?.sale_price || "");
     const variations = built.variations || [];
     const attributes = p?.attributes || [];
     const filteredCategories = (built.catNames || []) as string[];
@@ -40,6 +43,8 @@ export async function GET(req: Request) {
       skuNormalized, 
       description, 
       short_description,
+      regular_price,
+      sale_price,
       primaryCategory, 
       filteredCategories, 
       galleryCount, 
@@ -48,6 +53,7 @@ export async function GET(req: Request) {
       originalUrl: meta.originalUrl,
       attributes,
       variations,
+      rawPrices,
       payload: p
     });
   } catch (e: unknown) {

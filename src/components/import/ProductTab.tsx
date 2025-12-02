@@ -17,8 +17,20 @@ export default function ProductTab() {
     importProduct,
     clearError,
     results,
+    products,
     status,
   } = useImportStore();
+
+  // Initialize results on mount if there is an active request
+  useEffect(() => {
+    const st = useImportStore.getState();
+    if (st.currentRequestId) {
+      st.startResultsForRequest(st.currentRequestId, false); // false = don't clear existing
+      st.startLogsForRequest(st.currentRequestId);
+      st.refreshStatus();
+      st.startRunnerAutoCall();
+    }
+  }, []);
 
   const handleExtract = async (u: string) => {
     if (!u) return;
@@ -99,6 +111,8 @@ export default function ProductTab() {
 
       <RightPanel
         logs={logs}
+        results={results}
+        products={products}
         fetched={stats.fetched}
         queue={stats.queue}
         imported={stats.imported}
