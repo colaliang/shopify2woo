@@ -71,7 +71,7 @@ SHOPIFY_PRODUCT_INPUT=handle-a, https://yourshop.myshopify.com/products/handle-b
 获取 WooCommerce API 密钥：
 
 - WooCommerce → 设置 → 高级 → REST API → 添加密钥（选择读写权限）。
-- 确保站点启用固定链接且能访问 `wp-json`（例如 `https://example.com/wp-json/`）。
+- 确保站点启用固定链接且能访问 `wp-json`（例如 `https://example.com/index.php/wp-json/`）。
 
 ## 使用方法
 

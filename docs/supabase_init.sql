@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.user_configs (
   CONSTRAINT user_configs_user_unique UNIQUE (user_id)
 );
 
--- 表：导入作业记录（用于追踪每次导入的状态与结果）
+-- 表：导入作业记录（用于追踪每次导入的状态与结果 - 旧表，保留以兼容）
 CREATE TABLE IF NOT EXISTS public.import_jobs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -29,8 +29,41 @@ CREATE TABLE IF NOT EXISTS public.import_jobs (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- 表：导入日志（实时日志流）
+CREATE TABLE IF NOT EXISTS public.import_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  request_id text NOT NULL,
+  level text NOT NULL CHECK (level IN ('info', 'error', 'success', 'warn')),
+  message text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- 表：导入结果（用于结果列表展示）
+CREATE TABLE IF NOT EXISTS public.import_results (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  request_id text NOT NULL,
+  source text,
+  item_key text NOT NULL,
+  name text,
+  product_id text,
+  status text CHECK (status IN ('success', 'error')),
+  message text,
+  action text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT import_results_req_item_unique UNIQUE (request_id, item_key)
+);
+
 CREATE INDEX IF NOT EXISTS import_jobs_user_idx ON public.import_jobs(user_id);
 CREATE INDEX IF NOT EXISTS import_jobs_created_idx ON public.import_jobs(created_at);
+
+CREATE INDEX IF NOT EXISTS import_logs_req_idx ON public.import_logs(request_id);
+CREATE INDEX IF NOT EXISTS import_logs_created_idx ON public.import_logs(created_at);
+
+CREATE INDEX IF NOT EXISTS import_results_req_idx ON public.import_results(request_id);
+CREATE INDEX IF NOT EXISTS import_results_user_idx ON public.import_results(user_id);
 
 -- 触发器：自动维护 updated_at 字段
 CREATE OR REPLACE FUNCTION public.touch_updated_at()
@@ -51,9 +84,16 @@ CREATE TRIGGER touch_import_jobs_updated
 BEFORE UPDATE ON public.import_jobs
 FOR EACH ROW EXECUTE PROCEDURE public.touch_updated_at();
 
+DROP TRIGGER IF EXISTS touch_import_results_updated ON public.import_results;
+CREATE TRIGGER touch_import_results_updated
+BEFORE UPDATE ON public.import_results
+FOR EACH ROW EXECUTE PROCEDURE public.touch_updated_at();
+
 -- 启用 RLS
 ALTER TABLE public.user_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.import_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.import_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.import_results ENABLE ROW LEVEL SECURITY;
 
 -- RLS 策略：仅允许用户访问自己的数据
 -- user_configs
@@ -91,6 +131,39 @@ WITH CHECK (user_id = auth.uid());
 
 DROP POLICY IF EXISTS import_jobs_update_own ON public.import_jobs;
 CREATE POLICY import_jobs_update_own ON public.import_jobs
+AS PERMISSIVE FOR UPDATE
+TO authenticated
+USING (user_id = auth.uid())
+WITH CHECK (user_id = auth.uid());
+
+-- import_logs
+DROP POLICY IF EXISTS import_logs_select_own ON public.import_logs;
+CREATE POLICY import_logs_select_own ON public.import_logs
+AS PERMISSIVE FOR SELECT
+TO authenticated
+USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS import_logs_insert_own ON public.import_logs;
+CREATE POLICY import_logs_insert_own ON public.import_logs
+AS PERMISSIVE FOR INSERT
+TO authenticated
+WITH CHECK (user_id = auth.uid());
+
+-- import_results
+DROP POLICY IF EXISTS import_results_select_own ON public.import_results;
+CREATE POLICY import_results_select_own ON public.import_results
+AS PERMISSIVE FOR SELECT
+TO authenticated
+USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS import_results_insert_own ON public.import_results;
+CREATE POLICY import_results_insert_own ON public.import_results
+AS PERMISSIVE FOR INSERT
+TO authenticated
+WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS import_results_update_own ON public.import_results;
+CREATE POLICY import_results_update_own ON public.import_results
 AS PERMISSIVE FOR UPDATE
 TO authenticated
 USING (user_id = auth.uid())
