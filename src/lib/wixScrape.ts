@@ -157,28 +157,27 @@ export function buildWixPayload(linkUrl: string, html: string) {
   const wixData = extractWixProductData(html);
 
   const images: string[] = [];
-  
-  // 1. Try Wix Data Media
+  const seenImages = new Set<string>();
+
+  const addImage = (url: string | null) => {
+      if (url && !seenImages.has(url)) {
+          images.push(url);
+          seenImages.add(url);
+      }
+  };
+
+  // 1. JSON-LD Images (Prioritize these as they are likely high quality/SEO optimized)
+  if (ld?.image) {
+      const ldImages = Array.isArray(ld.image) ? ld.image : [ld.image];
+      ldImages.forEach(x => addImage(extractImageSource(x)));
+  }
+
+  // 2. Wix Data Media (Append/Merge)
   if (wixData && Array.isArray(wixData.media)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       wixData.media.forEach((m: any) => {
-          const u = extractImageSource(m);
-          if (u) images.push(u);
+          addImage(extractImageSource(m));
       });
-  }
-  
-  // 2. Try JSON-LD
-  if (images.length === 0) {
-      const ldImages = ld?.image;
-      if (Array.isArray(ldImages)) {
-          ldImages.forEach((x) => {
-              const u = extractImageSource(x);
-              if (u) images.push(u);
-          });
-      } else if (ldImages) {
-          const u = extractImageSource(ldImages);
-          if (u) images.push(u);
-      }
   }
   
   // 3. Fallback: extract og:image, twitter:image, link rel=image_src
@@ -191,23 +190,23 @@ export function buildWixPayload(linkUrl: string, html: string) {
     for (const re of patterns) {
         const matches = html.matchAll(re);
         for (const m of matches) {
-            if (m[1]) images.push(m[1]);
+            if (m[1]) addImage(m[1]);
         }
     }
   }
 
   const opts = extractWixOptions(html);
   
-  // Name
-  let name = wixData?.name || wixData?.title || ld?.name;
+  // Name: Prefer LD if available, as it's usually cleaner
+  let name = ld?.name || wixData?.name || wixData?.title;
   if (!name) {
     const ogTitle = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]*)"[^>]*>/i);
     if (ogTitle) name = ogTitle[1];
   }
 
-  // Description
+  // Description: Prefer LD
   // Wix data description might be HTML or text
-  let description = wixData?.description || ld?.description;
+  let description = ld?.description || wixData?.description;
   
   // Try HTML scraping via data-hook
   if (!description) {
@@ -236,7 +235,7 @@ export function buildWixPayload(linkUrl: string, html: string) {
     Object.assign(payload, { attributes, default_attributes: defaults });
   } else {
     const price = extractWixPrice(html);
-    Object.assign(payload, { sku: wixData?.sku || ld?.sku, regular_price: price });
+    Object.assign(payload, { sku: ld?.sku || wixData?.sku, regular_price: price });
   }
   const categories = (() => {
     const arr = extractBreadcrumbCategories(html);

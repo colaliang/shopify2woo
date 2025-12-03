@@ -82,8 +82,16 @@ export async function processWixJob(
        if (!c || !isCacheValid(c)) c = await getImportCache(linkSlash);
 
        if (c && isCacheValid(c) && c.result_json) {
-          await appendLog(userId, requestId, "info", `using cached scrape for ${link} (hit: ${c.url})`);
-          built = c.result_json;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cached = c.result_json as any;
+          // Ensure it is a Wix-compatible payload (must have categories or _variations structure)
+          // WP cache typically lacks 'categories' at root and uses 'variations' instead of '_variations'
+          if (Array.isArray(cached.categories) || cached._variations) {
+             await appendLog(userId, requestId, "info", `using cached scrape for ${link} (hit: ${c.url})`);
+             built = cached;
+          } else {
+             await appendLog(userId, requestId, "info", `ignoring incompatible cache (likely WP) for ${link}`);
+          }
        }
     } catch {}
 
