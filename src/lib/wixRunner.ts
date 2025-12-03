@@ -87,8 +87,15 @@ export async function processWixJob(
           // Ensure it is a Wix-compatible payload (must have categories or _variations structure)
           // WP cache typically lacks 'categories' at root and uses 'variations' instead of '_variations'
           if (Array.isArray(cached.categories) || cached._variations) {
-             await appendLog(userId, requestId, "info", `using cached scrape for ${link} (hit: ${c.url})`);
-             built = cached;
+             // Stronger validation: Check if name is a URL or if images are missing when they shouldn't be
+             const cName = cached.payload?.name || "";
+             // If cached name looks like a URL (contains http/https/product-page) and matches the link or stripped link
+             if ((cName.includes("http") || cName.includes("product-page")) && (cName === link || cName.includes(link.slice(-20)))) {
+                  await appendLog(userId, requestId, "info", `ignoring bad cache (name fallback detected) for ${link}`);
+             } else {
+                 await appendLog(userId, requestId, "info", `using cached scrape for ${link} (hit: ${c.url})`);
+                 built = cached;
+             }
           } else {
              await appendLog(userId, requestId, "info", `ignoring incompatible cache (likely WP) for ${link}`);
           }
@@ -112,7 +119,7 @@ export async function processWixJob(
           // Validation: If name is the URL, it implies we failed to extract a proper title.
           // In this case, we might NOT want to cache it, or we want to warn.
           const pName = built.payload?.name || "";
-          if (pName === finalUrl || pName === link) {
+          if (pName === finalUrl || pName === link || pName.includes("product-page")) {
               await appendLog(userId, requestId, "info", `WARNING: Scrape name fallback to URL. Site might be blocking bots.`);
           } else {
               try {

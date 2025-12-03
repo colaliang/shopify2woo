@@ -4,6 +4,7 @@ type HealthResponse = { ok: boolean; env: { supabase_server_url: boolean; supaba
 
 export default function Page() {
   const [url, setUrl] = useState("");
+  const [platform, setPlatform] = useState("WordPress");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +19,7 @@ export default function Page() {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15000);
-      const r = await fetch(`/api/debug/scrape?url=${encodeURIComponent(url)}`, { cache: "no-store", signal: controller.signal });
+      const r = await fetch(`/api/debug/scrape?url=${encodeURIComponent(url)}&platform=${encodeURIComponent(platform)}`, { cache: "no-store", signal: controller.signal });
       clearTimeout(timer);
       const j = await r.json().catch(() => null);
       if (!r.ok || !j) {
@@ -59,6 +60,28 @@ export default function Page() {
     <div className="p-6 space-y-4">
       <h1 className="text-lg font-medium">单产品抓取测试</h1>
       <form onSubmit={onSubmit} className="space-y-2">
+        <div className="flex gap-4 mb-2">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="platform"
+              value="WordPress"
+              checked={platform === "WordPress"}
+              onChange={(e) => setPlatform(e.target.value)}
+            />
+            WordPress
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="platform"
+              value="Wix"
+              checked={platform === "Wix"}
+              onChange={(e) => setPlatform(e.target.value)}
+            />
+            Wix
+          </label>
+        </div>
         <input value={url} onChange={(e)=>setUrl(e.target.value)} placeholder="输入产品页面URL" className="w-full border rounded px-3 py-2" />
         <button disabled={!url || loading} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">{loading?"请求中...":"抓取"}</button>
       </form>
