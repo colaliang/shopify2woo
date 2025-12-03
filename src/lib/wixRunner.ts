@@ -71,10 +71,18 @@ export async function processWixJob(
     let finalUrl = link;
 
     // 1. Try Cache
+    // Try exact match, and variations (stripped trailing slash, added trailing slash)
+    // to maximize hit rate from Debug tool
+    const linkNoSlash = link.replace(/\/$/, "");
+    const linkSlash = linkNoSlash + "/";
+    
     try {
-       const c = await getImportCache(link);
+       let c = await getImportCache(link);
+       if (!c || !isCacheValid(c)) c = await getImportCache(linkNoSlash);
+       if (!c || !isCacheValid(c)) c = await getImportCache(linkSlash);
+
        if (c && isCacheValid(c) && c.result_json) {
-          await appendLog(userId, requestId, "info", `using cached scrape for ${link}`);
+          await appendLog(userId, requestId, "info", `using cached scrape for ${link} (hit: ${c.url})`);
           built = c.result_json;
        }
     } catch {}
@@ -93,9 +101,16 @@ export async function processWixJob(
           // Combine
           built = { ...baseBuilt, _variations: vars };
           
-          try {
-             await saveImportCache(link, sha256(html), built);
-          } catch {}
+          // Validation: If name is the URL, it implies we failed to extract a proper title.
+          // In this case, we might NOT want to cache it, or we want to warn.
+          const pName = built.payload?.name || "";
+          if (pName === finalUrl || pName === link) {
+              await appendLog(userId, requestId, "warn", `Scrape warning: Name fallback to URL. Site might be blocking bots.`);
+          } else {
+              try {
+                 await saveImportCache(link, sha256(html), built);
+              } catch {}
+          }
         } catch (e) {
           await appendLog(userId, requestId, "error", `wix fetch failed: ${e}`);
           return { ok: false, reason: "fetch_failed" };
@@ -112,6 +127,15 @@ export async function processWixJob(
     const extractedTags = built.tags || [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const variationsData = built._variations; 
+    
+    // DEBUG LOG: Log the payload to see what's being sent
+    await appendLog(userId, requestId, "info", `Payload Name: ${payload.name}`);
+    await appendLog(userId, requestId, "info", `Payload Images: ${(payload.images || []).length}`);
+    if (payload.images && payload.images.length > 0) {
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         const firstImg = (payload.images as any[])[0];
+         await appendLog(userId, requestId, "info", `First Image: ${JSON.stringify(firstImg)}`);
+    } 
 
     // 3. Handle Categories & Tags
     const catNames = Array.from(new Set([...(msg.categories || []), ...extractedCats]));
