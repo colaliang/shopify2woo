@@ -105,7 +105,7 @@ export async function processWixJob(
           // In this case, we might NOT want to cache it, or we want to warn.
           const pName = built.payload?.name || "";
           if (pName === finalUrl || pName === link) {
-              await appendLog(userId, requestId, "warn", `Scrape warning: Name fallback to URL. Site might be blocking bots.`);
+              await appendLog(userId, requestId, "info", `WARNING: Scrape name fallback to URL. Site might be blocking bots.`);
           } else {
               try {
                  await saveImportCache(link, sha256(html), built);
