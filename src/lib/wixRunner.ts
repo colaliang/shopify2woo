@@ -37,10 +37,21 @@ export async function processWixJob(
   msg: WixJobMessage,
   cfg: WooConfig
 ): Promise<{ ok: boolean; reason?: string }> {
-  const { userId, requestId, link } = msg;
+  const { userId, requestId } = msg;
+  let link = msg.link;
 
   if (!userId || !requestId || !link) {
     return { ok: false, reason: "missing_fields" };
+  }
+
+  // Sanitize link: fix double slug issue common in user copy-paste errors
+   // e.g. .../product-page/slug/slug -> .../product-page/slug
+   link = link.replace(/\/+$/, "");
+   const linkParts = link.split('/');
+  if (linkParts.length > 4 && linkParts[linkParts.length-1] === linkParts[linkParts.length-2]) {
+     const fixed = linkParts.slice(0, -1).join('/');
+     await appendLog(userId, requestId, "info", `Fixed malformed URL: ${link} -> ${fixed}`);
+     link = fixed;
   }
 
   const logCtx = { userId, requestId, productHandle: link };

@@ -60,7 +60,13 @@ export async function POST(req: Request) {
       links = (Array.isArray(productLinks) ? productLinks : [])
         .map((s: string) => normalizeWpSlugOrLink(String(s || "")))
         .filter(Boolean)
-        .map((slug) => (/^https?:\/\//.test(slug) ? slug : `${sourceUrl.replace(/\/$/, "")}/${slug}`));
+        .map((slug) => {
+            if (/^https?:\/\//.test(slug)) return slug;
+            const cleanSource = sourceUrl.replace(/\/+$/, "");
+            // Avoid double slug appending if sourceUrl already ends with the slug
+            if (cleanSource.endsWith(slug)) return cleanSource;
+            return `${cleanSource}/${slug}`;
+        });
       jobTotal = links.length;
     }
 
