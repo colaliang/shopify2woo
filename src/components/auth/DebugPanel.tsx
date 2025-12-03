@@ -17,6 +17,7 @@ export default function DebugPanel() {
   const [hError, setHError] = useState<string | null>(null)
   const [hData, setHData] = useState<HealthResponse | null>(null)
   const [url, setUrl] = useState('')
+  const [platform, setPlatform] = useState('WordPress')
   const [sLoading, setSLoading] = useState(false)
   const [sError, setSError] = useState<string | null>(null)
   const [sData, setSData] = useState<Record<string, unknown> | null>(null)
@@ -91,7 +92,7 @@ export default function DebugPanel() {
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 15000)
-      const r = await fetch(`/api/debug/scrape?url=${encodeURIComponent(url)}`, { cache: 'no-store', signal: controller.signal })
+      const r = await fetch(`/api/debug/scrape?url=${encodeURIComponent(url)}&platform=${encodeURIComponent(platform)}`, { cache: 'no-store', signal: controller.signal })
       clearTimeout(timer)
       const j = await r.json().catch(() => null)
       if (!r.ok || !j) {
@@ -147,10 +148,10 @@ export default function DebugPanel() {
             <div className="space-y-2">
               <form onSubmit={onScrape} className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <select className="border rounded px-2 py-2 bg-gray-900 text-white">
-                    <option>WordPress</option>
-                    <option>Shopify</option>
-                    <option>Wix</option>
+                  <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="border rounded px-2 py-2 bg-gray-900 text-white">
+                    <option value="WordPress">WordPress</option>
+                    <option value="Shopify">Shopify</option>
+                    <option value="Wix">Wix</option>
                   </select>
                   <input value={url} onChange={(e)=>setUrl(e.target.value)} placeholder="输入产品页面URL" className="flex-1 border rounded px-3 py-2 bg-gray-900 text-white placeholder-gray-400" />
                 </div>

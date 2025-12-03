@@ -5,6 +5,24 @@ import URLInputCard from "@/components/import/URLInputCard";
 import RightPanel from "@/components/import/RightPanel";
 import ChoosePlatform, { PlatformType } from "@/components/import/ChoosePlatform";
 
+function detectPlatformFromUrl(url: string): PlatformType | null {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.toLowerCase();
+    const p = u.pathname.toLowerCase();
+
+    if (h.includes('myshopify.com')) return 'shopify';
+    if (h.includes('wix.com') || h.includes('wixsite.com')) return 'wix';
+    if (h.includes('wordpress.com')) return 'wordpress';
+    
+    if (p.includes('/product-page/')) return 'wix';
+    
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ProductTab() {
   const [url, setUrl] = useState("");
   const [platform, setPlatform] = useState<PlatformType>('wordpress');
@@ -44,6 +62,23 @@ export default function ProductTab() {
       .filter(Boolean);
     const uniq = Array.from(new Set(tokens));
     if (uniq.length === 0) return;
+
+    // Check platform mismatch
+    if (uniq.length > 0) {
+      const detected = detectPlatformFromUrl(uniq[0]);
+      if (detected && detected !== platform) {
+        const platformNames: Record<string, string> = {
+          wordpress: 'WordPress',
+          shopify: 'Shopify',
+          wix: 'Wix'
+        };
+        const msg = `检测到链接可能来自 ${platformNames[detected] || detected}，但当前选择的是 ${platformNames[platform] || platform}。\n\n是否继续？`;
+        if (!window.confirm(msg)) {
+          return;
+        }
+      }
+    }
+
     await useImportStore.getState().enqueueLinks(uniq, uniq[0], platform);
   };
 

@@ -397,7 +397,7 @@ async function processOne(queue: string, msg: { msg_id: number; message: unknown
        await pgmqDelete(queue, msg.msg_id);
        return { ok: false, reason: "stale_stopped" }; 
     }
-    const res = await processWixJob(payload);
+    const res = await processWixJob(payload, cfg);
     if (res.ok) {
       try {
         await pgmqDelete(queue, msg.msg_id);

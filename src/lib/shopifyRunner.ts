@@ -79,10 +79,10 @@ export async function processShopifyJob(
     // 5. Create or Update Parent
     if (existingId) {
       await appendLog(userId, requestId, "info", `updating existing product id=${existingId}`);
-      await wooPut(cfg, `products/${existingId}`, payload, logCtx, { retries: 0 });
+      await wooPut(cfg, `index.php/wp-json/wc/v3/products/${existingId}`, payload, logCtx, { retries: 0 });
     } else {
       await appendLog(userId, requestId, "info", `creating new product ${payload.name}`);
-      const res = await wooPost(cfg, `products`, payload, logCtx, { retries: 0 });
+      const res = await wooPost(cfg, `index.php/wp-json/wc/v3/products`, payload, logCtx, { retries: 0 });
       if (!res.ok) {
         const txt = await res.text();
         throw new Error(`create_failed ${res.status}: ${txt}`);
@@ -112,7 +112,7 @@ export async function processShopifyJob(
             try {
                 // If updating parent, we might want to check if variation exists?
                 // Simplest migration path: Just POST to products/{id}/variations
-                const res = await wooPost(cfg, `products/${productId}/variations`, varPayload, logCtx, { retries: 0 });
+                const res = await wooPost(cfg, `index.php/wp-json/wc/v3/products/${productId}/variations`, varPayload, logCtx, { retries: 0 });
                 if (!res.ok) {
                    // If 400 and code is "woocommerce_product_invalid_sku", maybe we need to update?
                    // Implementing full sync logic is complex. 
@@ -142,7 +142,7 @@ export async function processShopifyJob(
 }
 
 async function findProductBySku(cfg: WooConfig, sku: string) {
-    const res = await wooGet(cfg, `products?sku=${encodeURIComponent(sku)}`);
+    const res = await wooGet(cfg, `index.php/wp-json/wc/v3/products?sku=${encodeURIComponent(sku)}`);
     if (res.ok) {
         const j = await res.json();
         if (Array.isArray(j) && j.length > 0) return j[0];
@@ -151,7 +151,7 @@ async function findProductBySku(cfg: WooConfig, sku: string) {
 }
 
 async function findProductBySlug(cfg: WooConfig, slug: string) {
-    const res = await wooGet(cfg, `products?slug=${encodeURIComponent(slug)}`);
+    const res = await wooGet(cfg, `index.php/wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`);
     if (res.ok) {
         const j = await res.json();
         if (Array.isArray(j) && j.length > 0) return j[0];

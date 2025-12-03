@@ -449,7 +449,7 @@ export async function discoverAllProductLinks(base: string, cap = 1000) {
   return all.slice(0, cap);
 }
 
-function extractOuterHtml(html: string, startRegex: RegExp) {
+export function extractOuterHtml(html: string, startRegex: RegExp) {
   const m = html.match(startRegex);
   if (!m || m.index === undefined) return "";
   
