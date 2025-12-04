@@ -34,6 +34,11 @@ interface RightPanelProps {
   status?: 'idle' | 'parsing' | 'running' | 'stopped' | 'stopping' | 'completed' | 'error';
   waitSeconds: number;
   setWaitSeconds: (v: number) => void;
+  page?: number;
+  total?: number;
+  limit?: number;
+  onPageChange?: (page: number) => void;
+  resultsLoading?: boolean;
 }
 
 export default function RightPanel({
@@ -44,10 +49,17 @@ export default function RightPanel({
   status = 'idle',
   results = [],
   products = [],
+  page = 1,
+  total = 0,
+  limit = 10,
+  onPageChange,
+  resultsLoading = false,
   // waitSeconds,
   // setWaitSeconds,
 }: RightPanelProps) {
   const [open, setOpen] = useState(false);
+
+  const totalPages = Math.ceil(total / limit);
 
   const summaryLines = (() => {
     const out: Array<{ text: string; level: 'info' | 'success' | 'error' }> = [];
@@ -147,8 +159,34 @@ export default function RightPanel({
           {/* Results List */}
           {results.length > 0 && (
             <div className="pt-2 space-y-3">
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Results ({results.length})</div>
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Results ({total})</div>
+                {resultsLoading && <div className="text-xs text-gray-400">Loading...</div>}
+              </div>
               {results.map(res => renderResultItem(res))}
+              
+              {/* Pagination */}
+              {totalPages > 1 && onPageChange && (
+                <div className="flex items-center justify-between pt-2 text-xs">
+                  <button 
+                    onClick={() => onPageChange(page - 1)}
+                    disabled={page <= 1 || resultsLoading}
+                    className="px-2 py-1 bg-white border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-gray-600">
+                    {page} / {totalPages}
+                  </span>
+                  <button 
+                    onClick={() => onPageChange(page + 1)}
+                    disabled={page >= totalPages || resultsLoading}
+                    className="px-2 py-1 bg-white border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -184,8 +222,34 @@ export default function RightPanel({
               {/* Results List Mobile */}
               {results.length > 0 && (
                 <div className="pt-2 space-y-3">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Results ({results.length})</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Results ({total})</div>
+                    {resultsLoading && <div className="text-xs text-gray-400">Loading...</div>}
+                  </div>
                   {results.map(res => renderResultItem(res))}
+
+                  {/* Pagination Mobile */}
+                  {totalPages > 1 && onPageChange && (
+                    <div className="flex items-center justify-between pt-2 pb-4 text-xs">
+                      <button 
+                        onClick={() => onPageChange(page - 1)}
+                        disabled={page <= 1 || resultsLoading}
+                        className="px-3 py-2 bg-white border border-gray-300 rounded disabled:opacity-50"
+                      >
+                        Prev
+                      </button>
+                      <span className="text-gray-600">
+                        {page} / {totalPages}
+                      </span>
+                      <button 
+                        onClick={() => onPageChange(page + 1)}
+                        disabled={page >= totalPages || resultsLoading}
+                        className="px-3 py-2 bg-white border border-gray-300 rounded disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

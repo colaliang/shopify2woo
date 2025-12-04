@@ -130,28 +130,36 @@ class ImportApiService {
     }
   }
 
-  async getResults(requestId: string, limit: number = 200): Promise<Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string }>> {
+  async getResults(requestId?: string | null, page: number = 1, limit: number = 10): Promise<{ items: Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string; destUrl?: string; imageUrl?: string; price?: string; galleryCount?: number }>; total: number }> {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token || '';
-      const response = await fetch(`${this.baseUrl}/history?requestId=${encodeURIComponent(requestId)}&limit=${limit}`, {
+      let url = `${this.baseUrl}/history?page=${page}&limit=${limit}`;
+      if (requestId) url += `&requestId=${encodeURIComponent(requestId)}`;
+      
+      const response = await fetch(url, {
          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
-      if (!response.ok) return [];
+      if (!response.ok) return { items: [], total: 0 };
       const j = await response.json();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (j.items || []).map((i: any) => ({
+      const items = (j.items || []).map((i: any) => ({
         id: i.id || i.itemKey || Math.random().toString(36).slice(2),
         timestamp: i.createdAt || i.timestamp,
         status: i.status,
         message: i.message,
         name: i.name,
         productId: i.productId,
-        itemKey: i.itemKey
+        itemKey: i.itemKey,
+        destUrl: i.destUrl,
+        imageUrl: i.imageUrl,
+        price: i.price,
+        galleryCount: i.galleryCount
       }));
+      return { items, total: j.total_records || 0 };
     } catch (error) {
       console.error('Failed to get results:', error);
-      return [];
+      return { items: [], total: 0 };
     }
   }
 

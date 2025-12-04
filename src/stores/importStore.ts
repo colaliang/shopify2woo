@@ -11,7 +11,11 @@ interface ImportStore {
   status: ImportState;
   products: ProductData[];
   logs: LogEntry[];
-  results: Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string; destUrl?: string }>;
+  results: Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string; destUrl?: string; imageUrl?: string; price?: string; galleryCount?: number }>;
+  resultsPage: number;
+  resultsTotal: number;
+  resultsLimit: number;
+  resultsLoading: boolean;
   stats: {
     fetched: number;
     queue: number;
@@ -49,6 +53,7 @@ interface ImportStore {
   stopResults: () => void;
   startRunnerAutoCall: () => void;
   stopRunnerAutoCall: () => void;
+  fetchUserResults: (page?: number) => Promise<void>;
 }
 
 export const useImportStore = create<ImportStore>()(persist((set, get) => ({
@@ -57,6 +62,10 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
   products: [],
   logs: [],
   results: [],
+  resultsPage: 1,
+  resultsTotal: 0,
+  resultsLimit: 10,
+  resultsLoading: false,
   stats: {
     fetched: 0,
     queue: 0,
@@ -438,25 +447,12 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
     // Do not clear logs here, keep them for display
   },
 
-  startResultsForRequest: (requestId: string, clear = true) => {
-    if (clear) set({ results: [] });
-
-    // Fetch existing results
-    importApi.getResults(requestId).then(items => {
-       set(state => {
-         // If we cleared, just set. If not, append unique.
-         // Actually, getResults might return overlap.
-         const existingKeys = new Set(state.results.map(r => r.itemKey));
-         const newItems = items.filter(i => !existingKeys.has(i.itemKey));
-         // Sort by timestamp descending if needed? API returns desc.
-         // We append new items? Or prepend? 
-         // API returns descending (newest first).
-         // Existing results (if not cleared) might be old or new?
-         // If we merge, we should probably re-sort.
-         const merged = [...state.results, ...newItems].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-         return { results: merged };
-       });
-    });
+  startResultsForRequest: (requestId: string) => {
+    // We do NOT clear results by default anymore because we want to show history.
+    // But if 'clear' is explicitly true, we might reset pagination?
+    // Actually, startResultsForRequest is for REALTIME subscription now.
+    // The initial fetch should be handled by fetchUserResults.
+    // Arg 'clear' is removed from implementation as it is unused.
 
     const st = get() as unknown as { __resultsChannel?: ReturnType<typeof supabase.channel> };
     if (st.__resultsChannel) {
@@ -466,7 +462,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
     const ch = supabase.channel('import_results')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'import_results', ...(uid ? { filter: `user_id=eq.${uid}` } : {}), filter: `request_id=eq.${requestId}` }, (payload) => {
         console.log('[Realtime] Received payload:', payload);
-        const n = payload.new as { status: 'success' | 'error'; message?: string; name?: string; product_id?: string; item_key?: string; dest_url?: string; created_at: string };
+        const n = payload.new as { status: 'success' | 'error'; message?: string; name?: string; product_id?: string; item_key?: string; dest_url?: string; image_url?: string; price?: string; gallery_count?: number; created_at: string };
         
         // Handle different event types
         if (payload.eventType === 'INSERT') {
@@ -479,6 +475,9 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
               productId: n.product_id,
               itemKey: n.item_key,
               destUrl: n.dest_url,
+              imageUrl: n.image_url,
+              price: n.price,
+              galleryCount: n.gallery_count,
             };
             set((state) => {
               const imported = state.stats.imported + (n.status === 'success' ? 1 : 0);
@@ -486,8 +485,19 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
               const processed = imported + errors;
               const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
               console.log(`[Realtime] Progress: ${processed}/${state.stats.queue} (${progress}%)`);
+              
+              // Insert at top only if we are on page 1
+              let newResults = state.results;
+              if (state.resultsPage === 1) {
+                  newResults = [item, ...state.results];
+                  if (newResults.length > state.resultsLimit) {
+                      newResults = newResults.slice(0, state.resultsLimit);
+                  }
+              }
+              
               return {
-                results: [item, ...state.results].slice(0, 200),
+                results: newResults,
+                resultsTotal: state.resultsTotal + 1,
                 stats: { ...state.stats, imported, errors, progress },
               };
             });
@@ -496,6 +506,11 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                 const existingIdx = state.results.findIndex(r => r.itemKey === n.item_key);
                 if (existingIdx === -1) {
                     // Treat as insert if not found (shouldn't happen often if synced)
+                    // Only insert if on page 1
+                    if (state.resultsPage !== 1) {
+                        return { stats: state.stats }; // Just update stats?
+                    }
+                    
                     const item = {
                         id: Math.random().toString(36).slice(2),
                         timestamp: n.created_at,
@@ -505,6 +520,9 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                         productId: n.product_id,
                         itemKey: n.item_key,
                         destUrl: n.dest_url,
+                        imageUrl: n.image_url,
+                        price: n.price,
+                        galleryCount: n.gallery_count,
                     };
                     const imported = state.stats.imported + (n.status === 'success' ? 1 : 0);
                     const errors = state.stats.errors + (n.status === 'error' ? 1 : 0);
@@ -512,7 +530,8 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                     const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
                     console.log(`[Realtime] Progress (Update as Insert): ${processed}/${state.stats.queue} (${progress}%)`);
                     return {
-                        results: [item, ...state.results].slice(0, 200),
+                        results: [item, ...state.results].slice(0, state.resultsLimit),
+                        resultsTotal: state.resultsTotal + 1,
                         stats: { ...state.stats, imported, errors, progress },
                     };
                 } else {
@@ -526,6 +545,9 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                         name: n.name || oldItem.name,
                         productId: n.product_id || oldItem.productId,
                         destUrl: n.dest_url || oldItem.destUrl,
+                        imageUrl: n.image_url || oldItem.imageUrl,
+                        price: n.price || oldItem.price,
+                        galleryCount: n.gallery_count || oldItem.galleryCount,
                     };
                     
                     let imported = state.stats.imported;
@@ -571,6 +593,18 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       })
       .subscribe();
     (st as { __resultsChannel?: ReturnType<typeof supabase.channel> }).__resultsChannel = ch;
+  },
+
+  fetchUserResults: async (page = 1) => {
+    const limit = get().resultsLimit || 10;
+    set({ resultsLoading: true, resultsPage: page });
+    try {
+        const { items, total } = await importApi.getResults(null, page, limit);
+        set({ results: items, resultsTotal: total, resultsLoading: false });
+    } catch (e) {
+        console.error('Fetch user results failed', e);
+        set({ resultsLoading: false });
+    }
   },
 
   stopResults: () => {

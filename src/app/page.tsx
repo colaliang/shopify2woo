@@ -8,14 +8,15 @@ import { useImportStore } from "@/stores/importStore";
 
 export default function Home() {
   const [tab, setTab] = useState<"listing" | "product">("product");
-  const { currentRequestId, status, results } = useImportStore();
+  const { currentRequestId, status } = useImportStore();
 
   // Resume subscriptions on mount if running, or fetch results if missing
   useEffect(() => {
     const st = useImportStore.getState();
     const hasRequest = !!currentRequestId;
     const isRunning = status === 'running' || status === 'parsing';
-    const emptyResults = results.length === 0;
+    // Check store state directly to avoid dependency loop
+    const emptyResults = st.results.length === 0;
 
     if (hasRequest) {
       if (isRunning) {

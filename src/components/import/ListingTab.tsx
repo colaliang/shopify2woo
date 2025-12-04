@@ -26,24 +26,29 @@ export default function ListingTab() {
     listingUrl,
     setListingUrl,
     currentRequestId,
+    resultsPage,
+    resultsTotal,
+    resultsLimit,
+    resultsLoading,
+    fetchUserResults,
   } = useImportStore();
 
-  // Initialize results on mount if there is an active request or if cache is empty
+  // Initialize results on mount (fetch user history)
+  useEffect(() => {
+    useImportStore.getState().fetchUserResults(1);
+  }, []);
+
+  // Handle realtime updates for active request
   useEffect(() => {
     const st = useImportStore.getState();
     const hasRequest = !!currentRequestId;
     const isRunning = status === 'running' || status === 'parsing';
-    const emptyResults = results.length === 0;
 
-    if (hasRequest) {
-        if (isRunning) {
-            st.startResultsForRequest(currentRequestId!, false); // false = don't clear existing
-            st.startLogsForRequest(currentRequestId!);
-            st.refreshStatus();
-            st.startRunnerAutoCall();
-        } else if (emptyResults) {
-            st.startResultsForRequest(currentRequestId!, false);
-        }
+    if (hasRequest && isRunning) {
+        st.startResultsForRequest(currentRequestId!, false); // false = don't clear existing
+        st.startLogsForRequest(currentRequestId!);
+        st.refreshStatus();
+        st.startRunnerAutoCall();
     }
   }, [status, currentRequestId]);
 
@@ -188,6 +193,11 @@ export default function ListingTab() {
         status={status}
         waitSeconds={waitSeconds}
         setWaitSeconds={setWaitSeconds}
+        page={resultsPage}
+        total={resultsTotal}
+        limit={resultsLimit}
+        resultsLoading={resultsLoading}
+        onPageChange={(p) => fetchUserResults(p)}
       />
     </div>
   );

@@ -40,28 +40,32 @@ export default function ProductTab() {
     productUrl,
     setProductUrl,
     currentRequestId,
+    resultsPage,
+    resultsTotal,
+    resultsLimit,
+    resultsLoading,
+    fetchUserResults,
   } = useImportStore();
 
-  // Initialize results on mount if there is an active request or if cache is empty
+  // Initialize results on mount (fetch user history)
+  useEffect(() => {
+    useImportStore.getState().fetchUserResults(1);
+  }, []);
+
+  // Handle realtime updates for active request
   useEffect(() => {
     const st = useImportStore.getState();
     const hasRequest = !!currentRequestId;
     const isRunning = status === 'running' || status === 'parsing';
-    const emptyResults = results.length === 0;
 
-    if (hasRequest) {
-        if (isRunning) {
-            // Resume running task
-            st.startResultsForRequest(currentRequestId!, false);
-            st.startLogsForRequest(currentRequestId!);
-            st.refreshStatus();
-            st.startRunnerAutoCall();
-        } else if (emptyResults) {
-            // Load results if cache is empty (even if completed)
-            st.startResultsForRequest(currentRequestId!, false);
-        }
+    if (hasRequest && isRunning) {
+        // Resume running task realtime updates
+        st.startResultsForRequest(currentRequestId!, false);
+        st.startLogsForRequest(currentRequestId!);
+        st.refreshStatus();
+        st.startRunnerAutoCall();
     }
-  }, [status, currentRequestId]); // Re-run if status changes or request ID loads
+  }, [status, currentRequestId]);
 
   const handleExtract = async (u: string) => {
     if (!u) return;
@@ -172,6 +176,11 @@ export default function ProductTab() {
         status={status}
         waitSeconds={0}
         setWaitSeconds={() => {}}
+        page={resultsPage}
+        total={resultsTotal}
+        limit={resultsLimit}
+        resultsLoading={resultsLoading}
+        onPageChange={(p) => fetchUserResults(p)}
       />
     </div>
   );
