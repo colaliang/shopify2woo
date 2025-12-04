@@ -447,15 +447,21 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
     // Do not clear logs here, keep them for display
   },
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  startResultsForRequest: (_requestId: string) => {
+  startResultsForRequest: (requestId: string) => {
     // We do NOT clear results by default anymore because we want to show history.
     // But if 'clear' is explicitly true, we might reset pagination?
     // Actually, startResultsForRequest is for REALTIME subscription now.
     // The initial fetch should be handled by fetchUserResults.
     // Arg 'clear' is removed from implementation as it is unused.
 
-    const st = get() as unknown as { __resultsChannel?: ReturnType<typeof supabase.channel> };
+    const st = get() as unknown as { __resultsChannel?: ReturnType<typeof supabase.channel>; __statsInterval?: number };
+    
+    // Clear existing interval if any
+    if (st.__statsInterval) {
+      clearInterval(st.__statsInterval);
+      (st as { __statsInterval?: number }).__statsInterval = undefined;
+    }
+
     if (st.__resultsChannel) {
       // If we already have a channel, do we need to restart it?
       // If the filter changed (e.g. different user?), yes.
@@ -469,6 +475,49 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
     }
     const uid = useUserStore.getState().user?.id || '';
     if (!uid) return; // Cannot subscribe without user id
+
+    // Start polling for accurate stats (fix for task stuck/count drift)
+    const pollStats = async () => {
+      const s = get();
+      if (s.status !== 'running' && s.status !== 'parsing') return;
+      
+      try {
+        const qs = await importApi.getQueueStats(requestId);
+        if (qs.counts) {
+             set((state) => {
+                 const imported = qs.counts?.imported || state.stats.imported;
+                 const errors = qs.counts?.errors || state.stats.errors;
+                 const processed = imported + errors;
+                 const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
+                 
+                 // Check completion based on server stats
+                 const queueEmpty = qs.queueEmptyForRequest;
+                 const queueCount = qs.rows?.[0]?.ready || 0;
+                 const vtCount = qs.rows?.[0]?.vt || 0;
+                 
+                 // If queue is empty (ready=0, vt=0) AND processed >= initial queue size
+                 // OR if queueEmptyForRequest is explicitly true (which might mean "no messages left for this request")
+                 if (queueEmpty && (queueCount + vtCount) === 0 && processed >= state.stats.queue) {
+                     console.log('[Poll] Task Completed via Server Stats!');
+                     setTimeout(() => {
+                         set({ status: 'completed', currentRequestId: null, isLoading: false });
+                         get().stopRunnerAutoCall();
+                         get().stopLogs();
+                         get().stopResults();
+                     }, 1000);
+                 }
+                 
+                 return {
+                     stats: { ...state.stats, imported, errors, progress }
+                 };
+             });
+        }
+      } catch {}
+    };
+
+    // Poll every 3 seconds
+    const iv = setInterval(pollStats, 3000) as unknown as number;
+    (st as { __statsInterval?: number }).__statsInterval = iv;
 
     const ch = supabase.channel('import_results')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'import_results', filter: `user_id=eq.${uid}` }, (payload) => {
@@ -619,10 +668,14 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
   },
 
   stopResults: () => {
-    const st = get() as unknown as { __resultsChannel?: ReturnType<typeof supabase.channel> };
+    const st = get() as unknown as { __resultsChannel?: ReturnType<typeof supabase.channel>; __statsInterval?: number };
     if (st.__resultsChannel) {
       try { supabase.removeChannel(st.__resultsChannel); } catch {}
       (st as { __resultsChannel?: ReturnType<typeof supabase.channel> }).__resultsChannel = undefined;
+    }
+    if (st.__statsInterval) {
+      clearInterval(st.__statsInterval);
+      (st as { __statsInterval?: number }).__statsInterval = undefined;
     }
     // Do not clear results here, keep them for display
   },

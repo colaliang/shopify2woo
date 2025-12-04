@@ -236,14 +236,16 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
       // Improved JSON parsing and error handling
       let productId: number | undefined = undefined;
       let name: string | undefined = undefined;
+      let permalink: string | undefined = undefined;
       let parseError = false;
-      let responseData: { code?: string; data?: { resource_id?: number }; [key: string]: unknown } = {};
+      let responseData: { code?: string; data?: { resource_id?: number }; permalink?: string; [key: string]: unknown } = {};
 
       try {
         const j = JSON.parse(txt);
         responseData = j;
         productId = Number(j?.id || 0) || undefined;
         name = String(j?.name || built.payload?.name || "");
+        permalink = String(j?.permalink || "");
       } catch {
         parseError = true;
       }
@@ -263,6 +265,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
              responseData = j;
              productId = Number(j?.id || 0) || undefined;
              name = String(j?.name || built.payload?.name || "");
+             permalink = String(j?.permalink || "");
            } catch {
              parseError = true;
            }
@@ -278,7 +281,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
       const galCount = p.images?.length || 0;
 
       if (ok) {
-        await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update", undefined, imgUrl, price, galCount); // Mark as update/add success. Use link as itemKey.
+        await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update", permalink, imgUrl, price, galCount); // Mark as update/add success. Use link as itemKey.
         await appendLog(userId, requestId, "info", `product processed id=${productId || "?"} name=${name || ""}`);
         try {
           await pgmqDelete(queue, msg.msg_id);
@@ -292,7 +295,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         if (responseData?.code === "product_invalid_sku") {
              await appendLog(userId, requestId, "info", `Product SKU already exists, marking as success/skipped: ${built.sku || "unknown"}`);
              // Mark as success so it counts towards progress and stops retrying. Use link as itemKey.
-             await recordResult(userId, "wordpress", requestId, link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate", undefined, imgUrl, price, galCount);
+             await recordResult(userId, "wordpress", requestId, link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate", permalink, imgUrl, price, galCount);
              await pgmqDelete(queue, msg.msg_id);
              return { ok: true };
         }
@@ -349,15 +352,17 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
                  await appendLog(userId, requestId, "info", `Error occurred (${msgText}), checking if product exists: ${sku || slug}`);
                  let foundId: number | undefined;
                  let foundName: string | undefined;
+                 let foundPermalink: string | undefined;
 
                  // 1. Check by SKU
                  if (sku && !foundId) {
                      const sRes = await wooGet(cfg, `index.php/wp-json/wc/v3/products?sku=${encodeURIComponent(sku)}`, { userId, requestId, productHandle: sku });
                      if (sRes.ok) {
-                         const sJson = await sRes.json() as { id: number; name: string }[];
+                         const sJson = await sRes.json() as { id: number; name: string; permalink?: string }[];
                          if (Array.isArray(sJson) && sJson.length > 0) {
                              foundId = sJson[0].id;
                              foundName = sJson[0].name;
+                             foundPermalink = sJson[0].permalink;
                              await appendLog(userId, requestId, "info", `Found product by SKU: ${sku} -> ID: ${foundId}`);
                          }
                      }
@@ -367,10 +372,11 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
                  if (!foundId && slug) {
                      const sRes = await wooGet(cfg, `index.php/wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`, { userId, requestId, productHandle: slug });
                      if (sRes.ok) {
-                         const sJson = await sRes.json() as { id: number; name: string }[];
+                         const sJson = await sRes.json() as { id: number; name: string; permalink?: string }[];
                          if (Array.isArray(sJson) && sJson.length > 0) {
                              foundId = sJson[0].id;
                              foundName = sJson[0].name;
+                             foundPermalink = sJson[0].permalink;
                              await appendLog(userId, requestId, "info", `Found product by Slug: ${slug} -> ID: ${foundId}`);
                          }
                      }
@@ -384,7 +390,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
                      const price = p.sale_price || p.regular_price;
                      const galCount = p.images?.length || 0;
                      
-                     await recordResult(userId, "wordpress", requestId, link, foundName || built.payload?.name, foundId, "success", undefined, "recovered_check", undefined, imgUrl, price, galCount);
+                     await recordResult(userId, "wordpress", requestId, link, foundName || built.payload?.name, foundId, "success", undefined, "recovered_check", foundPermalink, imgUrl, price, galCount);
                      await pgmqDelete(queue, msg.msg_id);
                      return { ok: true };
                  }
