@@ -465,7 +465,8 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
     const uid = useUserStore.getState().user?.id || '';
     const ch = supabase.channel('import_results')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'import_results', ...(uid ? { filter: `user_id=eq.${uid}` } : {}), filter: `request_id=eq.${requestId}` }, (payload) => {
-        const n = payload.new as { status: 'success' | 'error'; message?: string; name?: string; product_id?: string; item_key?: string; created_at: string };
+        console.log('[Realtime] Received payload:', payload);
+        const n = payload.new as { status: 'success' | 'error'; message?: string; name?: string; product_id?: string; item_key?: string; dest_url?: string; created_at: string };
         
         // Handle different event types
         if (payload.eventType === 'INSERT') {
@@ -477,12 +478,14 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
               name: n.name,
               productId: n.product_id,
               itemKey: n.item_key,
+              destUrl: n.dest_url,
             };
             set((state) => {
               const imported = state.stats.imported + (n.status === 'success' ? 1 : 0);
               const errors = state.stats.errors + (n.status === 'error' ? 1 : 0);
               const processed = imported + errors;
               const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
+              console.log(`[Realtime] Progress: ${processed}/${state.stats.queue} (${progress}%)`);
               return {
                 results: [item, ...state.results].slice(0, 200),
                 stats: { ...state.stats, imported, errors, progress },
@@ -501,11 +504,13 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                         name: n.name,
                         productId: n.product_id,
                         itemKey: n.item_key,
+                        destUrl: n.dest_url,
                     };
                     const imported = state.stats.imported + (n.status === 'success' ? 1 : 0);
                     const errors = state.stats.errors + (n.status === 'error' ? 1 : 0);
                     const processed = imported + errors;
                     const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
+                    console.log(`[Realtime] Progress (Update as Insert): ${processed}/${state.stats.queue} (${progress}%)`);
                     return {
                         results: [item, ...state.results].slice(0, 200),
                         stats: { ...state.stats, imported, errors, progress },
@@ -520,6 +525,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                         message: n.message,
                         name: n.name || oldItem.name,
                         productId: n.product_id || oldItem.productId,
+                        destUrl: n.dest_url || oldItem.destUrl,
                     };
                     
                     let imported = state.stats.imported;
@@ -534,6 +540,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                     
                     const processed = imported + errors;
                     const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
+                    console.log(`[Realtime] Progress (Update): ${processed}/${state.stats.queue} (${progress}%)`);
                     return {
                         results: newResults,
                         stats: { ...state.stats, imported, errors, progress },
@@ -544,7 +551,9 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
 
         const s = get();
         const processedNow = s.stats.imported + s.stats.errors;
+        console.log(`[Realtime] Check Completion: ${processedNow} >= ${s.stats.queue}?`);
         if (s.status === 'running' && s.stats.queue > 0 && processedNow >= s.stats.queue) {
+          console.log('[Realtime] Task Completed via Realtime!');
           set({ status: 'completed', currentRequestId: null, isLoading: false });
           s.stopRunnerAutoCall();
           try { s.stopLogs(); } catch {}
