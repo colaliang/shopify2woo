@@ -358,6 +358,11 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
           message: `任务完成 (队列已空)。成功: ${imported}, 失败: ${errors}`,
         };
         set((state) => ({ logs: [doneLog, ...state.logs].slice(0, 100) }));
+
+        // Auto-cleanup queue to remove any stale/retry messages that might be lingering
+        if (rid) {
+             importApi.cancel(rid).catch(() => {});
+        }
       }
     } catch (error) {
       console.error('Failed to refresh status:', error);

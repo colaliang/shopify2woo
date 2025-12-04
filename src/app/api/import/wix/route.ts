@@ -4,7 +4,7 @@ import { discoverWixProductLinks } from "@/lib/wixScrape";
 import { normalizeWpSlugOrLink } from "@/lib/wordpress";
  
 import { appendLog } from "@/lib/logs";
-import { pgmqQueueName, pgmqSendBatch } from "@/lib/pgmq";
+import { pgmqQueueName, pgmqSendBatch, pgmqPurgeRequest } from "@/lib/pgmq";
 
  
 
@@ -49,6 +49,39 @@ export async function POST(req: Request) {
     
     const maxCap = typeof cap === "number" && cap > 0 ? Math.min(cap, 5000) : 1000;
     const requestId = Math.random().toString(36).slice(2, 10);
+    
+    // 0. Purge previous requests for this user to ensure clean state
+    // This prevents old "stale" messages from blocking or mixing with new task
+    // We don't know the specific old requestId, but we can purge based on user ownership if we had that capability.
+    // Currently pgmqPurgeRequest takes a requestId.
+    // Since we can't easily find all old requestIds without a DB query, we rely on the runner's "stale" check
+    // AND we can try to find the LATEST stopped request from logs?
+    // Actually, a better approach requested by user is "Clear queue".
+    // We can use a wildcard or a special function.
+    // For now, let's log that we are starting fresh.
+    // Ideally, we should have a "cancel all for user" function.
+    // But let's implement the "ID mismatch" logic in runner as requested, which handles the "old messages" problem.
+    // However, to be safe, let's try to find the most recent request and cancel it if it's running.
+    {
+        const supabase = getSupabaseServer();
+        if (supabase) {
+            // Find recent request ID
+             const { data: logs } = await supabase
+                .from("import_logs")
+                .select("request_id")
+                .eq("user_id", userId)
+                .order("created_at", { ascending: false })
+                .limit(1);
+             if (logs && logs.length > 0) {
+                 const oldId = logs[0].request_id;
+                 if (oldId && oldId !== requestId) {
+                     await appendLog(userId, requestId, "info", `Auto-cancelling previous request ${oldId}`);
+                     // We invoke purge for the old ID
+                     await pgmqPurgeRequest(oldId); 
+                 }
+             }
+        }
+    }
 
     let jobTotal = 0;
     let discovered: string[] = [];

@@ -154,6 +154,22 @@ export async function processWixJob(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const variationsData = built._variations; 
     
+    // Strong validation: If name is a URL AND no images, it's likely a failed scrape (anti-bot or timeout).
+    // We should RETRY instead of submitting garbage.
+    const pName = payload.name || "";
+    const pImages = payload.images || [];
+    // Name is URL-like (contains http or product-page) OR name is just the link
+    const isNameUrl = pName.includes("http") || pName.includes("product-page") || pName === link || pName === finalUrl;
+    
+    if (isNameUrl && pImages.length === 0) {
+        await appendLog(userId, requestId, "info", `[WARN] Scrape invalid (name=${pName}, images=0) for ${link}. Triggering retry.`);
+        // Throwing error will cause PGMQ to retry this message (visibility timeout)
+        // If retry count exceeds limit, PGMQ moves to archive.
+        // The caller (runner) catches errors. If we want specific retry logic, we can return a special status.
+        // But throwing is the standard way to trigger retry in worker systems.
+        throw new Error("scrape_invalid_content");
+    }
+
     // DEBUG LOG: Log the payload to see what's being sent
     await appendLog(userId, requestId, "info", `Payload Name: ${payload.name}`);
     await appendLog(userId, requestId, "info", `Payload Images: ${(payload.images || []).length}`);

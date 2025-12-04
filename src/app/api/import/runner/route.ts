@@ -107,6 +107,32 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
     await pgmqDelete(queue, msg.msg_id);
     return { ok: false, reason: "missing_fields" };
   }
+
+  // STALE CHECK: If message ID doesn't match user's latest request, drop it.
+  // This satisfies: "If queue message ID != this task ID, abandon"
+  // We check the DB for the latest request_id for this user.
+  // If this message's request_id is NOT the latest, we drop it.
+  // This assumes users only run 1 task at a time.
+  try {
+    const supabase = getSupabaseServer();
+    if (supabase) {
+        const { data: logs } = await supabase
+            .from("import_logs")
+            .select("request_id")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1);
+        if (logs && logs.length > 0) {
+            const latestId = logs[0].request_id;
+            if (latestId && latestId !== requestId) {
+                 await appendLog(userId, requestId, "info", `dropping stale msg=${msg.msg_id} (req=${requestId} != latest=${latestId})`);
+                 await pgmqDelete(queue, msg.msg_id);
+                 return { ok: false, reason: "stale_mismatch" };
+            }
+        }
+    }
+  } catch {}
+
   const cfg = await getWooConfigForUser(userId);
   if (!cfg) {
     await appendLog(userId, requestId, "error", "runner: missing Woo config");
