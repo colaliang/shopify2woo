@@ -21,6 +21,7 @@ export interface ResultItemData {
   imageUrl?: string;
   price?: string;
   galleryCount?: number;
+  requestId?: string;
 }
 
 interface RightPanelProps {
@@ -78,9 +79,11 @@ export default function RightPanel({
     const thumb = res.imageUrl || product?.thumbnail;
     // Use product data if available, otherwise defaults
     const galCount = res.galleryCount ?? product?.galleryCount ?? 0;
-    const type = product?.type || 'simple';
+    // const type = product?.type || 'simple';
     const salePrice = res.price || product?.salePrice || product?.price || '0';
     const primaryCat = product?.primaryCategory || product?.categoryBreadcrumbs?.split('>')[0]?.trim() || 'Uncategorized';
+    const sourceUrl = product?.link || (res.itemKey?.startsWith('http') ? res.itemKey : '');
+    const updateTime = res.timestamp ? new Date(res.timestamp).toLocaleString() : '';
 
     return (
       <div key={res.id} className="flex gap-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
@@ -107,8 +110,8 @@ export default function RightPanel({
              )}
           </div>
           
-          <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-1.5">
-            <span className="whitespace-nowrap">Type: {type}</span>
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-gray-500 mt-1.5">
+            <span className="whitespace-nowrap" title={res.requestId}>ID: {res.requestId?.slice(0, 8) || '-'}</span>
             <span className="text-gray-300">|</span>
             <span className="whitespace-nowrap">Price: {salePrice}</span>
             <span className="text-gray-300">|</span>
@@ -117,6 +120,19 @@ export default function RightPanel({
             <span className="whitespace-nowrap truncate max-w-[80px]" title={primaryCat}>
               {primaryCat}
             </span>
+            {sourceUrl && (
+              <>
+                <span className="text-gray-300">|</span>
+                <a 
+                  href={sourceUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap hover:underline"
+                >
+                  Source
+                </a>
+              </>
+            )}
             {res.destUrl && (
               <>
                 <span className="text-gray-300">|</span>
@@ -130,6 +146,10 @@ export default function RightPanel({
                 </a>
               </>
             )}
+            <span className="text-gray-300">|</span>
+            <span className="whitespace-nowrap text-gray-400" title={updateTime}>
+              {updateTime}
+            </span>
           </div>
           {res.message && res.status === 'error' && (
             <div className="text-[10px] text-red-500 mt-1 truncate" title={res.message}>{res.message}</div>

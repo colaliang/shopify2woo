@@ -130,7 +130,7 @@ class ImportApiService {
     }
   }
 
-  async getResults(requestId?: string | null, page: number = 1, limit: number = 10): Promise<{ items: Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string; destUrl?: string; imageUrl?: string; price?: string; galleryCount?: number }>; total: number }> {
+  async getResults(requestId?: string | null, page: number = 1, limit: number = 10): Promise<{ items: Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string; destUrl?: string; imageUrl?: string; price?: string; galleryCount?: number; requestId?: string }>; total: number }> {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token || '';
@@ -154,7 +154,8 @@ class ImportApiService {
         destUrl: i.destUrl,
         imageUrl: i.imageUrl,
         price: i.price,
-        galleryCount: i.galleryCount
+        galleryCount: i.galleryCount,
+        requestId: i.request_id || i.requestId
       }));
       return { items, total: j.total_records || 0 };
     } catch (error) {
