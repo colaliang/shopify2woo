@@ -18,6 +18,9 @@ export interface ResultItemData {
   productId?: string;
   itemKey?: string;
   destUrl?: string;
+  imageUrl?: string;
+  price?: string;
+  galleryCount?: number;
 }
 
 interface RightPanelProps {
@@ -60,11 +63,11 @@ export default function RightPanel({
   const renderResultItem = (res: ResultItemData) => {
     const product = products.find(p => p.link === res.itemKey || p.id === res.itemKey);
     const title = res.name || product?.title || res.itemKey || "Unknown Product";
-    const thumb = product?.thumbnail;
+    const thumb = res.imageUrl || product?.thumbnail;
     // Use product data if available, otherwise defaults
-    const galCount = product?.galleryCount ?? 0;
+    const galCount = res.galleryCount ?? product?.galleryCount ?? 0;
     const type = product?.type || 'simple';
-    const salePrice = product?.salePrice || product?.price || '0';
+    const salePrice = res.price || product?.salePrice || product?.price || '0';
     const primaryCat = product?.primaryCategory || product?.categoryBreadcrumbs?.split('>')[0]?.trim() || 'Uncategorized';
 
     return (
@@ -93,11 +96,11 @@ export default function RightPanel({
           </div>
           
           <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-1.5">
-            <span className="whitespace-nowrap">{type}</span>
+            <span className="whitespace-nowrap">Type：{type}</span>
             <span className="text-gray-300">|</span>
-            <span className="whitespace-nowrap">sale_price: {salePrice}</span>
+            <span className="whitespace-nowrap">Price: {salePrice}</span>
             <span className="text-gray-300">|</span>
-            <span className="whitespace-nowrap">Gallery: {galCount}</span>
+            <span className="whitespace-nowrap">Images: {galCount}</span>
             <span className="text-gray-300">|</span>
             <span className="whitespace-nowrap truncate max-w-[80px]" title={primaryCat}>
               {primaryCat}

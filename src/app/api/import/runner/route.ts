@@ -269,8 +269,14 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
 
       const ok = res.ok && /application\/json/i.test(ct) && productId && !parseError;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p = built.payload as any;
+      const imgUrl = p.images?.[0]?.src;
+      const price = p.sale_price || p.regular_price;
+      const galCount = p.images?.length || 0;
+
       if (ok) {
-        await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update"); // Mark as update/add success. Use link as itemKey.
+        await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update", undefined, imgUrl, price, galCount); // Mark as update/add success. Use link as itemKey.
         await appendLog(userId, requestId, "info", `product processed id=${productId || "?"} name=${name || ""}`);
         try {
           await pgmqDelete(queue, msg.msg_id);
@@ -284,7 +290,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         if (responseData?.code === "product_invalid_sku") {
              await appendLog(userId, requestId, "info", `Product SKU already exists, marking as success/skipped: ${built.sku || "unknown"}`);
              // Mark as success so it counts towards progress and stops retrying. Use link as itemKey.
-             await recordResult(userId, "wordpress", requestId, link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate");
+             await recordResult(userId, "wordpress", requestId, link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate", undefined, imgUrl, price, galCount);
              await pgmqDelete(queue, msg.msg_id);
              return { ok: true };
         }

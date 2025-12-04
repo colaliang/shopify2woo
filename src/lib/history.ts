@@ -11,7 +11,10 @@ export async function recordResult(
   status: "success" | "error",
   message?: string,
   action?: string,
-  destUrl?: string
+  destUrl?: string,
+  imageUrl?: string,
+  price?: string,
+  galleryCount?: number
 ) {
   const supabase = getSupabaseServer();
   if (!supabase) return;
@@ -28,6 +31,9 @@ export async function recordResult(
       message: message || null,
       action: action || null,
       dest_url: destUrl || null,
+      image_url: imageUrl || null,
+      price: price || null,
+      gallery_count: galleryCount || 0,
       // updating updated_at is good practice for upserts
       updated_at: new Date().toISOString(),
     };
@@ -47,6 +53,9 @@ export async function recordResult(
          delete minimalData.message;
          delete minimalData.action;
          delete minimalData.dest_url;
+         delete minimalData.image_url;
+         delete minimalData.price;
+         delete minimalData.gallery_count;
          delete minimalData.updated_at;
          const { error: retryErr } = await supabase
             .from("import_results")
@@ -77,7 +86,7 @@ export async function listResults(userId: string, page: number, limit: number, r
   const offset = (page - 1) * limit;
   let q = supabase
     .from("import_results")
-    .select("id, created_at, status, message, name, product_id, item_key, dest_url")
+    .select("id, created_at, status, message, name, product_id, item_key, dest_url, image_url, price, gallery_count")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -99,6 +108,9 @@ export async function listResults(userId: string, page: number, limit: number, r
     productId: d.product_id,
     itemKey: d.item_key,
     destUrl: d.dest_url,
+    imageUrl: d.image_url,
+    price: d.price,
+    galleryCount: d.gallery_count,
   }));
 }
 

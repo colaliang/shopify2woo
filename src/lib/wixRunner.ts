@@ -249,7 +249,10 @@ export async function processWixJob(
         } else {
             // If we can't find ID, we can't update. Mark as skipped/success?
              await appendLog(userId, requestId, "info", `Product SKU/Slug exists but no ID returned. Skipping.`);
-             await recordResult(userId, "wix", requestId, link, name, undefined, "success", undefined, "skipped_duplicate");
+             const imgUrl = payload.images?.[0]?.src;
+             const price = payload.sale_price || payload.regular_price;
+             const galCount = payload.images?.length || 0;
+             await recordResult(userId, "wix", requestId, link, name, undefined, "success", undefined, "skipped_duplicate", undefined, imgUrl, price, galCount);
              return { ok: true };
         }
     }
@@ -281,7 +284,11 @@ export async function processWixJob(
     }
 
     // 6. Success
-    await recordResult(userId, "wix", requestId, link, name, productId, "success", undefined, existingId ? "update" : "create", `${cfg.url.replace(/\/$/, '')}/?p=${productId}`);
+    const imgUrl = payload.images?.[0]?.src;
+    const price = payload.sale_price || payload.regular_price;
+    const galCount = payload.images?.length || 0;
+
+    await recordResult(userId, "wix", requestId, link, name, productId, "success", undefined, existingId ? "update" : "create", `${cfg.url.replace(/\/$/, '')}/?p=${productId}`, imgUrl, price, galCount);
     await appendLog(userId, requestId, "info", `wix product processed id=${productId}`);
     
     return { ok: true };
