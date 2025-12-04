@@ -23,13 +23,25 @@ export default function ListingTab() {
     selectAllProducts,
     deselectAllProducts,
     clearError,
+    listingUrl,
+    setListingUrl,
   } = useImportStore();
+
+  // Initialize results on mount if there is an active request
+  useEffect(() => {
+    const st = useImportStore.getState();
+    if (st.currentRequestId && (st.status === 'running' || st.status === 'parsing')) {
+      st.startResultsForRequest(st.currentRequestId, false); // false = don't clear existing
+      st.startLogsForRequest(st.currentRequestId);
+      st.refreshStatus();
+      st.startRunnerAutoCall();
+    }
+  }, [status]);
 
   const [defaultCategory, setDefaultCategory] = useState("");
   const [threads, setThreads] = useState(10);
   const [autoPagination, setAutoPagination] = useState(true);
   const [waitSeconds, setWaitSeconds] = useState(0);
-  const [siteUrl, setSiteUrl] = useState("");
 
   const handleDiscover = async (siteUrl: string) => {
     if (!siteUrl) return;
@@ -67,10 +79,11 @@ export default function ListingTab() {
       {/* Left Panel */}
       <main className="flex-1 p-6 space-y-6 overflow-y-auto">
         <SiteInputCard
-          value={siteUrl}
-          onChange={setSiteUrl}
+          value={listingUrl}
+          onChange={setListingUrl}
           onDiscover={(url) => handleDiscover(url)}
-          loading={isLoading}
+          loading={isLoading || status === 'running' || status === 'parsing'}
+          disabled={status === 'running' || status === 'parsing'}
         />
         <StatsBar 
           imported={stats.imported} 
@@ -85,6 +98,7 @@ export default function ListingTab() {
           setThreads={setThreads}
           autoPagination={autoPagination}
           setAutoPagination={setAutoPagination}
+          disabled={status === 'running' || status === 'parsing'}
         />
 
         {/* Product List */}
@@ -96,6 +110,7 @@ export default function ListingTab() {
               selected={selectedProducts.has(p.id)}
               onSelect={() => toggleProductSelection(p.id)}
               onImport={() => handleImport(p.id)}
+              disabled={status === 'running' || status === 'parsing'}
             />
           ))}
         </div>
@@ -106,7 +121,7 @@ export default function ListingTab() {
             <button
               onClick={handleImportSelected}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-              disabled={selectedProducts.size === 0 || isLoading}
+              disabled={selectedProducts.size === 0 || isLoading || status === 'running' || status === 'parsing'}
             >
               导入选中 ({selectedProducts.size})
             </button>
@@ -119,22 +134,22 @@ export default function ListingTab() {
             </button>
             <button
               onClick={selectAllProducts}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-              disabled={isLoading}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || status === 'running' || status === 'parsing'}
             >
               全选
             </button>
             <button
               onClick={deselectAllProducts}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-              disabled={isLoading}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || status === 'running' || status === 'parsing'}
             >
               取消全选
             </button>
             <button
               onClick={handleRemoveAll}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              disabled={isLoading}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || status === 'running' || status === 'parsing'}
             >
               清空全部
             </button>

@@ -51,6 +51,9 @@ export async function POST(request: NextRequest) {
         const thumbnail = String(p.images?.[0]?.src || '');
         const price = extractProductPrice(html) || '';
         const breadcrumbs = data.catNames?.join(' > ') || '';
+        const type = p.type || 'simple';
+        const salePrice = p.sale_price || '';
+        const primaryCategory = data.catNames?.[0] || '';
 
         return {
           id: `${idx + 1}`,
@@ -58,6 +61,9 @@ export async function POST(request: NextRequest) {
           link,
           thumbnail: thumbnail || 'https://via.placeholder.com/64',
           price: price || '',
+          salePrice,
+          type,
+          primaryCategory,
           attributesCount: p.attributes?.length || 0,
           reviewsCount: 0, // Not currently scraped
           galleryCount: p.images?.length || 0,

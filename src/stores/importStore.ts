@@ -11,7 +11,7 @@ interface ImportStore {
   status: ImportState;
   products: ProductData[];
   logs: LogEntry[];
-  results: Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string }>;
+  results: Array<{ id: string; timestamp: string; status: 'success' | 'error'; message?: string; name?: string; productId?: string; itemKey?: string; destUrl?: string }>;
   stats: {
     fetched: number;
     queue: number;
@@ -24,8 +24,12 @@ interface ImportStore {
   selectedProducts: Set<string>;
   isLoading: boolean;
   error: string | null;
+  productUrl: string;
+  listingUrl: string;
   
   // Actions
+  setProductUrl: (url: string) => void;
+  setListingUrl: (url: string) => void;
   parseListing: (url: string, options?: ParseListingRequest['options']) => Promise<void>;
   importProduct: (productId: string) => Promise<void>;
   importSelectedProducts: () => Promise<void>;
@@ -64,6 +68,11 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
   isLoading: false,
   error: null,
   currentRequestId: null,
+  productUrl: '',
+  listingUrl: '',
+
+  setProductUrl: (url: string) => set({ productUrl: url }),
+  setListingUrl: (url: string) => set({ listingUrl: url }),
 
   // Parse listing action
   parseListing: async (url: string, options?: ParseListingRequest['options']) => {
@@ -256,52 +265,58 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
   // Stop import
   stopImport: async () => {
     set({ isLoading: true, status: 'stopping' });
-    try {
-      const rid = get().currentRequestId;
-      if (rid) {
-        await importApi.cancel(rid);
-      }
-      
-      // Poll for queue empty
-      if (rid) {
-        for (let i = 0; i < 30; i++) {
-          try {
-             const qs = await importApi.getQueueStats(rid);
-             // If queue is empty for request, we are done
-             if (qs && qs.queueEmptyForRequest) {
-               break;
-             }
-          } catch {}
-          await new Promise(r => setTimeout(r, 1000));
+    
+    // Immediately clear UI state to 'stopped' after a short delay if API is slow
+    // We race the API call with a timeout
+    const stopPromise = (async () => {
+      try {
+        const rid = get().currentRequestId;
+        if (rid) {
+          await importApi.cancel(rid);
         }
+        
+        // Poll for queue empty - reduce timeout to 5s
+        if (rid) {
+          for (let i = 0; i < 5; i++) {
+            try {
+               const qs = await importApi.getQueueStats(rid);
+               // If queue is empty for request, we are done
+               if (qs && qs.queueEmptyForRequest) {
+                 break;
+               }
+            } catch {}
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+      } catch (error) {
+        console.error('Stop import error:', error);
       }
+    })();
 
-      set({ status: 'stopped', isLoading: false, currentRequestId: null });
-      get().stopLogs();
-      get().stopResults();
-      get().stopRunnerAutoCall();
-      await get().refreshStatus();
+    // Wait max 2 seconds for the API, then force stop UI
+    await Promise.race([
+        stopPromise,
+        new Promise(r => setTimeout(r, 2000))
+    ]);
 
-      // Add stopped log
-      const stoppedLog: LogEntry = {
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
-        level: 'info',
-        message: '任务已停止（用户取消）',
-      };
-      
-      set((state) => ({
-        logs: [stoppedLog, ...state.logs].slice(0, 100),
-      }));
-    } catch (error) {
-      console.error('Failed to stop import:', error);
-      // Force stop UI even if API fails
-      set({ status: 'stopped', isLoading: false, currentRequestId: null });
-      get().stopLogs();
-      get().stopResults();
-      get().stopRunnerAutoCall();
-      await get().refreshStatus();
-    }
+    set({ status: 'stopped', isLoading: false, currentRequestId: null });
+    get().stopLogs();
+    get().stopResults();
+    get().stopRunnerAutoCall();
+    // Try one last refresh but don't block
+    get().refreshStatus().catch(() => {});
+
+    // Add stopped log
+    const stoppedLog: LogEntry = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      level: 'info',
+      message: '任务已停止（用户取消）',
+    };
+    
+    set((state) => ({
+      logs: [stoppedLog, ...state.logs].slice(0, 100),
+    }));
   },
 
   // Toggle product selection
@@ -360,9 +375,10 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
         set((state) => ({ logs: [doneLog, ...state.logs].slice(0, 100) }));
 
         // Auto-cleanup queue to remove any stale/retry messages that might be lingering
-        if (rid) {
-             importApi.cancel(rid).catch(() => {});
-        }
+        // DO NOT automatically cancel! This kills running tasks because stats API returns empty when tasks are invisible (processing).
+        // if (rid) {
+        //      importApi.cancel(rid).catch(() => {});
+        // }
       }
     } catch (error) {
       console.error('Failed to refresh status:', error);
@@ -639,5 +655,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
     logs: state.logs,
     results: state.results,
     stats: state.stats,
+    productUrl: state.productUrl,
+    listingUrl: state.listingUrl,
   }),
 }));

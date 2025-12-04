@@ -5,6 +5,7 @@ interface SiteInputCardProps {
   onChange: (v: string) => void;
   onDiscover: (siteUrl: string) => void;
   loading?: boolean;
+  disabled?: boolean;
 }
 
 export default function SiteInputCard({
@@ -12,6 +13,7 @@ export default function SiteInputCard({
   onChange,
   onDiscover,
   loading = false,
+  disabled = false,
 }: SiteInputCardProps) {
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
@@ -24,15 +26,16 @@ export default function SiteInputCard({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="https://www.example.com/"
-            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:ring-primary-500 focus:border-primary-500"
+            disabled={disabled}
+            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
           />
         </div>
         <button
           onClick={() => onDiscover(value)}
-          disabled={loading || !value}
+          disabled={loading || !value || disabled}
           className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? "抓取中..." : "抓取全站商品"}
+          {loading || disabled ? "抓取中..." : "抓取全站商品"}
         </button>
       </div>
     </div>

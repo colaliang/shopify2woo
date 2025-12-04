@@ -428,7 +428,11 @@ async function processOne(queue: string, msg: { msg_id: number; message: unknown
       try {
         await pgmqDelete(queue, msg.msg_id);
       } catch (e) {
-        console.error(`[WARN] Wix job success but failed to delete msg=${msg.msg_id}: ${e}`);
+        const errText = `[WARN] Wix job success but failed to delete msg=${msg.msg_id}: ${e}`;
+        console.error(errText);
+        if (userId && payload.requestId) {
+           try { await appendLog(userId, payload.requestId, "error", errText); } catch {}
+        }
       }
     } else {
       const readCt = msg.read_ct || 1;

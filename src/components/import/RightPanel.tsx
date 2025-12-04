@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Image from "next/image";
 import { ProductData } from "@/services/importApi";
 
 export interface LogItemData {
@@ -18,6 +17,7 @@ export interface ResultItemData {
   name?: string;
   productId?: string;
   itemKey?: string;
+  destUrl?: string;
 }
 
 interface RightPanelProps {
@@ -41,8 +41,8 @@ export default function RightPanel({
   status = 'idle',
   results = [],
   products = [],
-  waitSeconds,
-  setWaitSeconds,
+  // waitSeconds,
+  // setWaitSeconds,
 }: RightPanelProps) {
   const [open, setOpen] = useState(false);
 
@@ -62,20 +62,19 @@ export default function RightPanel({
     const title = res.name || product?.title || res.itemKey || "Unknown Product";
     const thumb = product?.thumbnail;
     // Use product data if available, otherwise defaults
-    const attrCount = product?.attributesCount ?? 0;
-    const revCount = product?.reviewsCount ?? 0;
     const galCount = product?.galleryCount ?? 0;
-    const inStock = product?.inStock ?? false;
-    // Assuming breadcrumbs might be in product data if casted, but for now just title
-    const breadcrumbs = (product as any)?.categoryBreadcrumbs || ""; 
+    const type = product?.type || 'simple';
+    const salePrice = product?.salePrice || product?.price || '0';
+    const primaryCat = product?.primaryCategory || product?.categoryBreadcrumbs?.split('>')[0]?.trim() || 'Uncategorized';
 
     return (
       <div key={res.id} className="flex gap-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
         {/* Thumbnail */}
         <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded overflow-hidden relative">
            {thumb ? (
-             <Image src={thumb} alt={title} fill className="object-cover" sizes="64px" />
-           ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={thumb} alt={title} className="w-full h-full object-cover" />
+            ) : (
              <div className="w-full h-full flex items-center justify-center text-gray-300">
                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
              </div>
@@ -93,20 +92,29 @@ export default function RightPanel({
              )}
           </div>
           
-          {breadcrumbs && (
-            <div className="text-xs text-gray-500 truncate mt-0.5">{breadcrumbs}</div>
-          )}
-          
           <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-1.5">
-            <span className="whitespace-nowrap">Attributes: {attrCount}</span>
+            <span className="whitespace-nowrap">{type}</span>
             <span className="text-gray-300">|</span>
-            <span className="whitespace-nowrap">Reviews: {revCount}</span>
+            <span className="whitespace-nowrap">sale_price: {salePrice}</span>
             <span className="text-gray-300">|</span>
             <span className="whitespace-nowrap">Gallery: {galCount}</span>
             <span className="text-gray-300">|</span>
-            <span className={inStock ? "text-green-600 font-medium whitespace-nowrap" : "text-gray-500 whitespace-nowrap"}>
-              {inStock ? "In stock" : "Out of stock"}
+            <span className="whitespace-nowrap truncate max-w-[80px]" title={primaryCat}>
+              {primaryCat}
             </span>
+            {res.destUrl && (
+              <>
+                <span className="text-gray-300">|</span>
+                <a 
+                  href={res.destUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap hover:underline"
+                >
+                  View
+                </a>
+              </>
+            )}
           </div>
           {res.message && res.status === 'error' && (
             <div className="text-[10px] text-red-500 mt-1 truncate" title={res.message}>{res.message}</div>

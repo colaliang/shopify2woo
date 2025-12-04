@@ -4,6 +4,7 @@ import { useUserStore } from "@/stores/userStore";
 import URLInputCard from "@/components/import/URLInputCard";
 import RightPanel from "@/components/import/RightPanel";
 import ChoosePlatform, { PlatformType } from "@/components/import/ChoosePlatform";
+import { parseInputLinks } from "@/lib/inputHelpers";
 
 function detectPlatformFromUrl(url: string): PlatformType | null {
   try {
@@ -24,7 +25,6 @@ function detectPlatformFromUrl(url: string): PlatformType | null {
 }
 
 export default function ProductTab() {
-  const [url, setUrl] = useState("");
   const [platform, setPlatform] = useState<PlatformType>('wordpress');
   
   const {
@@ -37,18 +37,20 @@ export default function ProductTab() {
     results,
     products,
     status,
+    productUrl,
+    setProductUrl,
   } = useImportStore();
 
   // Initialize results on mount if there is an active request
   useEffect(() => {
     const st = useImportStore.getState();
-    if (st.currentRequestId) {
+    if (st.currentRequestId && (st.status === 'running' || st.status === 'parsing')) {
       st.startResultsForRequest(st.currentRequestId, false); // false = don't clear existing
       st.startLogsForRequest(st.currentRequestId);
       st.refreshStatus();
       st.startRunnerAutoCall();
     }
-  }, []);
+  }, [status]); // Re-run if status changes (e.g. hydration restores 'running')
 
   const handleExtract = async (u: string) => {
     if (!u) return;
@@ -56,11 +58,7 @@ export default function ProductTab() {
       useUserStore.getState().openLoginModal();
       return;
     }
-    const tokens = u
-      .split(/[\n\r\t\s,，;；、]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const uniq = Array.from(new Set(tokens));
+    const uniq = parseInputLinks(u);
     if (uniq.length === 0) return;
 
     // Check platform mismatch
@@ -102,10 +100,11 @@ export default function ProductTab() {
           disabled={status === 'running' || status === 'parsing'}
         />
         <URLInputCard
-          value={url}
-          onChange={setUrl}
+          value={productUrl}
+          onChange={setProductUrl}
           onExtract={handleExtract}
-          loading={isLoading}
+          loading={isLoading || status === 'running' || status === 'parsing'}
+          disabled={status === 'running' || status === 'parsing'}
         />
 
         <div className="flex items-center gap-3">
@@ -118,6 +117,7 @@ export default function ProductTab() {
           </button>
         </div>
 
+        { /*
         <div className="space-y-3">
           {results.length === 0 && (
             <div className="text-gray-500">暂无导入结果，点击上方“导入”开始</div>
@@ -133,7 +133,7 @@ export default function ProductTab() {
           ))}
         </div>
 
-        {/* Error Display */}
+   
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
             <div className="flex items-center gap-2">
@@ -142,7 +142,13 @@ export default function ProductTab() {
             </div>
           </div>
         )}
+
+        */ }
+
+        
       </main>
+
+      
 
       <RightPanel
         logs={logs}

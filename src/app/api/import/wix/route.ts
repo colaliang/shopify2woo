@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer, getUserIdFromToken, readLocalConfig } from "@/lib/supabaseServer";
 import { discoverWixProductLinks } from "@/lib/wixScrape";
-import { normalizeWpSlugOrLink } from "@/lib/wordpress";
- 
+
 import { appendLog } from "@/lib/logs";
-import { pgmqQueueName, pgmqSendBatch, pgmqPurgeRequest } from "@/lib/pgmq";
+import { pgmqQueueName, pgmqSendBatch } from "@/lib/pgmq";
 
  
 
@@ -75,9 +74,9 @@ export async function POST(req: Request) {
              if (logs && logs.length > 0) {
                  const oldId = logs[0].request_id;
                  if (oldId && oldId !== requestId) {
-                     await appendLog(userId, requestId, "info", `Auto-cancelling previous request ${oldId}`);
+                     await appendLog(userId, requestId, "info", `Auto-cancelling previous request ${oldId} (Skipped)`);
                      // We invoke purge for the old ID
-                     await pgmqPurgeRequest(oldId); 
+                     // await pgmqPurgeRequest(oldId); 
                  }
              }
         }
@@ -91,15 +90,21 @@ export async function POST(req: Request) {
       jobTotal = discovered.length;
     } else {
       links = (Array.isArray(productLinks) ? productLinks : [])
-        .map((s: string) => normalizeWpSlugOrLink(String(s || "")))
-        .filter(Boolean)
-        .map((slug) => {
-            if (/^https?:\/\//.test(slug)) return slug;
-            const cleanSource = sourceUrl.replace(/\/+$/, "");
-            // Avoid double slug appending if sourceUrl already ends with the slug
-            if (cleanSource.endsWith(slug)) return cleanSource;
-            return `${cleanSource}/${slug}`;
-        });
+        .map((s: string) => {
+          if (!s) return null;
+          try {
+            // Use standard URL resolution which handles:
+            // - Absolute URLs (ignored source)
+            // - Root-relative paths (starts with /)
+            // - Relative paths (replaces last segment if no trailing slash, appends if trailing slash)
+            // This mimics browser behavior exactly.
+            // e.g. source=".../prod-a", link="prod-b" -> ".../prod-b" (sibling)
+            return new URL(s.trim(), sourceUrl).href;
+          } catch {
+            return null;
+          }
+        })
+        .filter((s): s is string => Boolean(s));
       jobTotal = links.length;
     }
 

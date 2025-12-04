@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { pgmqQueueName, pgmqQsize, pgmqArchivedCount, pgmqRead, pgmqSetVt } from "@/lib/pgmq";
+import { getSupabaseServer } from "@/lib/supabaseServer";
+import { pgmqQueueName, pgmqQsize, pgmqArchivedCount } from "@/lib/pgmq";
 import { getResultCounts } from "@/lib/history";
 
 export const runtime = "nodejs";
@@ -25,48 +26,54 @@ export async function GET(req: Request) {
   let queueEmptyForRequest: boolean | undefined = undefined;
   let counts: { imported: number; errors: number; partial: number; processed: number; updated: number } | undefined = undefined;
   if (requestId) {
+    // Simplified check: if ALL queues are empty, then it is definitely empty for this request.
+    // This avoids the destructive "read to peek" scanning which can hide messages from the runner.
+    const allQueuesEmpty = rows.every(r => (r.total || 0) === 0 && (r.ready || 0) === 0 && (r.vt || 0) === 0);
+    if (allQueuesEmpty) {
+      queueEmptyForRequest = true;
+    } else {
+      // If queues are not empty, we don't know if they are for this request or others.
+      // But we shouldn't scan (read & hide) as it causes race conditions.
+      // We leave queueEmptyForRequest as undefined, forcing the frontend to rely on processed vs expected counts.
+      
+      // Optional: If we really wanted to know, we'd need a non-destructive PGMQ peek, or a separate lookup table.
+    }
+
+    /* 
+    // Dangerous scanning logic removed:
     queueEmptyForRequest = true;
     outer: for (const s of sources) {
-      for (const qn of [pgmqQueueName(`${s}_high`), pgmqQueueName(s)]) {
-        for (let i = 0; i < 5; i++) { // Scan up to 2500 messages (5 * 500)
-          const msgs = await pgmqRead(qn, 1, 500).catch(()=>[] as { msg_id: number; message: unknown }[]);
-          if (!msgs.length) break;
-          
-          const toReset: number[] = [];
-          for (const row of msgs) {
-            const msg = row && row.message;
-            let rid = "";
-            if (msg && typeof msg === 'object' && 'requestId' in msg) {
-              const v = (msg as Record<string, unknown>).requestId;
-              rid = typeof v === 'string' ? v : '';
-            }
-            toReset.push(row.msg_id);
-            if (rid === requestId) { 
-                queueEmptyForRequest = false; 
-                // Don't break immediately, we need to reset VTs for the batch we read!
-                // Actually, if we break outer, we leave VTs as 1s (hidden for 1s). 
-                // That's acceptable. But better to reset.
-            }
-          }
-          
-          // Reset VTs in parallel
-          if (toReset.length > 0) {
-             await Promise.all(toReset.map(id => pgmqSetVt(qn, id, 0).catch(()=>{})));
-          }
-          
-          if (queueEmptyForRequest === false) break outer;
-        }
-      }
+      // ... (scanning logic that hides messages)
     }
+    */
+
     try {
       const c = await getResultCounts("__ALL__", requestId);
-      // Count 'update' results separately? 'success' includes updates currently.
-      // We might want to enhance getResultCounts to return 'update' specific counts if needed,
-      // but for now 'imported' covers both additions and updates as per existing logic.
-      // The user requested "Show how many updated".
-      // This requires getResultCounts to return update count.
       counts = { imported: c.successCount, errors: c.errorCount, partial: c.partialCount, processed: c.processed, updated: c.updateCount };
     } catch {}
+
+    // Double check with logs: if there is a log entry in the last 60 seconds, assume it is still running (messages are invisible)
+    if (queueEmptyForRequest) {
+       try {
+         const supabase = getSupabaseServer();
+         if (supabase) {
+            const { data: logs } = await supabase
+                .from("import_logs")
+                .select("created_at")
+                .eq("request_id", requestId)
+                .order("created_at", { ascending: false })
+                .limit(1);
+            if (logs && logs.length > 0) {
+                const last = new Date(logs[0].created_at).getTime();
+                const now = Date.now();
+                // If log is very recent, it means runner is active, so queue is likely not effectively empty (just invisible)
+                if (now - last < 60000) { 
+                    queueEmptyForRequest = false;
+                }
+            }
+         }
+       } catch {}
+    }
   }
   return NextResponse.json({ warn, reasons, rows, thresholds, queueEmptyForRequest, counts });
 }

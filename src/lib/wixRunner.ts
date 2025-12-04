@@ -151,7 +151,6 @@ export async function processWixJob(
     const payload = built.payload;
     const extractedCats = built.categories || [];
     const extractedTags = built.tags || [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const variationsData = built._variations; 
     
     // Strong validation: If name is a URL AND no images, it's likely a failed scrape (anti-bot or timeout).
@@ -198,7 +197,7 @@ export async function processWixJob(
 
     // 4. Create/Update Parent Product
     let productId: number | undefined;
-    let name = String(payload.name || "");
+    const name = String(payload.name || "");
 
     // Check if product exists by SKU (if available) or Name/Slug
     let existingId: number | undefined = undefined;
@@ -216,8 +215,9 @@ export async function processWixJob(
     
     // Robust Posting Logic (similar to WP runner)
     let res: Response;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let responseData: any = {};
-    let parseError = false;
+    // let parseError = false;
 
     if (existingId) {
          await appendLog(userId, requestId, "info", `updating existing wix product id=${existingId}`);
@@ -233,7 +233,7 @@ export async function processWixJob(
         responseData = JSON.parse(txt);
         if (!existingId) productId = responseData.id;
     } catch {
-        parseError = true;
+        // parseError = true;
     }
 
     // Handle "invalid_sku" or "slug_already_exists" by attempting update if we didn't already
@@ -266,6 +266,7 @@ export async function processWixJob(
          const variations = variationsData.variations;
          await appendLog(userId, requestId, "info", `processing ${variations.length} variations for product ${productId}`);
          
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
          const batch = variations.map((v: any) => ({
             regular_price: v.regular_price,
             attributes: v.attributes,
@@ -280,7 +281,7 @@ export async function processWixJob(
     }
 
     // 6. Success
-    await recordResult(userId, "wix", requestId, link, name, productId, "success", undefined, existingId ? "update" : "create");
+    await recordResult(userId, "wix", requestId, link, name, productId, "success", undefined, existingId ? "update" : "create", `${cfg.url.replace(/\/$/, '')}/?p=${productId}`);
     await appendLog(userId, requestId, "info", `wix product processed id=${productId}`);
     
     return { ok: true };

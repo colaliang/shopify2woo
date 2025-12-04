@@ -313,7 +313,6 @@ export function extractProductPrices(html: string) {
             if (first.price) {
                regular_price = String(first.price);
             } else if (first.priceSpecification) {
-               // eslint-disable-next-line @typescript-eslint/no-explicit-any
                const specs = Array.isArray(first.priceSpecification) ? first.priceSpecification : [first.priceSpecification];
                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                const spec = specs.find((s: any) => s.price);

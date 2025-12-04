@@ -22,7 +22,9 @@ export async function GET(req: Request) {
     }
 
     let p: WooProductPayload;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let built: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let rawPrices: any = [];
 
     if (platform === "Wix") {

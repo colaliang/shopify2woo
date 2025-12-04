@@ -13,10 +13,14 @@ export interface ProductData {
   link: string;
   thumbnail: string;
   price: string;
+  salePrice?: string;
+  type?: string;
+  primaryCategory?: string;
   attributesCount: number;
   reviewsCount: number;
   galleryCount: number;
   inStock: boolean;
+  categoryBreadcrumbs?: string;
 }
 
 export interface LogEntry {
@@ -135,6 +139,7 @@ class ImportApiService {
       });
       if (!response.ok) return [];
       const j = await response.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (j.items || []).map((i: any) => ({
         id: i.id || i.itemKey || Math.random().toString(36).slice(2),
         timestamp: i.createdAt || i.timestamp,

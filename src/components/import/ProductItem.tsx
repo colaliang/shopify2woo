@@ -21,6 +21,7 @@ interface ProductItemProps {
   onSelect: () => void;
   onImport: () => void;
   importing?: boolean;
+  disabled?: boolean;
 }
 
 export default function ProductItem({
@@ -29,6 +30,7 @@ export default function ProductItem({
   onSelect,
   onImport,
   importing = false,
+  disabled = false,
 }: ProductItemProps) {
   return (
     <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg bg-white hover:shadow-sm">
@@ -36,7 +38,8 @@ export default function ProductItem({
         type="checkbox"
         checked={selected}
         onChange={onSelect}
-        className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+        disabled={disabled}
+        className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:text-gray-400 disabled:cursor-not-allowed"
       />
       <Image
         src={data.thumbnail || "https://via.placeholder.com/64"}
@@ -77,7 +80,7 @@ export default function ProductItem({
         <div className="text-lg font-semibold text-gray-900">{data.price}</div>
         <button
           onClick={onImport}
-          disabled={importing}
+          disabled={importing || disabled}
           className="mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
         >
           {importing ? "导入中..." : "导入商品"}

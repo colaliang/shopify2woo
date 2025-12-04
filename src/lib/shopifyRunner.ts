@@ -130,7 +130,7 @@ export async function processShopifyJob(
         }
     }
 
-    await recordResult(userId, "shopify", requestId, handle, payload.name, productId, "success", undefined, action);
+    await recordResult(userId, "shopify", requestId, handle, payload.name, productId, "success", undefined, action, `${cfg.url.replace(/\/$/, '')}/?p=${productId}`);
     return { ok: true };
 
   } catch (e: unknown) {

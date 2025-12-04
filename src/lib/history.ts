@@ -1,4 +1,5 @@
 import { getSupabaseServer } from "@/lib/supabaseServer";
+import { appendLog } from "@/lib/logs";
 
 export async function recordResult(
   userId: string,
@@ -9,7 +10,8 @@ export async function recordResult(
   productId: number | undefined,
   status: "success" | "error",
   message?: string,
-  action?: string
+  action?: string,
+  destUrl?: string
 ) {
   const supabase = getSupabaseServer();
   if (!supabase) return;
@@ -25,6 +27,7 @@ export async function recordResult(
       status,
       message: message || null,
       action: action || null,
+      dest_url: destUrl || null,
       // updating updated_at is good practice for upserts
       updated_at: new Date().toISOString(),
     };
@@ -36,13 +39,35 @@ export async function recordResult(
       .upsert(data, { onConflict: "request_id,item_key" });
 
     if (error) {
-      // If specific constraint fails or doesn't exist, we might want to fallback to insert?
-      // But usually upsert is safer. If onConflict is wrong, it might error.
-      // Let's log it.
-      console.error("[History] Failed to record result:", error);
+      // Fallback for schema mismatch (missing columns)
+      if (error.message && error.message.includes("column")) {
+         // Retry without potentially missing columns
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         const minimalData = { ...data } as any;
+         delete minimalData.message;
+         delete minimalData.action;
+         delete minimalData.dest_url;
+         delete minimalData.updated_at;
+         const { error: retryErr } = await supabase
+            .from("import_results")
+            .upsert(minimalData, { onConflict: "request_id,item_key" });
+         
+         if (!retryErr) return; // Success on retry
+      }
+
+      const errText = `Failed to record result: ${error.message || JSON.stringify(error)}`;
+      console.error(`[History] ${errText}`);
+      // Try to log to user logs so they can see it
+      try {
+        await appendLog(userId, requestId, "error", errText);
+      } catch {}
     }
   } catch (e) {
-    console.error("[History] Exception recording result:", e);
+    const errText = `Exception recording result: ${e instanceof Error ? e.message : String(e)}`;
+    console.error(`[History] ${errText}`);
+    try {
+      await appendLog(userId, requestId, "error", errText);
+    } catch {}
   }
 }
 
@@ -52,7 +77,7 @@ export async function listResults(userId: string, page: number, limit: number, r
   const offset = (page - 1) * limit;
   let q = supabase
     .from("import_results")
-    .select("id, created_at, status, message, name, product_id, item_key")
+    .select("id, created_at, status, message, name, product_id, item_key, dest_url")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -64,6 +89,7 @@ export async function listResults(userId: string, page: number, limit: number, r
   }
 
   const { data } = await q;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data || []).map((d: any) => ({
     id: d.id,
     timestamp: d.created_at,
@@ -72,6 +98,7 @@ export async function listResults(userId: string, page: number, limit: number, r
     name: d.name,
     productId: d.product_id,
     itemKey: d.item_key,
+    destUrl: d.dest_url,
   }));
 }
 
@@ -98,6 +125,7 @@ export async function getResultCounts(userId: string, requestId: string) {
   if (!supabase) return { successCount: 0, errorCount: 0, partialCount: 0, processed: 0, updateCount: 0 };
 
   // Helper to run count query
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const runCount = async (filter?: (q: any) => any) => {
     let q = supabase.from("import_results").select("id", { count: "exact", head: true });
     if (userId !== "__ALL__") q = q.eq("user_id", userId);

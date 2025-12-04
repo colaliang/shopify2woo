@@ -10,12 +10,6 @@ type LdProduct = {
   offers?: { price?: string | number } | { [k: string]: unknown }[];
 };
 
-type WixOptionValue = {
-  value?: string;
-  name?: string;
-  [k: string]: unknown;
-};
-
 type WixOffer = {
   price?: string | number;
   [k: string]: unknown;
@@ -67,11 +61,10 @@ export function extractWixOptions(html: string) {
   if (product) {
       const options = product?.options || product?.productOptions;
       if (Array.isArray(options)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const o of options) {
           const name = String(o?.name || o?.title || "").trim();
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const values = toArray(o?.choices || o?.options || o?.values).map((x: any) => String(x?.value || x?.name || x || "").trim()).filter(Boolean);
+          const values = toArray(o?.choices || o?.options || o?.values || o?.selections).map((x: any) => String(x?.value || x?.name || x || "").trim()).filter(Boolean);
           if (name && values.length) opts.push({ name, options: Array.from(new Set(values)) });
         }
       }
@@ -87,7 +80,6 @@ export function extractWixOptions(html: string) {
       const p = obj?.product || obj?.data?.product || obj?.pageData?.product;
       const options = p?.options || p?.productOptions || obj?.options;
       if (Array.isArray(options)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const o of options) {
           const name = String(o?.name || o?.title || "").trim();
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
