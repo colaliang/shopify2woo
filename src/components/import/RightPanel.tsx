@@ -96,7 +96,7 @@ export default function RightPanel({
           </div>
           
           <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-1.5">
-            <span className="whitespace-nowrap">Type：{type}</span>
+            <span className="whitespace-nowrap">Type: {type}</span>
             <span className="text-gray-300">|</span>
             <span className="whitespace-nowrap">Price: {salePrice}</span>
             <span className="text-gray-300">|</span>

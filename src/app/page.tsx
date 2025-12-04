@@ -9,13 +9,21 @@ import { useImportStore } from "@/stores/importStore";
 export default function Home() {
   const [tab, setTab] = useState<"listing" | "product">("product");
 
-  // Resume subscriptions on mount if running
+  // Resume subscriptions on mount if running, or fetch results if missing
   useEffect(() => {
-    const { currentRequestId, status, startLogsForRequest, startResultsForRequest, startRunnerAutoCall } = useImportStore.getState();
-    if (currentRequestId && (status === 'running' || status === 'parsing')) {
-      startLogsForRequest(currentRequestId);
-      startResultsForRequest(currentRequestId);
-      startRunnerAutoCall();
+    const st = useImportStore.getState();
+    const hasRequest = !!st.currentRequestId;
+    const isRunning = st.status === 'running' || st.status === 'parsing';
+    const emptyResults = st.results.length === 0;
+
+    if (hasRequest) {
+      if (isRunning) {
+        st.startLogsForRequest(st.currentRequestId!);
+        st.startResultsForRequest(st.currentRequestId!, false);
+        st.startRunnerAutoCall();
+      } else if (emptyResults) {
+        st.startResultsForRequest(st.currentRequestId!, false);
+      }
     }
   }, []);
 

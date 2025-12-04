@@ -27,14 +27,22 @@ export default function ListingTab() {
     setListingUrl,
   } = useImportStore();
 
-  // Initialize results on mount if there is an active request
+  // Initialize results on mount if there is an active request or if cache is empty
   useEffect(() => {
     const st = useImportStore.getState();
-    if (st.currentRequestId && (st.status === 'running' || st.status === 'parsing')) {
-      st.startResultsForRequest(st.currentRequestId, false); // false = don't clear existing
-      st.startLogsForRequest(st.currentRequestId);
-      st.refreshStatus();
-      st.startRunnerAutoCall();
+    const hasRequest = !!st.currentRequestId;
+    const isRunning = st.status === 'running' || st.status === 'parsing';
+    const emptyResults = st.results.length === 0;
+
+    if (hasRequest) {
+        if (isRunning) {
+            st.startResultsForRequest(st.currentRequestId!, false); // false = don't clear existing
+            st.startLogsForRequest(st.currentRequestId!);
+            st.refreshStatus();
+            st.startRunnerAutoCall();
+        } else if (emptyResults) {
+            st.startResultsForRequest(st.currentRequestId!, false);
+        }
     }
   }, [status]);
 
