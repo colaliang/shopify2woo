@@ -447,7 +447,8 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
     // Do not clear logs here, keep them for display
   },
 
-  startResultsForRequest: (requestId: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  startResultsForRequest: (_requestId: string) => {
     // We do NOT clear results by default anymore because we want to show history.
     // But if 'clear' is explicitly true, we might reset pagination?
     // Actually, startResultsForRequest is for REALTIME subscription now.
@@ -456,11 +457,21 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
 
     const st = get() as unknown as { __resultsChannel?: ReturnType<typeof supabase.channel> };
     if (st.__resultsChannel) {
+      // If we already have a channel, do we need to restart it?
+      // If the filter changed (e.g. different user?), yes.
+      // But for now, let's assume we just want to ensure we are subscribed to the USER's results.
+      // If we strictly follow "requestId" argument, we might limit ourselves.
+      // Given the user wants "User based results", we should filter by user_id.
+      // We will ignore requestId for the filter to allow ALL user updates.
+      // But we should checks if the channel is already established for this user?
+      // For simplicity, let's recreate it to be safe.
       try { supabase.removeChannel(st.__resultsChannel); } catch {}
     }
     const uid = useUserStore.getState().user?.id || '';
+    if (!uid) return; // Cannot subscribe without user id
+
     const ch = supabase.channel('import_results')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'import_results', ...(uid ? { filter: `user_id=eq.${uid}` } : {}), filter: `request_id=eq.${requestId}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'import_results', filter: `user_id=eq.${uid}` }, (payload) => {
         console.log('[Realtime] Received payload:', payload);
         const n = payload.new as { status: 'success' | 'error'; message?: string; name?: string; product_id?: string; item_key?: string; dest_url?: string; image_url?: string; price?: string; gallery_count?: number; created_at: string };
         

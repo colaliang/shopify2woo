@@ -4,7 +4,7 @@ import { pgmqQueueName, pgmqRead, pgmqDelete, pgmqSetVt, pgmqArchive, pgmqPurgeR
 import { appendLog } from "@/lib/logs";
 import { buildWpPayloadFromHtml, fetchHtmlMeta } from "@/lib/wordpressScrape";
 import { getImportCache, saveImportCache, isCacheValid, sha256 } from "@/lib/cache";
-import { wooPost, wooPut, ensureTerms, type WooConfig } from "@/lib/woo";
+import { wooPost, wooPut, wooGet, ensureTerms, type WooConfig } from "@/lib/woo";
 import { recordResult } from "@/lib/history";
 import { processShopifyJob, ShopifyJobMessage } from "@/lib/shopifyRunner";
 import { processWixJob, WixJobMessage } from "@/lib/wixRunner";
@@ -139,6 +139,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
     await pgmqSetVt(queue, msg.msg_id, 60);
     return { ok: false, reason: "missing_config" };
   }
+  let built: ReturnType<typeof buildWpPayloadFromHtml> | null = null;
   try {
     if (await isRequestCanceled(userId, requestId)) {
       await appendLog(userId, requestId, "info", `request canceled, dropping msg=${msg.msg_id}`);
@@ -170,7 +171,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         }
       }
     } catch {}
-    let built: ReturnType<typeof buildWpPayloadFromHtml> | null = null;
+    
     try {
        const c = await getImportCache(link);
        if (c && isCacheValid(c) && c.result_json) {
@@ -211,6 +212,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         }
       }
     } catch {}
+    
     try {
       const cats = Array.isArray((built as unknown as { catNames?: string[] }).catNames) ? (built as unknown as { catNames?: string[] }).catNames! : [];
       const tags = Array.isArray((built as unknown as { tagNames?: string[] }).tagNames) ? (built as unknown as { tagNames?: string[] }).tagNames! : [];
@@ -336,6 +338,62 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
       }
   } catch (e: unknown) {
     const msgText = e instanceof Error ? e.message : String(e || "unknown_error");
+
+    // RECOVERY CHECK: If error occurred (e.g. timeout), check if product was actually created
+    if (built && (built.sku || built.slug)) {
+        try {
+             const sku = built.sku;
+             const slug = built.slug;
+             // Only check if we have a valid identifier
+             if (sku || slug) {
+                 await appendLog(userId, requestId, "info", `Error occurred (${msgText}), checking if product exists: ${sku || slug}`);
+                 let foundId: number | undefined;
+                 let foundName: string | undefined;
+
+                 // 1. Check by SKU
+                 if (sku && !foundId) {
+                     const sRes = await wooGet(cfg, `index.php/wp-json/wc/v3/products?sku=${encodeURIComponent(sku)}`, { userId, requestId, productHandle: sku });
+                     if (sRes.ok) {
+                         const sJson = await sRes.json() as { id: number; name: string }[];
+                         if (Array.isArray(sJson) && sJson.length > 0) {
+                             foundId = sJson[0].id;
+                             foundName = sJson[0].name;
+                             await appendLog(userId, requestId, "info", `Found product by SKU: ${sku} -> ID: ${foundId}`);
+                         }
+                     }
+                 }
+
+                 // 2. Check by Slug if not found
+                 if (!foundId && slug) {
+                     const sRes = await wooGet(cfg, `index.php/wp-json/wc/v3/products?slug=${encodeURIComponent(slug)}`, { userId, requestId, productHandle: slug });
+                     if (sRes.ok) {
+                         const sJson = await sRes.json() as { id: number; name: string }[];
+                         if (Array.isArray(sJson) && sJson.length > 0) {
+                             foundId = sJson[0].id;
+                             foundName = sJson[0].name;
+                             await appendLog(userId, requestId, "info", `Found product by Slug: ${slug} -> ID: ${foundId}`);
+                         }
+                     }
+                 }
+
+                 if (foundId) {
+                     await appendLog(userId, requestId, "info", `Recovered from error: Product found (id=${foundId}), marking as success.`);
+                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                     const p = built.payload as any || {};
+                     const imgUrl = p.images?.[0]?.src;
+                     const price = p.sale_price || p.regular_price;
+                     const galCount = p.images?.length || 0;
+                     
+                     await recordResult(userId, "wordpress", requestId, link, foundName || built.payload?.name, foundId, "success", undefined, "recovered_check", undefined, imgUrl, price, galCount);
+                     await pgmqDelete(queue, msg.msg_id);
+                     return { ok: true };
+                 }
+             }
+        } catch (checkErr) {
+             await appendLog(userId, requestId, "info", `Failed to check existence during recovery: ${checkErr}`);
+        }
+    }
+
     await appendLog(userId, requestId, "error", `runner exception: ${msgText}`);
     
     // Retry logic

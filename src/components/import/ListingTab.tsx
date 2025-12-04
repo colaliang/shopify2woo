@@ -44,8 +44,10 @@ export default function ListingTab() {
     const hasRequest = !!currentRequestId;
     const isRunning = status === 'running' || status === 'parsing';
 
+    // Always subscribe to results for the user (supports realtime updates for list)
+    st.startResultsForRequest(currentRequestId || '');
+
     if (hasRequest && isRunning) {
-        st.startResultsForRequest(currentRequestId!, false); // false = don't clear existing
         st.startLogsForRequest(currentRequestId!);
         st.refreshStatus();
         st.startRunnerAutoCall();

@@ -58,9 +58,11 @@ export default function ProductTab() {
     const hasRequest = !!currentRequestId;
     const isRunning = status === 'running' || status === 'parsing';
 
+    // Always subscribe to results for the user (supports realtime updates for list)
+    st.startResultsForRequest(currentRequestId || '');
+
     if (hasRequest && isRunning) {
         // Resume running task realtime updates
-        st.startResultsForRequest(currentRequestId!, false);
         st.startLogsForRequest(currentRequestId!);
         st.refreshStatus();
         st.startRunnerAutoCall();
