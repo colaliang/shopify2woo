@@ -146,10 +146,9 @@ export default function RightPanel({
                 </a>
               </>
             )}
-            <span className="text-gray-300">|</span>
-            <span className="whitespace-nowrap text-gray-400" title={updateTime}>
-              {updateTime}
-            </span>
+          </div>
+          <div className="text-[10px] text-gray-400 mt-0.5" title="Update Time">
+            {updateTime}
           </div>
           {res.message && res.status === 'error' && (
             <div className="text-[10px] text-red-500 mt-1 truncate" title={res.message}>{res.message}</div>

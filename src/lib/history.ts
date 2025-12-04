@@ -86,7 +86,7 @@ export async function listResults(userId: string, page: number, limit: number, r
   const offset = (page - 1) * limit;
   let q = supabase
     .from("import_results")
-    .select("id, created_at, status, message, name, product_id, item_key, dest_url, image_url, price, gallery_count")
+    .select("id, request_id, created_at, status, message, name, product_id, item_key, dest_url, image_url, price, gallery_count")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -101,6 +101,7 @@ export async function listResults(userId: string, page: number, limit: number, r
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data || []).map((d: any) => ({
     id: d.id,
+    requestId: d.request_id,
     timestamp: d.created_at,
     status: d.status,
     message: d.message,
