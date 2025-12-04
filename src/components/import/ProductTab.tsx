@@ -39,28 +39,29 @@ export default function ProductTab() {
     status,
     productUrl,
     setProductUrl,
+    currentRequestId,
   } = useImportStore();
 
   // Initialize results on mount if there is an active request or if cache is empty
   useEffect(() => {
     const st = useImportStore.getState();
-    const hasRequest = !!st.currentRequestId;
-    const isRunning = st.status === 'running' || st.status === 'parsing';
-    const emptyResults = st.results.length === 0;
+    const hasRequest = !!currentRequestId;
+    const isRunning = status === 'running' || status === 'parsing';
+    const emptyResults = results.length === 0;
 
     if (hasRequest) {
         if (isRunning) {
             // Resume running task
-            st.startResultsForRequest(st.currentRequestId!, false);
-            st.startLogsForRequest(st.currentRequestId!);
+            st.startResultsForRequest(currentRequestId!, false);
+            st.startLogsForRequest(currentRequestId!);
             st.refreshStatus();
             st.startRunnerAutoCall();
         } else if (emptyResults) {
             // Load results if cache is empty (even if completed)
-            st.startResultsForRequest(st.currentRequestId!, false);
+            st.startResultsForRequest(currentRequestId!, false);
         }
     }
-  }, [status]); // Re-run if status changes (e.g. hydration restores 'running')
+  }, [status, currentRequestId]); // Re-run if status changes or request ID loads
 
   const handleExtract = async (u: string) => {
     if (!u) return;

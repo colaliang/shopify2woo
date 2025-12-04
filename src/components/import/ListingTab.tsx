@@ -25,26 +25,27 @@ export default function ListingTab() {
     clearError,
     listingUrl,
     setListingUrl,
+    currentRequestId,
   } = useImportStore();
 
   // Initialize results on mount if there is an active request or if cache is empty
   useEffect(() => {
     const st = useImportStore.getState();
-    const hasRequest = !!st.currentRequestId;
-    const isRunning = st.status === 'running' || st.status === 'parsing';
-    const emptyResults = st.results.length === 0;
+    const hasRequest = !!currentRequestId;
+    const isRunning = status === 'running' || status === 'parsing';
+    const emptyResults = results.length === 0;
 
     if (hasRequest) {
         if (isRunning) {
-            st.startResultsForRequest(st.currentRequestId!, false); // false = don't clear existing
-            st.startLogsForRequest(st.currentRequestId!);
+            st.startResultsForRequest(currentRequestId!, false); // false = don't clear existing
+            st.startLogsForRequest(currentRequestId!);
             st.refreshStatus();
             st.startRunnerAutoCall();
         } else if (emptyResults) {
-            st.startResultsForRequest(st.currentRequestId!, false);
+            st.startResultsForRequest(currentRequestId!, false);
         }
     }
-  }, [status]);
+  }, [status, currentRequestId]);
 
   const [defaultCategory, setDefaultCategory] = useState("");
   const [threads, setThreads] = useState(10);

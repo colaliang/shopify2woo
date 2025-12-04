@@ -8,24 +8,25 @@ import { useImportStore } from "@/stores/importStore";
 
 export default function Home() {
   const [tab, setTab] = useState<"listing" | "product">("product");
+  const { currentRequestId, status, results } = useImportStore();
 
   // Resume subscriptions on mount if running, or fetch results if missing
   useEffect(() => {
     const st = useImportStore.getState();
-    const hasRequest = !!st.currentRequestId;
-    const isRunning = st.status === 'running' || st.status === 'parsing';
-    const emptyResults = st.results.length === 0;
+    const hasRequest = !!currentRequestId;
+    const isRunning = status === 'running' || status === 'parsing';
+    const emptyResults = results.length === 0;
 
     if (hasRequest) {
       if (isRunning) {
-        st.startLogsForRequest(st.currentRequestId!);
-        st.startResultsForRequest(st.currentRequestId!, false);
+        st.startLogsForRequest(currentRequestId!);
+        st.startResultsForRequest(currentRequestId!, false);
         st.startRunnerAutoCall();
       } else if (emptyResults) {
-        st.startResultsForRequest(st.currentRequestId!, false);
+        st.startResultsForRequest(currentRequestId!, false);
       }
     }
-  }, []);
+  }, [currentRequestId, status]); // Re-run when request ID restores or status changes
 
   return (
     <div className="min-h-screen bg-gray-50">
