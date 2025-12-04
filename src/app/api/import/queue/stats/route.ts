@@ -28,9 +28,11 @@ export async function GET(req: Request) {
     queueEmptyForRequest = true;
     outer: for (const s of sources) {
       for (const qn of [pgmqQueueName(`${s}_high`), pgmqQueueName(s)]) {
-        for (let i = 0; i < 3; i++) {
-          const msgs = await pgmqRead(qn, 1, 100).catch(()=>[] as { msg_id: number; message: unknown }[]);
+        for (let i = 0; i < 5; i++) { // Scan up to 2500 messages (5 * 500)
+          const msgs = await pgmqRead(qn, 1, 500).catch(()=>[] as { msg_id: number; message: unknown }[]);
           if (!msgs.length) break;
+          
+          const toReset: number[] = [];
           for (const row of msgs) {
             const msg = row && row.message;
             let rid = "";
@@ -38,9 +40,21 @@ export async function GET(req: Request) {
               const v = (msg as Record<string, unknown>).requestId;
               rid = typeof v === 'string' ? v : '';
             }
-            await pgmqSetVt(qn, row.msg_id, 0).catch(()=>{});
-            if (rid === requestId) { queueEmptyForRequest = false; break outer; }
+            toReset.push(row.msg_id);
+            if (rid === requestId) { 
+                queueEmptyForRequest = false; 
+                // Don't break immediately, we need to reset VTs for the batch we read!
+                // Actually, if we break outer, we leave VTs as 1s (hidden for 1s). 
+                // That's acceptable. But better to reset.
+            }
           }
+          
+          // Reset VTs in parallel
+          if (toReset.length > 0) {
+             await Promise.all(toReset.map(id => pgmqSetVt(qn, id, 0).catch(()=>{})));
+          }
+          
+          if (queueEmptyForRequest === false) break outer;
         }
       }
     }

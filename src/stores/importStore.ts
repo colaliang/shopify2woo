@@ -4,7 +4,7 @@ import { importApi, ProductData, LogEntry, ParseListingRequest } from '@/service
 import supabase from '@/lib/supabase';
 import { useUserStore } from '@/stores/userStore';
 
-export type ImportState = 'idle' | 'parsing' | 'running' | 'stopped' | 'completed' | 'error';
+export type ImportState = 'idle' | 'parsing' | 'running' | 'stopped' | 'stopping' | 'completed' | 'error';
 
 interface ImportStore {
   // State
@@ -255,12 +255,27 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
 
   // Stop import
   stopImport: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, status: 'stopping' });
     try {
       const rid = get().currentRequestId;
       if (rid) {
         await importApi.cancel(rid);
       }
+      
+      // Poll for queue empty
+      if (rid) {
+        for (let i = 0; i < 30; i++) {
+          try {
+             const qs = await importApi.getQueueStats(rid);
+             // If queue is empty for request, we are done
+             if (qs && qs.queueEmptyForRequest) {
+               break;
+             }
+          } catch {}
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+
       set({ status: 'stopped', isLoading: false, currentRequestId: null });
       get().stopLogs();
       get().stopResults();
@@ -280,7 +295,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       }));
     } catch (error) {
       console.error('Failed to stop import:', error);
-      // Force stop UI even if API fails, assuming job is lost or unreachable
+      // Force stop UI even if API fails
       set({ status: 'stopped', isLoading: false, currentRequestId: null });
       get().stopLogs();
       get().stopResults();

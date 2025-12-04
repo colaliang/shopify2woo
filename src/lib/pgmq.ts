@@ -118,9 +118,15 @@ export async function pgmqPurgeRequest(requestId: string, sources: string[] = ["
   let removed = 0;
   for (const s of sources) {
     for (const qn of [pgmqQueueName(`${s}_high`), pgmqQueueName(s)]) {
-      for (let i = 0; i < 100; i++) {
-        const rows = await pgmqRead(qn, 10, 100).catch(() => [] as { msg_id: number; message: unknown }[]);
+      // Increase loop and batch size for more aggressive purging
+      for (let i = 0; i < 500; i++) {
+        // Read more messages (100 -> 500) to speed up purge
+        const rows = await pgmqRead(qn, 10, 500).catch(() => [] as { msg_id: number; message: unknown }[]);
         if (!rows.length) break;
+        
+        const toDelete: number[] = [];
+        const toRelease: number[] = [];
+
         for (const row of rows) {
           const msg = row && row.message;
           let rid = "";
@@ -129,13 +135,23 @@ export async function pgmqPurgeRequest(requestId: string, sources: string[] = ["
             rid = typeof v === "string" ? v : "";
           }
           if (rid === requestId) {
-            await pgmqDelete(qn, row.msg_id).catch(() => {});
-            removed++;
+            toDelete.push(row.msg_id);
           } else {
-            await pgmqSetVt(qn, row.msg_id, 0).catch(() => {});
+            toRelease.push(row.msg_id);
           }
         }
-        if (rows.length < 100) break;
+
+        // Process deletions in parallel promises to speed up
+        if (toDelete.length > 0) {
+            await Promise.all(toDelete.map(id => pgmqDelete(qn, id).catch(()=>{})));
+            removed += toDelete.length;
+        }
+        // Release others immediately
+        if (toRelease.length > 0) {
+            await Promise.all(toRelease.map(id => pgmqSetVt(qn, id, 0).catch(()=>{})));
+        }
+
+        if (rows.length < 500) break;
       }
     }
   }

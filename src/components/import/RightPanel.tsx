@@ -28,7 +28,7 @@ interface RightPanelProps {
   queue: number;
   imported?: number;
   errors: number;
-  status?: 'idle' | 'parsing' | 'running' | 'stopped' | 'completed' | 'error';
+  status?: 'idle' | 'parsing' | 'running' | 'stopped' | 'stopping' | 'completed' | 'error';
   waitSeconds: number;
   setWaitSeconds: (v: number) => void;
 }
@@ -50,6 +50,7 @@ export default function RightPanel({
     const out: Array<{ text: string; level: 'info' | 'success' | 'error' }> = [];
     if (status === 'running' || status === 'parsing') out.push({ text: '任务开始', level: 'info' });
     if (status === 'completed') out.push({ text: '任务结束', level: 'success' });
+    if (status === 'stopping') out.push({ text: '正在停止...', level: 'info' });
     if (status === 'stopped') out.push({ text: '任务已停止', level: 'info' });
     if (status === 'error') out.push({ text: '任务异常', level: 'error' });
 

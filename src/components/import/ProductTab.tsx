@@ -114,7 +114,7 @@ export default function ProductTab() {
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
             disabled={status !== 'running' && status !== 'parsing'}
           >
-            结束
+            {status === 'stopping' ? '正在停止...' : '结束'}
           </button>
         </div>
 
