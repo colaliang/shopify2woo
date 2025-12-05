@@ -91,7 +91,7 @@ export default function ListingTab() {
   
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)]">
+    <div className="flex flex-col md:flex-row h-full">
       {/* Left Panel */}
       <main className="flex-1 p-6 space-y-6 overflow-y-auto">
         <SiteInputCard

@@ -30,9 +30,11 @@ export default function Home() {
   }, [currentRequestId, status]); // Re-run when request ID restores or status changes
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       <HeaderBar activeTab={tab} onTabChange={setTab} />
-      {tab === "listing" ? <ListingTab /> : <ProductTab />}
+      <div className="flex-1 overflow-hidden">
+        {tab === "listing" ? <ListingTab /> : <ProductTab />}
+      </div>
     </div>
   );
 }

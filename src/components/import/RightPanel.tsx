@@ -161,8 +161,9 @@ export default function RightPanel({
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden md:flex w-full md:w-1/3 lg:w-1/4 h-[calc(100vh-64px)] flex-col border-l border-gray-200 bg-gray-50">
-        <div className="p-4 border-b border-gray-200">
+      <aside className="hidden md:flex w-full md:w-1/3 lg:w-1/4 h-full flex-col border-l border-gray-200 bg-gray-50">
+        {/* Logs Header */}
+        <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between shrink-0">
           <div className="text-sm text-gray-700">
             已获取: {fetched} | 成功: {imported} | 队列: {queue} | 错误: {errors}
           </div>

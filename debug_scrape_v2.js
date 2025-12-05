@@ -1,6 +1,5 @@
 const fs = require('fs');
 
-// Mocking the logic I want to test
 function extractOuterHtml(html, startRegex) {
   const m = html.match(startRegex);
   if (!m || m.index === undefined) return "";
@@ -36,55 +35,129 @@ function getInnerHtml(fullTag) {
   return fullTag;
 }
 
-function extractProductTitle(html) {
+function extractTabsContent(html) {
+  const result = {
+    description: "",
+    additional_information: "",
+    reviews: ""
+  };
+
+  // Extract Description Tab
+  // Try ID first
+  let descOut = extractOuterHtml(html, /<div[^>]*id="tab-description"[^>]*>/i);
+  if (!descOut) {
+    // Try class
+    descOut = extractOuterHtml(html, /<div[^>]*class="[^"]*woocommerce-Tabs-panel--description[^"]*"[^>]*>/i);
+  }
+  if (descOut) result.description = getInnerHtml(descOut);
+
+  // Extract Additional Information Tab
+  let infoOut = extractOuterHtml(html, /<div[^>]*id="tab-additional_information"[^>]*>/i);
+  if (!infoOut) {
+    infoOut = extractOuterHtml(html, /<div[^>]*class="[^"]*woocommerce-Tabs-panel--additional_information[^"]*"[^>]*>/i);
+  }
+  if (infoOut) result.additional_information = getInnerHtml(infoOut);
+
+  return result;
+}
+
+function extractDescriptionHtml(html) {
+  // Try tabs first
+  const tabs = extractTabsContent(html);
+  if (tabs.description) {
+      console.log("Found description in standard tabs");
+      return tabs.description;
+  }
+
+  // Fallback to generic content
   const candidates = [
-    /<h1[^>]*class="[^"]*product_title[^"]*"[^>]*>/i,
-    /<h1[^>]*class="[^"]*entry-title[^"]*"[^>]*>/i,
-    /<h1[^>]*class="[^"]*elementor-heading-title[^"]*"[^>]*>/i,
+    /<div[^>]*class="[^"]*elementor-widget-theme-post-content[^"]*"[^>]*>/i,
+    /<div[^>]*class="[^"]*elementor-widget-text-editor[^"]*"[^>]*>/i,
+    /<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>/i,
+    /<div[^>]*class="[^"]*woocommerce-Tabs-panel[^"]*description[^"]*"[^>]*>/i,
   ];
   for (const re of candidates) {
     const out = extractOuterHtml(html, re);
-    if (out) return getInnerHtml(out).trim();
+    if (out) {
+        console.log("Found description in generic candidates");
+        return out;
+    }
   }
+
+  // 1. Check for .tab-content if description is still empty
+  console.log("Attempting fallback to .tab-content...");
+  const tabContentOut = extractOuterHtml(html, /<div[^>]*class="[^"]*tab-content[^"]*"[^>]*>/i);
+  if (tabContentOut) {
+    console.log("Found .tab-content container");
+    let remaining = tabContentOut;
+    let merged = "";
+    let loopCount = 0;
+    while (loopCount < 20) {
+      const paneStart = remaining.match(/<div[^>]*class="[^"]*tab-pane[^"]*"[^>]*>/i);
+      if (!paneStart) break;
+      
+      const paneHtml = extractOuterHtml(remaining, /<div[^>]*class="[^"]*tab-pane[^"]*"[^>]*>/i);
+      if (!paneHtml) break;
+
+      // Exclude reviews tab
+      if (
+        !/id="reviews"/i.test(paneStart[0]) && 
+        !/id="tab-reviews"/i.test(paneStart[0]) && 
+        !/class="[^"]*reviews[^"]*"/i.test(paneStart[0]) &&
+        !/id="downloads"/i.test(paneStart[0]) &&
+        !/id="tab-downloads"/i.test(paneStart[0])
+      ) {
+        const inner = getInnerHtml(paneHtml);
+        
+        const isDownloadTab = /id="[^"]*download[^"]*"/i.test(paneStart[0]) || /class="[^"]*download[^"]*"/i.test(paneStart[0]);
+        const startsWithDownloads = /<h[1-6][^>]*>\s*Downloads\s*<\/h[1-6]>/i.test(inner);
+
+        // 2023-12-06: Improved exclusion for tabs that are labeled "Downloads" in the navigation but have generic IDs (like menu2).
+        // We try to find the corresponding tab link by ID.
+        let isLinkedAsDownloads = false;
+        const idMatch = paneStart[0].match(/id="([^"]+)"/i);
+        if (idMatch && idMatch[1]) {
+            const id = idMatch[1];
+            // Look for a link pointing to this ID: href="#id"
+            const linkRegex = new RegExp(`<a[^>]*href="#${id}"[^>]*>([\\s\\S]*?)<\\/a>`, 'i');
+            const linkMatch = html.match(linkRegex);
+            if (linkMatch && linkMatch[1]) {
+                if (/Downloads/i.test(linkMatch[1])) {
+                    isLinkedAsDownloads = true;
+                }
+            }
+        }
+
+        if (!isDownloadTab && !startsWithDownloads && !isLinkedAsDownloads) {
+            if (inner.trim()) {
+                console.log(`Merging pane: ${paneStart[0].slice(0, 50)}...`);
+                merged += inner + "<br/><br/>";
+            }
+        } else {
+             console.log(`Skipping downloads pane: ${paneStart[0].slice(0, 50)}...`);
+        }
+      } else {
+        console.log(`Skipping reviews/downloads pane: ${paneStart[0].slice(0, 50)}...`);
+      }
+      
+      const idx = remaining.indexOf(paneHtml);
+      if (idx === -1) break;
+      remaining = remaining.slice(idx + paneHtml.length);
+      loopCount++;
+    }
+    if (merged.trim()) return merged;
+  }
+
   return "";
 }
 
-function extractJsonLdProduct(html) {
-  const re = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
-  let m;
-  while ((m = re.exec(html))) {
-    const raw = m[1].trim();
-    try {
-      const obj = JSON.parse(raw);
-      if (obj["@graph"] && Array.isArray(obj["@graph"])) {
-        const graph = obj["@graph"];
-        const p = graph.find((x) => x && x["@type"] === "Product");
-        if (p) return p;
-        const webPage = graph.find((x) => x && (x["@type"] === "WebPage" || x["@type"] === "ItemPage"));
-        if (webPage && webPage.name) return webPage;
-      }
-      const p = Array.isArray(obj) ? obj.find((x) => x && (x["@type"] === "Product" || x.name)) : obj;
-      if (p && (p["@type"] === "Product" || p.name)) return p;
-    } catch {}
-  }
-  return null;
+// Read the temp file
+try {
+    const html = fs.readFileSync('temp_product.html', 'utf8');
+    const desc = extractDescriptionHtml(html);
+    console.log("\n--- FINAL DESCRIPTION START ---");
+    console.log(desc);
+    console.log("--- FINAL DESCRIPTION END ---");
+} catch (e) {
+    console.error("Error:", e);
 }
-
-// I need to recreate the html file since I deleted it.
-// I will use a small snippet based on what I know.
-const htmlContent = `
-<html>
-<body>
-<h1 class="product_title entry-title elementor-heading-title elementor-size-default">24V DC Ultra-Efficient 2835 LED Strip &#8211; High Density 240LEDs/M 10mm Professional Lighting (22W/M)</h1>
-<script type="application/ld+json" class="yoast-schema-graph">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","@id":"https://brt-led.com/product/high-efficiency-240leds-m-2835-smd-24v-10mm-led-strip-light/","url":"https://brt-led.com/product/high-efficiency-240leds-m-2835-smd-24v-10mm-led-strip-light/","name":"24V DC Ultra-Efficient 2835 LED Strip - High Density 240LEDs/M 10mm Professional Lighting (22W/M) | BRT LED"}]}</script>
-</body>
-</html>
-`;
-
-console.log("--- Title ---");
-console.log(extractProductTitle(htmlContent));
-
-console.log("--- JSON LD ---");
-const ld = extractJsonLdProduct(htmlContent);
-console.log(ld ? ld.name : "Null");
-

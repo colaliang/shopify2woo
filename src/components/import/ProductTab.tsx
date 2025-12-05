@@ -109,7 +109,8 @@ export default function ProductTab() {
   }, [error, clearError]);
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)]">
+    <div className="flex flex-col md:flex-row h-full">
+      {/* Left Panel */}
       <main className="flex-1 p-6 space-y-6 overflow-y-auto">
         <ChoosePlatform
           selected={platform}
@@ -124,14 +125,40 @@ export default function ProductTab() {
           disabled={status === 'running' || status === 'parsing'}
         />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => handleExtract(productUrl)}
+            disabled={isLoading || status === 'running' || status === 'parsing' || !productUrl}
+            className="w-32 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading || status === 'running' || status === 'parsing' ? "导入中..." : "导入"}
+          </button>
           <button
             onClick={() => useImportStore.getState().stopImport()}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            className="w-32 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
             disabled={status !== 'running' && status !== 'parsing'}
           >
             {status === 'stopping' ? '正在停止...' : '结束'}
           </button>
+        </div>
+
+        {/* Product Intro & Instructions */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900 space-y-3">
+          <div>
+            <h3 className="font-semibold mb-1">产品介绍：</h3>
+            <p className="text-blue-800 leading-relaxed">
+              本工具是方便从不同网站抓取产品信息，不需要原网站的API，导入到自己的Wordpress/Woo系统，支持Wordpress,Shopify,Wix
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold mb-1">使用说明：</h3>
+            <ul className="list-decimal list-inside space-y-1 text-blue-800">
+              <li>需要先登录，支持Google，微信</li>
+              <li>导入需要取得Wordpress的API，在设置里登记</li>
+              <li>支持单个或者多个产品导入</li>
+              <li>新注册用户赠送 30 个导入点数</li>
+            </ul>
+          </div>
         </div>
 
         { /*

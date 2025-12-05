@@ -598,6 +598,68 @@ export function extractDescriptionHtml(html: string) {
     const out = extractOuterHtml(html, re);
     if (out) return out;
   }
+
+  // 1. Check for .tab-content if description is still empty
+  const tabContentOut = extractOuterHtml(html, /<div[^>]*class="[^"]*tab-content[^"]*"[^>]*>/i);
+  if (tabContentOut) {
+    let remaining = tabContentOut;
+    let merged = "";
+    let loopCount = 0;
+    while (loopCount < 20) {
+      const paneStart = remaining.match(/<div[^>]*class="[^"]*tab-pane[^"]*"[^>]*>/i);
+      if (!paneStart) break;
+      
+      const paneHtml = extractOuterHtml(remaining, /<div[^>]*class="[^"]*tab-pane[^"]*"[^>]*>/i);
+      if (!paneHtml) break;
+
+      // Exclude reviews tab
+      if (
+        !/id="reviews"/i.test(paneStart[0]) && 
+        !/id="tab-reviews"/i.test(paneStart[0]) && 
+        !/class="[^"]*reviews[^"]*"/i.test(paneStart[0]) &&
+        // Exclude downloads tab (often labeled as downloads or containing download links exclusively)
+        // Check ID or if content seems to be just download buttons
+        !/id="downloads"/i.test(paneStart[0]) &&
+        !/id="tab-downloads"/i.test(paneStart[0])
+      ) {
+        const inner = getInnerHtml(paneHtml);
+        
+        // Let's just exclude id/class containing "download".
+        const isDownloadTab = /id="[^"]*download[^"]*"/i.test(paneStart[0]) || /class="[^"]*download[^"]*"/i.test(paneStart[0]);
+        // Also check if the content *starts* with a header saying "Downloads"
+        const startsWithDownloads = /<h[1-6][^>]*>\s*Downloads\s*<\/h[1-6]>/i.test(inner);
+        
+        // 2023-12-06: Improved exclusion for tabs that are labeled "Downloads" in the navigation but have generic IDs (like menu2).
+        // We try to find the corresponding tab link by ID.
+        let isLinkedAsDownloads = false;
+        const idMatch = paneStart[0].match(/id="([^"]+)"/i);
+        if (idMatch && idMatch[1]) {
+            const id = idMatch[1];
+            // Look for a link pointing to this ID: href="#id"
+            const linkRegex = new RegExp(`<a[^>]*href="#${id}"[^>]*>([\\s\\S]*?)<\\/a>`, 'i');
+            const linkMatch = html.match(linkRegex);
+            if (linkMatch && linkMatch[1]) {
+                if (/Downloads/i.test(linkMatch[1])) {
+                    isLinkedAsDownloads = true;
+                }
+            }
+        }
+
+        if (!isDownloadTab && !startsWithDownloads && !isLinkedAsDownloads) {
+             if (inner.trim()) {
+                merged += inner + "<br/><br/>";
+             }
+        }
+      }
+      
+      const idx = remaining.indexOf(paneHtml);
+      if (idx === -1) break;
+      remaining = remaining.slice(idx + paneHtml.length);
+      loopCount++;
+    }
+    if (merged.trim()) return merged;
+  }
+
   return "";
 }
 

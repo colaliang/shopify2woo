@@ -653,6 +653,31 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       })
       .subscribe();
     (st as { __resultsChannel?: ReturnType<typeof supabase.channel> }).__resultsChannel = ch;
+
+    // Add polling backup for stats sync (every 3s)
+    if ((st as { __statsInterval?: number }).__statsInterval) {
+        clearInterval((st as { __statsInterval?: number }).__statsInterval);
+    }
+    const statsId = window.setInterval(async () => {
+        await get().refreshStatus();
+        const s = get();
+        const processedNow = s.stats.imported + s.stats.errors;
+        if (s.status === 'running' && s.stats.queue > 0 && processedNow >= s.stats.queue) {
+             console.log('[Polling] Task Completed via Polling!');
+             set({ status: 'completed', currentRequestId: null, isLoading: false });
+             s.stopRunnerAutoCall();
+             try { s.stopLogs(); } catch {}
+             try { s.stopResults(); } catch {}
+             const doneLog: LogEntry = {
+                id: Date.now().toString(),
+                timestamp: new Date().toISOString(),
+                level: 'success',
+                message: `任务完成 (Polling). 成功: ${s.stats.imported}, 失败: ${s.stats.errors}`,
+             };
+             set((state) => ({ logs: [doneLog, ...state.logs].slice(0, 100) }));
+        }
+    }, 3000);
+    (st as { __statsInterval?: number }).__statsInterval = statsId as unknown as number;
   },
 
   fetchUserResults: async (page = 1) => {
@@ -703,16 +728,24 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
         // Auto-stop logic if runner is idle for too long
         if (res.ok) {
            const json = await res.json().catch(() => ({}));
+           
+           // Adaptive polling: if we processed items, try to run again sooner to speed up batch processing
+           if (json && typeof json.processed === 'number' && json.processed > 0) {
+             st.__idleCount = 0;
+             // Schedule an immediate follow-up call if not already running
+             setTimeout(() => {
+                 const isRunning = (get() as unknown as { __runnerRunning?: boolean }).__runnerRunning;
+                 if (!isRunning) void call();
+             }, 500);
+           }
+
            // If processed is explicitly 0, we count it as an idle cycle
            if (json && typeof json.processed === 'number' && json.processed === 0) {
              const idle = (st.__idleCount || 0) + 1;
              st.__idleCount = idle;
-             // If we have been idle for 6 cycles (60 seconds) and we are still 'running',
+             // If we have been idle for 12 cycles (60 seconds at 5s interval) and we are still 'running',
              // and we haven't received updates, maybe we should stop?
-             // However, for large files, processing might take time without returning 'processed'.
-             // But usually 'processed' means "completed items".
-             // Let's be conservative: 6 cycles = 1 minute of doing nothing.
-             if (idle >= 6 && get().status === 'running') {
+             if (idle >= 12 && get().status === 'running') {
                 // Try to refresh status from server to double check
                 await get().refreshStatus();
                 const s = get();
@@ -740,7 +773,7 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       } catch {}
       (st as { __runnerRunning?: boolean }).__runnerRunning = false;
     };
-    const id = window.setInterval(call, 10000);
+    const id = window.setInterval(call, 5000);
     (st as { __runnerInterval?: number }).__runnerInterval = id as unknown as number;
     void call();
   },

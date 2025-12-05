@@ -595,8 +595,9 @@ export async function GET(req: Request) {
       const msRpc = parseInt(process.env.SUPABASE_TIMEOUT_MS || "5000", 10) || 5000;
       const msProc = parseInt(process.env.RUNNER_PROCESS_TIMEOUT_MS || "60000", 10) || 60000;
       // Increase visibility timeout to 60s to allow for parallel processing overhead
-      // Explicitly type messages array to avoid 'never' type inference when array is empty
-      const messages = await withTimeout(pgmqRead(q, 60, 10), msRpc).catch(() => [] as PgmqMessage[]);
+      // Reduce batch size from 10 to 2 to avoid Vercel function timeout (10s/60s).
+      // Processing 10 items sequentially takes too long.
+      const messages = await withTimeout(pgmqRead(q, 60, 2), msRpc).catch(() => [] as PgmqMessage[]);
       
       // Group messages by user to ensure sequential processing per user
       const userGroups = new Map<string, PgmqMessage[]>();

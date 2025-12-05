@@ -32,13 +32,6 @@ export default function URLInputCard({
             className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
           />
         </div>
-        <button
-          onClick={() => onExtract(value)}
-          disabled={loading || !value || disabled}
-          className="h-9 px-3 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-        >
-          {loading || disabled ? "导入中..." : "导入"}
-        </button>
       </div>
     </div>
   );
