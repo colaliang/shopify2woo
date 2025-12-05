@@ -6,6 +6,9 @@ ALTER TABLE public.import_results
 ADD COLUMN IF NOT EXISTS message text,
 ADD COLUMN IF NOT EXISTS action text,
 ADD COLUMN IF NOT EXISTS dest_url text,
+ADD COLUMN IF NOT EXISTS image_url text,
+ADD COLUMN IF NOT EXISTS price text,
+ADD COLUMN IF NOT EXISTS gallery_count int DEFAULT 0,
 ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
 
 -- 2. Add unique constraint for UPSERT support
