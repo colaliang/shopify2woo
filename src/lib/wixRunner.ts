@@ -5,6 +5,7 @@ import { fetchHtmlMeta } from "@/lib/wordpressScrape";
 import { buildWixPayload, buildWixVariationsFromHtml } from "@/lib/wixScrape";
 import { getImportCache, saveImportCache, isCacheValid, sha256 } from "@/lib/cache";
 import { getSupabaseServer } from "@/lib/supabaseServer";
+import { uploadImageToSupabase, deleteRequestImages } from "@/lib/imageUploader";
 
 export interface WixJobMessage {
   userId?: string;
@@ -182,6 +183,43 @@ export async function processWixJob(
     const catNames = Array.from(new Set([...(msg.categories || []), ...extractedCats]));
     const tagNames = Array.from(new Set([...(msg.tags || []), ...extractedTags]));
 
+    // Supabase Image Upload Strategy
+    // Store original image URL for history record (using weserv wrapper for consistent display if needed)
+    const originalImgUrl = payload.images?.[0]?.src;
+
+    if (payload.images && payload.images.length > 0) {
+        await appendLog(userId, requestId, "info", `uploading ${payload.images.length} images to Supabase Storage...`);
+        const newImages = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const img of (payload.images as any[])) {
+            const src = img.src;
+            if (src) {
+                const uploadedUrl = await uploadImageToSupabase(src, userId, requestId);
+                if (uploadedUrl) {
+                    newImages.push({ ...img, src: uploadedUrl });
+                } else {
+                    await appendLog(userId, requestId, "error", `image upload failed for ${src}, using original`);
+                    newImages.push(img);
+                }
+            }
+        }
+        payload.images = newImages;
+    }
+
+    // Also handle variation images
+    if (variationsData && variationsData.variations?.length) {
+         await appendLog(userId, requestId, "info", `uploading variation images...`);
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         for (const v of (variationsData.variations as any[])) {
+             if (v.image && v.image.src) {
+                 const uploadedUrl = await uploadImageToSupabase(v.image.src, userId, requestId);
+                 if (uploadedUrl) {
+                     v.image.src = uploadedUrl;
+                 }
+             }
+         }
+    }
+
     try {
       if (catNames.length) {
         const terms = await ensureTerms(cfg, "category", catNames, logCtx);
@@ -284,18 +322,29 @@ export async function processWixJob(
     }
 
     // 6. Success
-    const imgUrl = payload.images?.[0]?.src;
+    // Use weserv + original URL for display/history as requested
+    const displayImgUrl = originalImgUrl 
+        ? `https://images.weserv.nl/?url=${encodeURIComponent(originalImgUrl)}`
+        : payload.images?.[0]?.src;
+    
     const price = payload.sale_price || payload.regular_price;
     const galCount = payload.images?.length || 0;
 
-    await recordResult(userId, "wix", requestId, link, name, productId, "success", undefined, existingId ? "update" : "create", `${cfg.url.replace(/\/$/, '')}/?p=${productId}`, imgUrl, price, galCount);
+    await recordResult(userId, "wix", requestId, link, name, productId, "success", undefined, existingId ? "update" : "create", `${cfg.url.replace(/\/$/, '')}/?p=${productId}`, displayImgUrl, price, galCount);
     await appendLog(userId, requestId, "info", `wix product processed id=${productId}`);
     
+    // Cleanup images from storage to save space
+    await deleteRequestImages(userId, requestId);
+
     return { ok: true };
 
   } catch (e) {
     const msgText = e instanceof Error ? e.message : String(e);
     await appendLog(userId, requestId, "error", `wix runner exception: ${msgText}`);
+    
+    // Ensure cleanup even on error
+    await deleteRequestImages(userId, requestId);
+    
     return { ok: false, reason: "exception" };
   }
 }

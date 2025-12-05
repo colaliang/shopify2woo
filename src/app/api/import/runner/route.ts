@@ -8,6 +8,7 @@ import { wooPost, wooPut, wooGet, ensureTerms, type WooConfig } from "@/lib/woo"
 import { recordResult } from "@/lib/history";
 import { processShopifyJob, ShopifyJobMessage } from "@/lib/shopifyRunner";
 import { processWixJob, WixJobMessage } from "@/lib/wixRunner";
+import { uploadImageToSupabase, deleteRequestImages } from "@/lib/imageUploader";
 
 export const runtime = "nodejs";
 
@@ -140,6 +141,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
     return { ok: false, reason: "missing_config" };
   }
   let built: ReturnType<typeof buildWpPayloadFromHtml> | null = null;
+  let originalImgUrl: string | undefined;
   try {
     if (await isRequestCanceled(userId, requestId)) {
       await appendLog(userId, requestId, "info", `request canceled, dropping msg=${msg.msg_id}`);
@@ -214,6 +216,33 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
     } catch {}
     
     try {
+      // Supabase Image Upload Strategy
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const images = (built.payload as any).images;
+      // Capture original image URL for history record (using weserv wrapper for consistent display if needed)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      originalImgUrl = (built.payload as any).images?.[0]?.src;
+
+      if (Array.isArray(images) && images.length > 0) {
+        await appendLog(userId, requestId, "info", `uploading ${images.length} images to Supabase Storage...`);
+        const newImages = [];
+        for (const img of images) {
+          const src = img.src;
+          if (src) {
+            // Use imported uploader with requestId for scoped cleanup
+            const uploadedUrl = await uploadImageToSupabase(src, userId, requestId);
+            if (uploadedUrl) {
+              newImages.push({ ...img, src: uploadedUrl });
+            } else {
+              await appendLog(userId, requestId, "error", `image upload failed for ${src}, using original`);
+              newImages.push(img);
+            }
+          }
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (built.payload as any).images = newImages;
+      }
+
       const cats = Array.isArray((built as unknown as { catNames?: string[] }).catNames) ? (built as unknown as { catNames?: string[] }).catNames! : [];
       const tags = Array.isArray((built as unknown as { tagNames?: string[] }).tagNames) ? (built as unknown as { tagNames?: string[] }).tagNames! : [];
       const ctx = { userId, requestId, productHandle: built.slug || built.sku };
@@ -276,12 +305,17 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const p = built.payload as any;
-      const imgUrl = p.images?.[0]?.src;
+      const displayImgUrl = originalImgUrl 
+          ? `https://images.weserv.nl/?url=${encodeURIComponent(originalImgUrl)}`
+          : p.images?.[0]?.src;
       const price = p.sale_price || p.regular_price;
       const galCount = p.images?.length || 0;
 
       if (ok) {
-        await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update", permalink, imgUrl, price, galCount); // Mark as update/add success. Use link as itemKey.
+        // Cleanup images from storage to save space
+        await deleteRequestImages(userId, requestId);
+
+        await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update", permalink, displayImgUrl, price, galCount); // Mark as update/add success. Use link as itemKey.
         await appendLog(userId, requestId, "info", `product processed id=${productId || "?"} name=${name || ""}`);
         try {
           await pgmqDelete(queue, msg.msg_id);
@@ -294,8 +328,10 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         // Check for specific WooCommerce errors that should be treated as success (e.g. duplicates)
         if (responseData?.code === "product_invalid_sku") {
              await appendLog(userId, requestId, "info", `Product SKU already exists, marking as success/skipped: ${built.sku || "unknown"}`);
+             // Cleanup images from storage to save space
+             await deleteRequestImages(userId, requestId);
              // Mark as success so it counts towards progress and stops retrying. Use link as itemKey.
-             await recordResult(userId, "wordpress", requestId, link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate", permalink, imgUrl, price, galCount);
+             await recordResult(userId, "wordpress", requestId, link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate", permalink, displayImgUrl, price, galCount);
              await pgmqDelete(queue, msg.msg_id);
              return { ok: true };
         }
@@ -331,6 +367,9 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
           }
           await appendLog(userId, requestId, "info", "任务已停止（异常结束）");
           
+          // Cleanup images from storage to save space
+          await deleteRequestImages(userId, requestId);
+
           await appendLog(userId, requestId, "info", `[WARN] Item failed: ${built.slug || link}`);
           return { ok: false, reason: errorReason };
         } else {
@@ -386,11 +425,16 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
                      await appendLog(userId, requestId, "info", `Recovered from error: Product found (id=${foundId}), marking as success.`);
                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                      const p = built.payload as any || {};
-                     const imgUrl = p.images?.[0]?.src;
+                     const displayImgUrl = originalImgUrl 
+                        ? `https://images.weserv.nl/?url=${encodeURIComponent(originalImgUrl)}`
+                        : p.images?.[0]?.src;
                      const price = p.sale_price || p.regular_price;
                      const galCount = p.images?.length || 0;
                      
-                     await recordResult(userId, "wordpress", requestId, link, foundName || built.payload?.name, foundId, "success", undefined, "recovered_check", foundPermalink, imgUrl, price, galCount);
+                     // Cleanup images from storage to save space
+                     await deleteRequestImages(userId, requestId);
+
+                     await recordResult(userId, "wordpress", requestId, link, foundName || built.payload?.name, foundId, "success", undefined, "recovered_check", foundPermalink, displayImgUrl, price, galCount);
                      await pgmqDelete(queue, msg.msg_id);
                      return { ok: true };
                  }
@@ -402,6 +446,9 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
 
     await appendLog(userId, requestId, "error", `runner exception: ${msgText}`);
     
+    // Cleanup images on exception to save space (re-upload on retry if needed)
+    await deleteRequestImages(userId, requestId);
+
     // Retry logic
     const readCt = msg.read_ct || 1;
     const maxRetries = parseInt(process.env.IMAGE_UPLOAD_RETRY || "3", 10);

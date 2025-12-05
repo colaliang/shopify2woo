@@ -53,19 +53,19 @@ function htmlUnescape(s: string) {
 }
 
 const defaultHeaders = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
   "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
   "Accept-Language": "en-US,en;q=0.9",
-  "Cache-Control": "no-cache",
-  "Pragma": "no-cache",
-  "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+  "Cache-Control": "max-age=0",
+  "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
   "Sec-Ch-Ua-Mobile": "?0",
   "Sec-Ch-Ua-Platform": '"Windows"',
   "Sec-Fetch-Dest": "document",
   "Sec-Fetch-Mode": "navigate",
   "Sec-Fetch-Site": "none",
   "Sec-Fetch-User": "?1",
-  "Upgrade-Insecure-Requests": "1"
+  "Upgrade-Insecure-Requests": "1",
+  "Connection": "keep-alive"
 };
 
 export async function fetchHtml(url: string) {
@@ -79,7 +79,7 @@ export async function fetchHtml(url: string) {
       try { headers["Referer"] = new URL(url).origin; } catch {}
       type UndiciRequestInit = RequestInit & { dispatcher?: unknown };
       const dispatcher = getDispatcherFromEnv();
-      const res = await fetch(url, { headers, signal: controller.signal, redirect: "follow", ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}) });
+      const res = await fetch(url, { headers, signal: controller.signal, redirect: "follow", cache: "no-store", ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}) });
       clearTimeout(timer);
       if (res.status === 404) throw new Error(`无法获取页面 404`);
       if (!res.ok) throw new Error(`无法获取页面 ${res.status}`);
@@ -103,7 +103,7 @@ export async function fetchHtmlMeta(url: string) {
       try { headers["Referer"] = new URL(url).origin; } catch {}
       type UndiciRequestInit = RequestInit & { dispatcher?: unknown };
       const dispatcher = getDispatcherFromEnv();
-      const res = await fetch(url, { headers, redirect: "follow", signal: controller.signal, ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}) });
+      const res = await fetch(url, { headers, redirect: "follow", signal: controller.signal, cache: "no-store", ...(dispatcher ? ({ dispatcher } as UndiciRequestInit) : {}) });
       clearTimeout(timer);
       const text = await res.text();
       const ct = res.headers.get("content-type") || "";
@@ -132,6 +132,23 @@ export function extractJsonLdProduct(html: string): LdProduct | null {
     const raw = m[1].trim();
     try {
       const obj = JSON.parse(raw);
+      // Handle Yoast/RankMath @graph format
+      if (obj["@graph"] && Array.isArray(obj["@graph"])) {
+        const graph = obj["@graph"];
+        // Try to find explicit Product
+        const p = graph.find((x: any) => x && x["@type"] === "Product");
+        if (p) return p as LdProduct;
+        
+        // Fallback: Find WebPage or WebSite that might have product info
+        const webPage = graph.find((x: any) => x && (x["@type"] === "WebPage" || x["@type"] === "ItemPage"));
+        if (webPage && webPage.name) {
+           // If we found a WebPage with a name, return it as a partial product
+           // We might be able to find image in graph that is linked?
+           // For now just return the WebPage as it has name/desc
+           return webPage as LdProduct;
+        }
+      }
+      
       const p = Array.isArray(obj) ? obj.find((x) => x && (x["@type"] === "Product" || x.name)) : obj;
       if (p && (p["@type"] === "Product" || p.name)) return p as LdProduct;
     } catch {}
@@ -551,6 +568,20 @@ export function extractTabsContent(html: string) {
   return result;
 }
 
+export function extractProductTitle(html: string) {
+  const candidates = [
+    /<h1[^>]*class="[^"]*product_title[^"]*"[^>]*>/i,
+    /<h1[^>]*class="[^"]*entry-title[^"]*"[^>]*>/i,
+    /<h1[^>]*class="[^"]*elementor-heading-title[^"]*"[^>]*>/i,
+    /<h1[^>]*>[^<]*<\/h1>/i
+  ];
+  for (const re of candidates) {
+    const out = extractOuterHtml(html, re);
+    if (out) return htmlUnescape(getInnerHtml(out)).trim();
+  }
+  return "";
+}
+
 export function extractDescriptionHtml(html: string) {
   // Try tabs first
   const tabs = extractTabsContent(html);
@@ -558,6 +589,8 @@ export function extractDescriptionHtml(html: string) {
 
   // Fallback to generic content
   const candidates = [
+    /<div[^>]*class="[^"]*elementor-widget-theme-post-content[^"]*"[^>]*>/i,
+    /<div[^>]*class="[^"]*elementor-widget-text-editor[^"]*"[^>]*>/i,
     /<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>/i,
     /<div[^>]*class="[^"]*woocommerce-Tabs-panel[^"]*description[^"]*"[^>]*>/i,
   ];
@@ -577,9 +610,15 @@ export function extractGalleryImages(html: string) {
     const href = block.match(/href="([^"]+)"/i)?.[1];
     const img = block.match(/src="([^"]+)"/i)?.[1];
     const srcset = block.match(/srcset="([^"]+)"/i)?.[1];
+    const thumbSrcset = block.match(/data-thumb-srcset="([^"]+)"/i)?.[1];
     const dataSrc = block.match(/data-src="([^"]+)"/i)?.[1];
     const large = block.match(/data-large_image="([^"]+)"/i)?.[1];
-    const bestFromSrcset = srcset ? pickLargestFromSrcset(srcset) : undefined;
+    
+    let bestFromSrcset = srcset ? pickLargestFromSrcset(srcset) : undefined;
+    if (!bestFromSrcset && thumbSrcset) {
+        bestFromSrcset = pickLargestFromSrcset(thumbSrcset);
+    }
+    
     const src = href || bestFromSrcset || dataSrc || large || img;
     if (src) out.push(src);
   }
@@ -639,7 +678,7 @@ export function selectImages(ld: unknown, gallery: string[]) {
   const fromLd = Array.from(new Set(arrLd.map((x) => stripSize(String(x))))).filter(Boolean).filter(likelyProductImage);
   const fromGallery = Array.from(new Set(gallery.map((x) => stripSize(String(x))))).filter(Boolean).filter(likelyProductImage);
   const base = fromLd.length ? fromLd : fromGallery;
-  const preferred = base.filter((u) => /\.(jpe?g|webp)$/i.test(u));
+  const preferred = base.filter((u) => /\.(jpe?g|webp|png|avif|gif|bmp|tiff)$/i.test(u));
   const primary = preferred.length ? preferred : base;
   const uniq = Array.from(new Set(primary));
   if (!uniq.length) {
@@ -647,6 +686,20 @@ export function selectImages(ld: unknown, gallery: string[]) {
     return fallback;
   }
   return uniq;
+}
+
+function ensureCompatibleImageUrl(url: string) {
+  // Proxy AVIF/BMP/TIFF images through images.weserv.nl to convert to JPG
+  // because many WooCommerce sites do not support these formats natively.
+  // We use images.weserv.nl (full domain) and ensure a .jpg path to satisfy file type checks.
+  if (/\.(avif|bmp|tiff)$/i.test(url)) {
+      const filename = url.split('/').pop()?.split('?')[0] || 'image.avif';
+      const newFilename = filename.replace(/\.[^.]+$/, '.jpg');
+      // We use images.weserv.nl and append the filename to the path (e.g. /image.jpg) 
+      // to help WooCommerce detect the correct file extension.
+      return `https://images.weserv.nl/${newFilename}?url=${encodeURIComponent(url)}&output=jpg`;
+   }
+  return url;
 }
 
 export function buildWpPayloadFromHtml(html: string, srcUrl: string, finalUrl?: string) {
@@ -684,6 +737,11 @@ export function buildWpPayloadFromHtml(html: string, srcUrl: string, finalUrl?: 
   const tags = extractTags(html) || [];
   const slug = normalizeWpSlugOrLink(srcUrl);
   const sku = normalizeSku(extractSku(html) || ld?.sku || slug) || slug;
+  
+  const titleHtml = extractProductTitle(html);
+  // Prefer HTML title over LD title because LD title might be "Product Name - Site Name" (WebPage schema)
+  const name = titleHtml || ld?.name || slug;
+
   let images = extractGalleryImages(html);
   if (!images.length) {
     const ogs = extractOgImages(html);
@@ -735,7 +793,7 @@ export function buildWpPayloadFromHtml(html: string, srcUrl: string, finalUrl?: 
   const prices = extractProductPrices(html);
 
   const payload = {
-    name: ld?.name || slug,
+    name: name,
     slug,
     sku,
     description: finalDesc,
@@ -745,7 +803,7 @@ export function buildWpPayloadFromHtml(html: string, srcUrl: string, finalUrl?: 
     type: (v.isRealVariable && v.variations && v.variations.length > 0) ? "variable" : "simple",
     attributes: mergedAttributes.length ? mergedAttributes : undefined,
     default_attributes: v.default_attributes?.length ? v.default_attributes : undefined,
-    images: Array.from(new Set(abs)).slice(0, maxImages).map((src) => ({ src }))
+    images: Array.from(new Set(abs)).slice(0, maxImages).map((src) => ({ src: ensureCompatibleImageUrl(src) }))
   };
   const result = { source: "wordpress", url: (finalUrl || srcUrl), slug, sku, name: payload.name, description: payload.description, short_description: payload.short_description, imagesAbs: Array.from(new Set(abs)), catNames: finalCats, tagNames: tags, payload, variations: v.variations };
   return result;
