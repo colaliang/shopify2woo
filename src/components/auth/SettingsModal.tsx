@@ -1,14 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Globe, Folder, Settings as SettingsIcon } from "lucide-react";
+import { X, Globe, Folder, Settings as SettingsIcon, History } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
+
+interface Transaction {
+  id: string;
+  amount: number;
+  balance_after: number;
+  type: string;
+  description: string;
+  created_at: string;
+}
 
 export default function SettingsModal() {
   const { settings, updateSettings, user, logout, settingsModalOpen, closeSettingsModal } = useUserStore();
   const [localSettings, setLocalSettings] = useState(settings);
-  const [activeTab, setActiveTab] = useState<'wordpress' | 'import'>('wordpress');
+  const [activeTab, setActiveTab] = useState<'wordpress' | 'import' | 'history'>('wordpress');
   const [config, setConfig] = useState({ wordpressUrl: "", consumerKey: "", consumerSecret: "" });
   const [loadingCfg, setLoadingCfg] = useState(false);
+  
+  // History state
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+
   const disableAuth = process.env.NEXT_PUBLIC_DISABLE_AUTH === "1";
   const envUrl = process.env.NEXT_PUBLIC_WOO_TEST_URL || "";
   const envKey = process.env.NEXT_PUBLIC_WOO_TEST_KEY || "";
@@ -45,6 +61,29 @@ export default function SettingsModal() {
     })();
   }, [settingsModalOpen, disableAuth, envUrl, envKey, envSecret]);
 
+  // Fetch history when tab changes to history
+  useEffect(() => {
+    if (activeTab === 'history' && settingsModalOpen) {
+      fetchHistory(1);
+    }
+  }, [activeTab, settingsModalOpen]);
+
+  const fetchHistory = async (page: number) => {
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/credits/history?page=${page}&limit=10`);
+      const data = await res.json();
+      if (data.data) {
+        setTransactions(data.data);
+        setHistoryTotal(data.pagination.total);
+        setHistoryPage(page);
+      }
+    } catch (error) {
+      console.error("Fetch history failed", error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const handleSave = () => {
     updateSettings(localSettings);
@@ -128,6 +167,17 @@ export default function SettingsModal() {
           >
             <SettingsIcon className="w-4 h-4" />
             导入选项
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 ${
+              activeTab === 'history'
+                ? 'text-primary-600 border-primary-600'
+                : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            积分流水
           </button>
         </div>
         
@@ -238,13 +288,67 @@ export default function SettingsModal() {
               </div>
             </>
           )}
+
+          {activeTab === 'history' && (
+            <div className="space-y-4">
+              {loadingHistory ? (
+                <div className="text-center py-8 text-gray-500">加载中...</div>
+              ) : transactions.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">暂无交易记录</div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {transactions.map((tx) => (
+                      <div key={tx.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
+                        <div>
+                           <div className="font-medium text-sm text-gray-900">{tx.description || tx.type}</div>
+                           <div className="text-xs text-gray-500">{new Date(tx.created_at).toLocaleString()}</div>
+                        </div>
+                        <div className="text-right">
+                           <div className={`font-bold text-sm ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                             {tx.amount > 0 ? '+' : ''}{tx.amount}
+                           </div>
+                           <div className="text-xs text-gray-400">余额: {tx.balance_after}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                     <button 
+                        disabled={historyPage <= 1}
+                        onClick={() => fetchHistory(historyPage - 1)}
+                        className="text-sm text-gray-600 hover:text-primary-600 disabled:opacity-50"
+                     >
+                       上一页
+                     </button>
+                     <span className="text-xs text-gray-500">
+                       第 {historyPage} 页 / 共 {Math.ceil(historyTotal / 10)} 页
+                     </span>
+                     <button 
+                        disabled={historyPage >= Math.ceil(historyTotal / 10)}
+                        onClick={() => fetchHistory(historyPage + 1)}
+                        className="text-sm text-gray-600 hover:text-primary-600 disabled:opacity-50"
+                     >
+                       下一页
+                     </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           
           {user && (
             <div className="pt-4 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-700">当前用户</p>
-                  <p className="text-sm text-gray-500">{user.email}</p>
+                  <p className="text-sm text-gray-500">
+                    {user.email && user.email.startsWith('wechat_') ? user.name : user.email}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1 font-medium">
+                    剩余积分: {user.credits ?? 0}
+                  </p>
                 </div>
                 <button
                   onClick={handleLogout}

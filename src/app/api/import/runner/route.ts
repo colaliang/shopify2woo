@@ -12,6 +12,26 @@ import { uploadImageToSupabase, deleteRequestImages } from "@/lib/imageUploader"
 
 export const runtime = "nodejs";
 
+async function deductCredit(userId: string, requestId: string, description: string, metadata: Record<string, unknown>) {
+  const supabase = getSupabaseServer();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.rpc('deduct_user_credit', {
+      p_user_id: userId,
+      p_amount: 1,
+      p_description: description,
+      p_metadata: metadata
+    });
+    if (error) {
+      await appendLog(userId, requestId, "error", `Credit deduction failed: ${error.message}`);
+    } else {
+      // await appendLog(userId, requestId, "info", "Credit deducted: 1");
+    }
+  } catch (e) {
+    console.error("Deduct credit error:", e);
+  }
+}
+
 async function isRequestCanceled(userId: string, requestId: string) {
   const supabase = getSupabaseServer();
   if (!supabase) return false;
@@ -120,6 +140,23 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
     await pgmqSetVt(queue, msg.msg_id, 60);
     return { ok: false, reason: "missing_config" };
   }
+
+  // Credit Check
+  const supabase = getSupabaseServer();
+  if (supabase) {
+    const { data: creditData } = await supabase.from('user_configs').select('credits').eq('user_id', userId).single();
+    const currentCredits = creditData?.credits ?? 0;
+    if (currentCredits < 1) {
+      await appendLog(userId, requestId, "error", "Insufficient credits (积分不足，请充值). Stopping task.");
+      // Mark as failed and stop the whole request
+      await recordResult(userId, "wordpress", requestId, link, "Unknown", undefined, "error", "Insufficient credits");
+      await pgmqArchive(queue, msg.msg_id);
+      await pgmqPurgeRequest(requestId).catch(() => {});
+      await appendLog(userId, requestId, "info", "任务已停止（积分不足）");
+      return { ok: false, reason: "insufficient_credits" };
+    }
+  }
+
   let built: ReturnType<typeof buildWpPayloadFromHtml> | null = null;
   let originalImgUrl: string | undefined;
   let cats: string[] = [];
@@ -298,6 +335,10 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
 
         await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update", permalink, displayImgUrl, price, galCount, cats); // Mark as update/add success. Use link as itemKey.
         await appendLog(userId, requestId, "info", `product processed id=${productId || "?"} name=${name || ""}`);
+        
+        // Deduct Credit
+        await deductCredit(userId, requestId, `Import product ${productId}`, { request_id: requestId, product_id: productId, link, name });
+        
         try {
           await pgmqDelete(queue, msg.msg_id);
         } catch (delErr) {

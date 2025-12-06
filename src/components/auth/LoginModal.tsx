@@ -1,11 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import supabase from "@/lib/supabase";
 
 export default function LoginModal() {
   const [loading, setLoading] = useState(false);
+  const [showWeChat, setShowWeChat] = useState(false);
   const { loginModalOpen, closeLoginModal } = useUserStore();
+
+  useEffect(() => {
+    if (loginModalOpen) {
+      fetch('/api/utils/ip-check')
+        .then(res => res.json())
+        .then(data => {
+          if (data.isChina) setShowWeChat(true);
+        })
+        .catch(err => console.error('IP check failed:', err));
+    }
+  }, [loginModalOpen]);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -27,6 +39,11 @@ export default function LoginModal() {
     }
   }
 
+  const handleWeChatLogin = () => {
+    setLoading(true);
+    window.location.href = '/api/auth/wechat/login';
+  };
+
   if (!loginModalOpen) return null;
 
   return (
@@ -47,10 +64,20 @@ export default function LoginModal() {
           <button
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? "跳转中..." : "使用 Google 登录"}
+            使用 Google 登录
           </button>
+
+          {showWeChat && (
+            <button
+              onClick={handleWeChatLogin}
+              disabled={loading}
+              className="w-full px-4 py-2 bg-[#07C160] text-white rounded-lg hover:bg-[#06ad56] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              使用微信登录
+            </button>
+          )}
         </div>
       </div>
     </div>

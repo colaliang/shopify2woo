@@ -6,6 +6,7 @@ export interface User {
   email: string;
   name: string;
   avatar?: string;
+  credits?: number;
 }
 
 export interface UserSettings {
@@ -25,6 +26,7 @@ interface UserStore {
   loginModalOpen: boolean;
   settingsModalOpen: boolean;
   debugModalOpen: boolean;
+  rechargeModalOpen: boolean;
   
   // Actions
   login: (email: string, password: string) => Promise<boolean>;
@@ -34,9 +36,12 @@ interface UserStore {
   closeLoginModal: () => void;
   openSettingsModal: () => void;
   closeSettingsModal: () => void;
+  openRechargeModal: () => void;
+  closeRechargeModal: () => void;
   initFromSupabase: () => Promise<void>;
   openDebugModal: () => void;
   closeDebugModal: () => void;
+  refreshCredits: () => Promise<void>;
 }
 
 const defaultSettings: UserSettings = {
@@ -49,13 +54,14 @@ const defaultSettings: UserSettings = {
   waitSeconds: 0,
 };
 
-export const useUserStore = create<UserStore>((set) => ({
+export const useUserStore = create<UserStore>((set, get) => ({
   user: null,
   isAuthenticated: false,
   settings: defaultSettings,
   loginModalOpen: false,
   settingsModalOpen: false,
   debugModalOpen: false,
+  rechargeModalOpen: false,
   
   login: async (email: string, password: string) => {
     try {
@@ -63,8 +69,13 @@ export const useUserStore = create<UserStore>((set) => ({
       if (error) throw error;
       const u = data.user;
       if (!u) return false;
-      const name = (u.user_metadata && (u.user_metadata.full_name as string)) || (email.split('@')[0] || '');
-      set({ user: { id: u.id, email, name }, isAuthenticated: true, loginModalOpen: false });
+      
+      const metadata = u.user_metadata || {};
+      const name = (metadata.name as string) || (metadata.full_name as string) || (metadata.nickname as string) || (email.split('@')[0] || '');
+      const avatar = (metadata.avatar_url as string) || (metadata.avatar as string);
+      
+      set({ user: { id: u.id, email, name, avatar, credits: 0 }, isAuthenticated: true, loginModalOpen: false });
+      get().refreshCredits();
       return true;
     } catch (error) {
       console.error('Login failed:', error);
@@ -91,15 +102,29 @@ export const useUserStore = create<UserStore>((set) => ({
   closeLoginModal: () => set({ loginModalOpen: false }),
   openSettingsModal: () => set({ settingsModalOpen: true }),
   closeSettingsModal: () => set({ settingsModalOpen: false }),
+  openRechargeModal: () => set({ rechargeModalOpen: true }),
+  closeRechargeModal: () => set({ rechargeModalOpen: false }),
   openDebugModal: () => set({ debugModalOpen: true }),
   closeDebugModal: () => set({ debugModalOpen: false }),
+  refreshCredits: async () => {
+    const u = get().user;
+    if (!u) return;
+    const { data } = await supabase.from('user_configs').select('credits').eq('user_id', u.id).single();
+    if (data) {
+      set((state) => ({ user: state.user ? { ...state.user, credits: data.credits ?? 0 } : null }));
+    }
+  },
   initFromSupabase: async () => {
     const { data } = await supabase.auth.getUser();
     const u = data.user;
     if (u) {
       const email = u.email || '';
-      const name = (u.user_metadata && (u.user_metadata.full_name as string)) || (email.split('@')[0] || '');
-      set({ user: { id: u.id, email, name }, isAuthenticated: true });
+      const metadata = u.user_metadata || {};
+      const name = (metadata.name as string) || (metadata.full_name as string) || (metadata.nickname as string) || (email.split('@')[0] || '');
+      const avatar = (metadata.avatar_url as string) || (metadata.avatar as string);
+      
+      set({ user: { id: u.id, email, name, avatar, credits: 0 }, isAuthenticated: true });
+      get().refreshCredits();
     } else {
       set({ user: null, isAuthenticated: false });
     }
