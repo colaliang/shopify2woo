@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, ShoppingCart, FileText, AlertOctagon, LogOut } from 'lucide-react';
 import { useUserStore } from '@/stores/userStore';
+import supabase from '@/lib/supabase';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -25,7 +26,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // Check admin status
     async function check() {
       try {
-        const res = await fetch('/api/admin/check');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          setIsAdmin(false);
+          router.push('/');
+          return;
+        }
+
+        const res = await fetch('/api/admin/check', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
+        
         if (res.ok) {
           setIsAdmin(true);
         } else {

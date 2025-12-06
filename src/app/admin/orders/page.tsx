@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Download, Filter } from 'lucide-react';
+import supabase from '@/lib/supabase';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -12,7 +13,10 @@ export default function OrdersPage() {
   const fetchOrders = async (p: number) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/orders?page=${p}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/admin/orders?page=${p}`, {
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      });
       const data = await res.json();
       if (data.orders) {
         setOrders(data.orders);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Users, TrendingUp, CreditCard, Activity } from 'lucide-react';
+import supabase from '@/lib/supabase';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -12,7 +13,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/admin/stats');
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch('/api/admin/stats', {
+          headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        });
         const data = await res.json();
         if (data.overview) {
           setStats(data.overview);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Plus, Minus, MoreHorizontal } from 'lucide-react';
+import supabase from '@/lib/supabase';
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -17,7 +18,10 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/users?q=${query}&page=${page}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/admin/users?q=${query}&page=${page}`, {
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      });
       const data = await res.json();
       if (data.users) setUsers(data.users);
     } finally {
@@ -33,9 +37,13 @@ export default function UsersPage() {
   const handleAdjust = async () => {
     if (!selectedUser || !adjustAmount || !adjustReason) return;
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/admin/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
         body: JSON.stringify({
           userId: selectedUser.id,
           amount: adjustAmount,

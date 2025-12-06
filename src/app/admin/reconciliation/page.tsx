@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
+import supabase from '@/lib/supabase';
 
 export default function ReconciliationPage() {
   const [discrepancies, setDiscrepancies] = useState<any[]>([]);
@@ -10,7 +11,10 @@ export default function ReconciliationPage() {
   useEffect(() => {
     async function check() {
       try {
-        const res = await fetch('/api/admin/reconciliation');
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch('/api/admin/reconciliation', {
+          headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        });
         const data = await res.json();
         if (data.discrepancies) {
           setDiscrepancies(data.discrepancies);
