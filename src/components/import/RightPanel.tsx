@@ -163,18 +163,49 @@ export default function RightPanel({
       {/* Desktop */}
       <aside className="hidden md:flex w-full md:w-1/3 lg:w-1/4 h-full flex-col border-l border-gray-200 bg-gray-50">
         {/* Logs Header */}
-        <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between shrink-0">
-          <div className="text-sm text-gray-700">
-            已获取: {fetched} | 成功: {imported} | 队列: {queue} | 错误: {errors}
-          </div>
+        <div className="px-4 py-3 border-b border-gray-200 bg-white shrink-0 space-y-3">
+          {status === 'idle' ? (
+            <div className="text-sm text-gray-500 text-center py-1">任务未开始</div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-xs text-gray-600">
+                <span>已获取: <span className="font-medium text-gray-900">{fetched}</span></span>
+                <span className="text-gray-300">|</span>
+                <span>成功: <span className="font-medium text-green-600">{imported}</span></span>
+                <span className="text-gray-300">|</span>
+                <span>队列: <span className="font-medium text-gray-900">{queue}</span></span>
+                <span className="text-gray-300">|</span>
+                <span>错误: <span className="font-medium text-red-600">{errors}</span></span>
+              </div>
+              
+              <div className="relative w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                 <div 
+                   className={`absolute left-0 top-0 h-full transition-all duration-500 ${
+                     status === 'completed' ? 'bg-green-500' : 
+                     status === 'error' ? 'bg-red-500' : 
+                     'bg-primary-600'
+                   }`}
+                   style={{ width: `${Math.min(100, Math.max(0, queue > 0 ? ((imported + errors) / queue) * 100 : 0))}%` }}
+                 />
+              </div>
+              
+              <div className="flex justify-between text-xs text-gray-500">
+                 <span>
+                    {status === 'parsing' && '正在解析...'}
+                    {status === 'running' && '正在导入...'}
+                    {status === 'stopping' && '正在停止...'}
+                    {status === 'stopped' && '已停止'}
+                    {status === 'completed' && '任务完成'}
+                    {status === 'error' && '任务异常'}
+                 </span>
+                 <span>
+                   {queue > 0 ? Math.round(((imported + errors) / queue) * 100) : 0}%
+                 </span>
+              </div>
+            </>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {summaryLines.map((l, i) => (
-            <div key={i} className={
-              "text-sm px-3 py-2 rounded border " +
-              (l.level === 'success' ? 'bg-green-50 border-green-200 text-green-700' : l.level === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-800')
-            }>{l.text}</div>
-          ))}
           
           {/* Results List */}
           {results.length > 0 && (

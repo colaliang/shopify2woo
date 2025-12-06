@@ -147,16 +147,17 @@ export default function ProductTab() {
           <div>
             <h3 className="font-semibold mb-1">产品介绍：</h3>
             <p className="text-blue-800 leading-relaxed">
-              本工具是方便从不同网站抓取产品信息，不需要原网站的API，导入到自己的Wordpress/Woo系统，支持Wordpress,Shopify,Wix
+              本工具支持从Wordpress,Shopify,Wix抓取产品公开信息（标题，图片，价格，描述等），不需要原网站的API，高效导入到自己的Wordpress/Woo系统。
             </p>
           </div>
           <div>
             <h3 className="font-semibold mb-1">使用说明：</h3>
             <ul className="list-decimal list-inside space-y-1 text-blue-800">
               <li>需要先登录，支持Google，微信</li>
-              <li>导入需要取得Wordpress的API，在设置里登记</li>
-              <li>支持单个或者多个产品导入</li>
-              <li>新注册用户赠送 30 个导入点数</li>
+              <li>导入需要取得Wordpress的API，需要在设置里登记</li>
+              <li>支持单个或者多个产品导入，每次批量链接需要同一个平台的产品链接</li>
+              <li>新注册用户赠送 30 个导入点数，可购买更多的导入点数</li>
+              <li>感谢支持！</li>
             </ul>
           </div>
         </div>

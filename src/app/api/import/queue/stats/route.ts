@@ -47,10 +47,33 @@ export async function GET(req: Request) {
     }
     */
 
+    // Use database counts for accurate reporting
     try {
       const c = await getResultCounts("__ALL__", requestId);
       counts = { imported: c.successCount, errors: c.errorCount, partial: c.partialCount, processed: c.processed, updated: c.updateCount };
     } catch {}
+
+    // LOGIC FIX: 
+    // queueEmptyForRequest used to be derived from PGMQ status. But PGMQ hides messages when they are being processed (invisible).
+    // So "queue empty" might just mean "all messages are being processed right now".
+    // If we rely on queue empty to mark "completed", we might finish prematurely while tasks are still running.
+    //
+    // Instead, we should rely on: (success + error) >= total_expected
+    // But we don't always know total_expected easily here without querying the request log or passing it.
+    //
+    // However, if we DO use queue stats, we must be careful.
+    // If PGMQ says total=0, ready=0, vt=0, it means NO messages at all.
+    // But if we have multiple users, PGMQ stats are global for the queue.
+    // So we can't rely on global PGMQ stats for a specific user request unless we filter, which we can't easily do without peeking.
+    //
+    // Current approach:
+    // 1. Return accurate counts from DB (imported, errors).
+    // 2. Frontend knows "fetched" (total expected).
+    // 3. Frontend decides when to stop: when imported + errors >= fetched.
+    // 4. Backend "queueEmptyForRequest" is only a hint.
+    
+    // We will keep queueEmptyForRequest as a hint for "global queue is empty", but frontend should prioritize counts.
+
 
     // Double check with logs: if there is a log entry in the last 60 seconds, assume it is still running (messages are invisible)
     if (queueEmptyForRequest) {

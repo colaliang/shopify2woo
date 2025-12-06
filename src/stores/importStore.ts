@@ -359,16 +359,22 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       const rid = get().currentRequestId || '';
       const qs = await importApi.getQueueStats(rid);
       const s = get();
+      
+      // Use DB counts from backend if available, otherwise keep local state
       const imported = typeof qs.counts?.imported === 'number' ? qs.counts!.imported : s.stats.imported;
       const errors = typeof qs.counts?.errors === 'number' ? qs.counts!.errors : s.stats.errors;
       const processed = imported + errors;
-      let queue = s.stats.queue;
-      if (qs && qs.queueEmptyForRequest === true) {
-        queue = processed;
-      }
+      
+      // Keep original queue size (total expected) to show accurate progress (e.g. 5/10)
+      // Do NOT reduce queue size to match processed count when queue is empty
+      const queue = s.stats.queue;
+      
       const progress = queue ? Math.round((processed / queue) * 100) : 0;
       set({ stats: { ...s.stats, queue, imported, errors, progress } });
-      if (s.status === 'running' && qs && qs.queueEmptyForRequest === true) {
+
+      // Completion Logic: Only complete when processed count meets expected total
+      // We do NOT rely on queueEmptyForRequest alone because invisible messages (processing) make queue appear empty
+      if (s.status === 'running' && queue > 0 && processed >= queue) {
         set({ status: 'completed', currentRequestId: null, isLoading: false });
         get().stopRunnerAutoCall();
         try { get().stopLogs(); } catch {}
@@ -379,15 +385,9 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
           id: Date.now().toString(),
           timestamp: new Date().toISOString(),
           level: 'success',
-          message: `任务完成 (队列已空)。成功: ${imported}, 失败: ${errors}`,
+          message: `任务完成。成功: ${imported}, 失败: ${errors}`,
         };
         set((state) => ({ logs: [doneLog, ...state.logs].slice(0, 100) }));
-
-        // Auto-cleanup queue to remove any stale/retry messages that might be lingering
-        // DO NOT automatically cancel! This kills running tasks because stats API returns empty when tasks are invisible (processing).
-        // if (rid) {
-        //      importApi.cancel(rid).catch(() => {});
-        // }
       }
     } catch (error) {
       console.error('Failed to refresh status:', error);
@@ -491,13 +491,9 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                  const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
                  
                  // Check completion based on server stats
-                 const queueEmpty = qs.queueEmptyForRequest;
-                 const queueCount = qs.rows?.[0]?.ready || 0;
-                 const vtCount = qs.rows?.[0]?.vt || 0;
-                 
-                 // If queue is empty (ready=0, vt=0) AND processed >= initial queue size
-                 // OR if queueEmptyForRequest is explicitly true (which might mean "no messages left for this request")
-                 if (queueEmpty && (queueCount + vtCount) === 0 && processed >= state.stats.queue) {
+                 // Only complete when processed count meets expected total
+                 // We do NOT rely on queueEmptyForRequest alone because invisible messages (processing) make queue appear empty
+                 if (state.stats.queue > 0 && processed >= state.stats.queue) {
                      console.log('[Poll] Task Completed via Server Stats!');
                      setTimeout(() => {
                          set({ status: 'completed', currentRequestId: null, isLoading: false });

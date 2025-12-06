@@ -38,38 +38,36 @@ export async function recordResult(
       updated_at: new Date().toISOString(),
     };
 
-    // We use upsert to handle potential re-runs or updates
-    // Assuming a unique constraint exists on (request_id, item_key)
-    const { error } = await supabase
+    // We use manual check-then-update/insert to be robust against unknown unique constraints
+    // (upsert with onConflict requires exact match of constraint columns)
+    const { data: existing } = await supabase
       .from("import_results")
-      .upsert(data, { onConflict: "request_id,item_key" });
+      .select("id")
+      .eq("request_id", requestId)
+      .eq("item_key", itemKey)
+      .maybeSingle();
 
-    if (error) {
-      // Fallback for schema mismatch (missing columns)
-      if (error.message && error.message.includes("column")) {
-         // Retry without potentially missing columns
-         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-         const minimalData = { ...data } as any;
-         delete minimalData.message;
-         delete minimalData.action;
-         delete minimalData.dest_url;
-         delete minimalData.image_url;
-         delete minimalData.price;
-         delete minimalData.gallery_count;
-         delete minimalData.updated_at;
-         const { error: retryErr } = await supabase
-            .from("import_results")
-            .upsert(minimalData, { onConflict: "request_id,item_key" });
-         
-         if (!retryErr) return; // Success on retry
-      }
-
-      const errText = `Failed to record result: ${error.message || JSON.stringify(error)}`;
-      console.error(`[History] ${errText}`);
-      // Try to log to user logs so they can see it
-      try {
-        await appendLog(userId, requestId, "error", errText);
-      } catch {}
+    if (existing) {
+       const { error: updateErr } = await supabase
+         .from("import_results")
+         .update({ ...data, id: undefined }) // don't update ID
+         .eq("id", existing.id);
+       if (updateErr) throw updateErr;
+    } else {
+       const { error: insertErr } = await supabase
+         .from("import_results")
+         .insert(data);
+       // If insert fails with unique violation, it means race condition -> try update again
+       if (insertErr && (insertErr.code === '23505' || insertErr.message.includes('unique'))) {
+           const { error: retryErr } = await supabase
+             .from("import_results")
+             .update({ ...data, id: undefined })
+             .eq("request_id", requestId)
+             .eq("item_key", itemKey);
+           if (retryErr) throw retryErr;
+       } else if (insertErr) {
+           throw insertErr;
+       }
     }
   } catch (e) {
     const errText = `Exception recording result: ${e instanceof Error ? e.message : String(e)}`;
