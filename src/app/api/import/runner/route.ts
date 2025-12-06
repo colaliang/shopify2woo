@@ -122,6 +122,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
   }
   let built: ReturnType<typeof buildWpPayloadFromHtml> | null = null;
   let originalImgUrl: string | undefined;
+  let cats: string[] = [];
   try {
     if (await isRequestCanceled(userId, requestId)) {
       await appendLog(userId, requestId, "info", `request canceled, dropping msg=${msg.msg_id}`);
@@ -223,7 +224,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         (built.payload as any).images = newImages;
       }
 
-      const cats = Array.isArray((built as unknown as { catNames?: string[] }).catNames) ? (built as unknown as { catNames?: string[] }).catNames! : [];
+      cats = Array.isArray((built as unknown as { catNames?: string[] }).catNames) ? (built as unknown as { catNames?: string[] }).catNames! : [];
       const tags = Array.isArray((built as unknown as { tagNames?: string[] }).tagNames) ? (built as unknown as { tagNames?: string[] }).tagNames! : [];
       const ctx = { userId, requestId, productHandle: built.slug || built.sku };
       const catTerms = cats.length ? await ensureTerms(cfg, "category", cats, ctx) : [];
@@ -295,7 +296,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
         // Cleanup images from storage to save space
         await deleteRequestImages(userId, requestId);
 
-        await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update", permalink, displayImgUrl, price, galCount); // Mark as update/add success. Use link as itemKey.
+        await recordResult(userId, "wordpress", requestId, link, name, productId, "success", undefined, "update", permalink, displayImgUrl, price, galCount, cats); // Mark as update/add success. Use link as itemKey.
         await appendLog(userId, requestId, "info", `product processed id=${productId || "?"} name=${name || ""}`);
         try {
           await pgmqDelete(queue, msg.msg_id);
@@ -311,7 +312,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
              // Cleanup images from storage to save space
              await deleteRequestImages(userId, requestId);
              // Mark as success so it counts towards progress and stops retrying. Use link as itemKey.
-             await recordResult(userId, "wordpress", requestId, link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate", permalink, displayImgUrl, price, galCount);
+             await recordResult(userId, "wordpress", requestId, link, name, responseData?.data?.resource_id, "success", undefined, "skipped_duplicate", permalink, displayImgUrl, price, galCount, cats);
              await pgmqDelete(queue, msg.msg_id);
              return { ok: true };
         }
@@ -414,7 +415,7 @@ async function processWordpressJob(queue: string, msg: { msg_id: number; message
                      // Cleanup images from storage to save space
                      await deleteRequestImages(userId, requestId);
 
-                     await recordResult(userId, "wordpress", requestId, link, foundName || built.payload?.name, foundId, "success", undefined, "recovered_check", foundPermalink, displayImgUrl, price, galCount);
+                     await recordResult(userId, "wordpress", requestId, link, foundName || built.payload?.name, foundId, "success", undefined, "recovered_check", foundPermalink, displayImgUrl, price, galCount, cats);
                      await pgmqDelete(queue, msg.msg_id);
                      return { ok: true };
                  }

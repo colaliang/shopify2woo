@@ -3,6 +3,7 @@ import { useImportStore } from "@/stores/importStore";
 import { useUserStore } from "@/stores/userStore";
 import URLInputCard from "@/components/import/URLInputCard";
 import RightPanel from "@/components/import/RightPanel";
+import SidebarFooter from "@/components/import/SidebarFooter";
 import ChoosePlatform, { PlatformType } from "@/components/import/ChoosePlatform";
 import { parseInputLinks } from "@/lib/inputHelpers";
 
@@ -110,6 +111,7 @@ export default function ProductTab() {
 
   return (
     <div className="flex flex-col md:flex-row h-full">
+      <div className="flex-1 flex flex-col h-full min-w-0">
       {/* Left Panel */}
       <main className="flex-1 p-6 space-y-6 overflow-y-auto">
         <ChoosePlatform
@@ -162,6 +164,8 @@ export default function ProductTab() {
           </div>
         </div>
 
+
+
         { /*
         <div className="space-y-3">
           {results.length === 0 && (
@@ -192,6 +196,8 @@ export default function ProductTab() {
 
         
       </main>
+      <SidebarFooter />
+      </div>
 
       
 

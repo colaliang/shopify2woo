@@ -22,6 +22,7 @@ export interface ResultItemData {
   price?: string;
   galleryCount?: number;
   requestId?: string;
+  categories?: string[];
 }
 
 interface RightPanelProps {
@@ -41,6 +42,18 @@ interface RightPanelProps {
   onPageChange?: (page: number) => void;
   resultsLoading?: boolean;
 }
+
+const decodeHtml = (html: string | undefined) => {
+  if (!html) return "";
+  return html.replace(/&#(\d+);/g, (match, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&#x([0-9A-Fa-f]+);/g, (match, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+};
 
 export default function RightPanel({
   fetched,
@@ -75,13 +88,13 @@ export default function RightPanel({
 
   const renderResultItem = (res: ResultItemData) => {
     const product = products.find(p => p.link === res.itemKey || p.id === res.itemKey);
-    const title = res.name || product?.title || res.itemKey || "Unknown Product";
+    const title = decodeHtml(res.name || product?.title || res.itemKey || "Unknown Product");
     const thumb = res.imageUrl || product?.thumbnail;
     // Use product data if available, otherwise defaults
     const galCount = res.galleryCount ?? product?.galleryCount ?? 0;
     // const type = product?.type || 'simple';
     const salePrice = res.price || product?.salePrice || product?.price || '0';
-    const primaryCat = product?.primaryCategory || product?.categoryBreadcrumbs?.split('>')[0]?.trim() || 'Uncategorized';
+    const primaryCat = res.categories?.[0] || product?.primaryCategory || product?.categoryBreadcrumbs?.split('>')[0]?.trim() || '';
     const sourceUrl = product?.link || (res.itemKey?.startsWith('http') ? res.itemKey : '');
     const updateTime = res.timestamp ? new Date(res.timestamp).toLocaleString() : '';
 
@@ -205,11 +218,11 @@ export default function RightPanel({
             </>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y">
           
           {/* Results List */}
           {results.length > 0 && (
-            <div className="pt-2 space-y-3">
+            <div className="pt-2 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Results ({total})</div>
                 {resultsLoading && <div className="text-xs text-gray-400">Loading...</div>}

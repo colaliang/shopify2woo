@@ -14,7 +14,8 @@ export async function recordResult(
   destUrl?: string,
   imageUrl?: string,
   price?: string,
-  galleryCount?: number
+  galleryCount?: number,
+  categories?: string[]
 ) {
   const supabase = getSupabaseServer();
   if (!supabase) return;
@@ -34,6 +35,7 @@ export async function recordResult(
       image_url: imageUrl || null,
       price: price || null,
       gallery_count: galleryCount || 0,
+      categories: categories ? JSON.stringify(categories) : null,
       // updating updated_at is good practice for upserts
       updated_at: new Date().toISOString(),
     };
@@ -84,7 +86,7 @@ export async function listResults(userId: string, page: number, limit: number, r
   const offset = (page - 1) * limit;
   let q = supabase
     .from("import_results")
-    .select("id, request_id, created_at, status, message, name, product_id, item_key, dest_url, image_url, price, gallery_count")
+    .select("id, request_id, created_at, status, message, name, product_id, item_key, dest_url, image_url, price, gallery_count, categories")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 

@@ -290,7 +290,7 @@ export async function processWixJob(
              const imgUrl = payload.images?.[0]?.src;
              const price = payload.sale_price || payload.regular_price;
              const galCount = payload.images?.length || 0;
-             await recordResult(userId, "wix", requestId, link, name, undefined, "success", undefined, "skipped_duplicate", undefined, imgUrl, price, galCount);
+             await recordResult(userId, "wix", requestId, link, name, undefined, "success", undefined, "skipped_duplicate", undefined, imgUrl, price, galCount, catNames);
              return { ok: true };
         }
     }
@@ -330,7 +330,7 @@ export async function processWixJob(
     const price = payload.sale_price || payload.regular_price;
     const galCount = payload.images?.length || 0;
 
-    await recordResult(userId, "wix", requestId, link, name, productId, "success", undefined, existingId ? "update" : "create", `${cfg.url.replace(/\/$/, '')}/?p=${productId}`, displayImgUrl, price, galCount);
+    await recordResult(userId, "wix", requestId, link, name, productId, "success", undefined, existingId ? "update" : "create", `${cfg.url.replace(/\/$/, '')}/?p=${productId}`, displayImgUrl, price, galCount, catNames);
     await appendLog(userId, requestId, "info", `wix product processed id=${productId}`);
     
     // Cleanup images from storage to save space

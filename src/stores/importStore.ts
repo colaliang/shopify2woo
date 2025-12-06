@@ -367,7 +367,8 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
       
       // Keep original queue size (total expected) to show accurate progress (e.g. 5/10)
       // Do NOT reduce queue size to match processed count when queue is empty
-      const queue = s.stats.queue;
+      // Fallback to fetched count if queue is 0 (e.g. lost state after refresh)
+      const queue = s.stats.queue || s.stats.fetched;
       
       const progress = queue ? Math.round((processed / queue) * 100) : 0;
       set({ stats: { ...s.stats, queue, imported, errors, progress } });
@@ -488,12 +489,14 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
                  const imported = qs.counts?.imported || state.stats.imported;
                  const errors = qs.counts?.errors || state.stats.errors;
                  const processed = imported + errors;
-                 const progress = state.stats.queue ? Math.round((processed / state.stats.queue) * 100) : 0;
+                 // Fallback to fetched count if queue is 0
+                 const queue = state.stats.queue || state.stats.fetched;
+                 const progress = queue ? Math.round((processed / queue) * 100) : 0;
                  
                  // Check completion based on server stats
                  // Only complete when processed count meets expected total
                  // We do NOT rely on queueEmptyForRequest alone because invisible messages (processing) make queue appear empty
-                 if (state.stats.queue > 0 && processed >= state.stats.queue) {
+                 if (queue > 0 && processed >= queue) {
                      console.log('[Poll] Task Completed via Server Stats!');
                      setTimeout(() => {
                          set({ status: 'completed', currentRequestId: null, isLoading: false });
@@ -702,83 +705,113 @@ export const useImportStore = create<ImportStore>()(persist((set, get) => ({
   },
 
   startRunnerAutoCall: () => {
-    const st = get() as unknown as { __runnerInterval?: number; __runnerRunning?: boolean; __idleCount?: number };
-    if (st.__runnerInterval) return;
+    const st = get() as unknown as { __runnerLoopActive?: boolean; __runnerRunning?: boolean; __idleCount?: number };
+    if (st.__runnerLoopActive) return;
+    (st as { __runnerLoopActive?: boolean }).__runnerLoopActive = true;
+    (st as { __idleCount?: number }).__idleCount = 0;
     const token = (process.env.NEXT_PUBLIC_RUNNER_TOKEN || '').trim();
-    st.__idleCount = 0; // Reset idle count
-    
-    const call = async () => {
-      if ((get() as unknown as { __runnerRunning?: boolean }).__runnerRunning) return;
-      (st as { __runnerRunning?: boolean }).__runnerRunning = true;
-      try {
-        const url = token ? `/api/import/runner?token=${encodeURIComponent(token)}` : '/api/import/runner';
-        let bearer: string | null = null;
-        try {
-          const { data } = await supabase.auth.getSession();
-          bearer = data.session?.access_token || null;
-        } catch {}
-        const headers: Record<string, string> = {};
-        if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
-        const res = await fetch(url, { method: 'GET', headers });
-        
-        // Auto-stop logic if runner is idle for too long
-        if (res.ok) {
-           const json = await res.json().catch(() => ({}));
-           
-           // Adaptive polling: if we processed items, try to run again sooner to speed up batch processing
-           if (json && typeof json.processed === 'number' && json.processed > 0) {
-             st.__idleCount = 0;
-             // Schedule an immediate follow-up call if not already running
-             setTimeout(() => {
-                 const isRunning = (get() as unknown as { __runnerRunning?: boolean }).__runnerRunning;
-                 if (!isRunning) void call();
-             }, 500);
-           }
 
-           // If processed is explicitly 0, we count it as an idle cycle
-           if (json && typeof json.processed === 'number' && json.processed === 0) {
-             const idle = (st.__idleCount || 0) + 1;
-             st.__idleCount = idle;
-             // If we have been idle for 12 cycles (60 seconds at 5s interval) and we are still 'running',
-             // and we haven't received updates, maybe we should stop?
-             if (idle >= 12 && get().status === 'running') {
-                // Try to refresh status from server to double check
-                await get().refreshStatus();
-                const s = get();
-                const processedNow = s.stats.imported + s.stats.errors;
-                if (processedNow >= s.stats.queue) {
-                   set({ status: 'completed', currentRequestId: null, isLoading: false });
-                   get().stopRunnerAutoCall();
-                   try { get().stopLogs(); } catch {}
-                   try { get().stopResults(); } catch {}
-
-                   // Add success log
-                   const doneLog: LogEntry = {
-                     id: Date.now().toString(),
-                     timestamp: new Date().toISOString(),
-                     level: 'success',
-                     message: `任务完成 (自动检测)。成功: ${s.stats.imported}, 失败: ${s.stats.errors}`,
-                   };
-                   set((state) => ({ logs: [doneLog, ...state.logs].slice(0, 100) }));
-                }
-             }
-           } else {
-             st.__idleCount = 0;
-           }
+    const loop = async () => {
+        // Check if we should continue
+        const currentStatus = get().status;
+        if (currentStatus !== 'running' && currentStatus !== 'parsing' && currentStatus !== 'stopping') {
+           (st as { __runnerLoopActive?: boolean }).__runnerLoopActive = false;
+           return;
         }
-      } catch {}
-      (st as { __runnerRunning?: boolean }).__runnerRunning = false;
+        if (!(st as { __runnerLoopActive?: boolean }).__runnerLoopActive) return;
+
+        (st as { __runnerRunning?: boolean }).__runnerRunning = true;
+        try {
+          const url = token ? `/api/import/runner?token=${encodeURIComponent(token)}` : '/api/import/runner';
+          let bearer: string | null = null;
+          try {
+            const { data } = await supabase.auth.getSession();
+            bearer = data.session?.access_token || null;
+          } catch {}
+          const headers: Record<string, string> = {};
+          if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+
+          // Use AbortController for timeout to prevent hanging
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+          let nextDelay = 3000; // Default polling interval
+
+          try {
+             const res = await fetch(url, { method: 'GET', headers, signal: controller.signal });
+             clearTimeout(timeoutId);
+
+             if (res.ok) {
+                const json = await res.json().catch(() => ({}));
+                
+                if (json && typeof json.processed === 'number' && json.processed > 0) {
+                   // Processed items, run again immediately (short delay)
+                   (st as { __idleCount?: number }).__idleCount = 0;
+                   nextDelay = 100;
+                } else {
+                   // Idle
+                   const idle = ((st as { __idleCount?: number }).__idleCount || 0) + 1;
+                   (st as { __idleCount?: number }).__idleCount = idle;
+                   
+                   // If idle for long time (e.g. 20 * 3s = 60s), check status
+                   if (idle >= 20 && get().status === 'running') {
+                      await get().refreshStatus();
+                      const s = get();
+                      // Fallback to fetched if queue is 0
+                      const queue = s.stats.queue || s.stats.fetched;
+                      const processedNow = s.stats.imported + s.stats.errors;
+                      
+                      if (queue > 0 && processedNow >= queue) {
+                         set({ status: 'completed', currentRequestId: null, isLoading: false });
+                         get().stopRunnerAutoCall();
+                         try { get().stopLogs(); } catch {}
+                         try { get().stopResults(); } catch {}
+
+                         const doneLog: LogEntry = {
+                           id: Date.now().toString(),
+                           timestamp: new Date().toISOString(),
+                           level: 'success',
+                           message: `任务完成 (自动检测)。成功: ${s.stats.imported}, 失败: ${s.stats.errors}`,
+                         };
+                         set((state) => ({ logs: [doneLog, ...state.logs].slice(0, 100) }));
+                         // Stop loop
+                         return;
+                      }
+                   }
+                }
+             } else {
+                // Error response
+                (st as { __idleCount?: number }).__idleCount = 0;
+             }
+          } catch (e) {
+             // Fetch error
+             console.error('Runner loop error:', e);
+          }
+
+          // Schedule next loop
+          if ((st as { __runnerLoopActive?: boolean }).__runnerLoopActive) {
+             setTimeout(loop, nextDelay);
+          }
+
+        } catch (e) {
+           console.error('Runner loop critical error:', e);
+           // Schedule retry even on critical error
+           setTimeout(loop, 5000);
+        } finally {
+           (st as { __runnerRunning?: boolean }).__runnerRunning = false;
+        }
     };
-    const id = window.setInterval(call, 5000);
-    (st as { __runnerInterval?: number }).__runnerInterval = id as unknown as number;
-    void call();
+
+    void loop();
   },
 
   stopRunnerAutoCall: () => {
-    const st = get() as unknown as { __runnerInterval?: number };
+    const st = get() as unknown as { __runnerLoopActive?: boolean; __runnerInterval?: number };
+    (st as { __runnerLoopActive?: boolean }).__runnerLoopActive = false;
+    // Clear interval just in case (legacy cleanup)
     if (st.__runnerInterval) {
-      try { clearInterval(st.__runnerInterval as unknown as number); } catch {}
-      (st as { __runnerInterval?: number }).__runnerInterval = undefined;
+       try { clearInterval(st.__runnerInterval as unknown as number); } catch {}
+       (st as { __runnerInterval?: number }).__runnerInterval = undefined;
     }
   },
 }), {

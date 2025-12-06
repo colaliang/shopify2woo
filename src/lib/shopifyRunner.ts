@@ -134,7 +134,7 @@ export async function processShopifyJob(
     const price = payload.sale_price || payload.regular_price;
     const galCount = payload.images?.length || 0;
 
-    await recordResult(userId, "shopify", requestId, handle, payload.name, productId, "success", undefined, action, `${cfg.url.replace(/\/$/, '')}/?p=${productId}`, imgUrl, price, galCount);
+    await recordResult(userId, "shopify", requestId, handle, payload.name, productId, "success", undefined, action, `${cfg.url.replace(/\/$/, '')}/?p=${productId}`, imgUrl, price, galCount, catNames);
     return { ok: true };
 
   } catch (e: unknown) {
