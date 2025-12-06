@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { checkAdmin } from '../check/route';
+import { checkAdmin } from '@/lib/adminAuth';
 
 export async function GET(req: Request) {
   const { supabase, error, status } = await checkAdmin();
