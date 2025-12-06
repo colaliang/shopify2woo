@@ -127,11 +127,23 @@ export async function GET(req: Request) {
     });
 
     // 5. Save to user_configs
+    // 对于新用户，我们需要确保初始化 credits 为 30。
+    // 使用 onConflict: 'user_id' 和 ignoreDuplicates: true 来避免覆盖已存在的用户的 credits。
+    // 如果记录不存在，则插入 { user_id: userId, credits: 30 }。
+    // 如果记录存在，则什么都不做（保留现有 credits）。
     await supabase
       .from("user_configs")
       .upsert({
         user_id: userId,
-      }, { onConflict: "user_id" });
+        credits: 30, // Default for new users
+      }, { onConflict: "user_id", ignoreDuplicates: true });
+    
+    // 如果上面的 upsert 因为 ignoreDuplicates 而跳过了更新，但我们确实需要确保记录存在（比如 credits 字段是后来加的）
+    // 我们可以再执行一次 update 来更新其他字段（如果有的话），或者对于现有用户，我们假设记录已存在。
+    // 但这里最重要的是：新用户注册时，credits 必须是 30。
+    // 如果用户已存在但没有 user_configs 记录？上面的 upsert 会插入它。
+    // 如果用户已存在且有记录？上面的 upsert 会忽略它。
+    // 这正是我们想要的。
 
     const redirectUrl = linkData.properties.action_link;
     return NextResponse.redirect(redirectUrl);
