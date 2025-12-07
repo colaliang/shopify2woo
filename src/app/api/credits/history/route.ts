@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
+import { headers } from 'next/headers';
 
 export async function GET(req: Request) {
   const supabase = getSupabaseServer();
@@ -8,8 +9,16 @@ export async function GET(req: Request) {
   }
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const headersList = await headers();
+    const authHeader = headersList.get('authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    if (!token) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

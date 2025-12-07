@@ -12,9 +12,14 @@ export async function GET(req: Request) {
   // In real life, Stripe returns a URL, WeChat returns a Code URL.
   // Here we just simulate a "Confirm Payment" page or auto-success.
 
-  // Let's just auto-complete for testing purposes since we don't have real keys.
-  // Or render a simple HTML page to click "Pay".
+  // NOTE: In production, the webhook call should originate from the payment provider server,
+  // not from the client browser. For this mock, we are calling the webhook from the browser,
+  // so we need to expose the secret to the client, WHICH IS UNSAFE.
+  // BUT since this is a MOCK gateway, it's acceptable for testing environment only.
+  // We will inject the secret into the HTML if it exists.
   
+  const webhookSecret = process.env.PAYMENT_WEBHOOK_SECRET || '';
+
   return new NextResponse(`
     <html>
       <head><title>Mock Payment Gateway</title></head>
@@ -26,9 +31,15 @@ export async function GET(req: Request) {
         </button>
         <script>
           async function pay() {
+            const headers = { 'Content-Type': 'application/json' };
+            const secret = '${webhookSecret}';
+            if (secret) {
+                headers['x-webhook-secret'] = secret;
+            }
+            
             const res = await fetch('/api/payment/webhook/mock', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify({ orderId: '${orderId}', status: 'paid' })
             });
             if (res.ok) {

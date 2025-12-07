@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseServer, getUserIdFromToken } from '@/lib/supabaseServer';
+import { getSupabaseServer } from '@/lib/supabaseServer';
+import { headers } from 'next/headers';
 
 const PACKAGES = {
   'basic': { credits: 300, price: 2.99, name: 'Basic Package' },
@@ -16,8 +17,17 @@ export async function POST(req: Request) {
     if (!supabase) {
         return NextResponse.json({ error: 'Supabase client not initialized' }, { status: 500 });
     }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+
+    const headersList = await headers();
+    const authHeader = headersList.get('authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    if (!token) {
+        return NextResponse.json({ error: 'Unauthorized: No token' }, { status: 401 });
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -51,17 +61,9 @@ export async function POST(req: Request) {
     let paymentUrl = '';
     
     if (paymentMethod === 'stripe') {
-      // TODO: Stripe Checkout Session creation
-      // const session = await stripe.checkout.sessions.create({ ... });
-      // paymentUrl = session.url;
-      
       // MOCK for now
       paymentUrl = `/api/payment/mock-pay?orderId=${order.id}&method=stripe`; 
     } else if (paymentMethod === 'wechat') {
-      // TODO: WeChat Pay Native/JSAPI creation
-      // const result = await wechatPay.transactions.native({ ... });
-      // paymentUrl = result.code_url; (QR Code)
-      
       // MOCK for now
       paymentUrl = `/api/payment/mock-pay?orderId=${order.id}&method=wechat`;
     } else {
