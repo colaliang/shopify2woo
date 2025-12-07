@@ -41,7 +41,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
     <header className="relative flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
       {/* Left */}
       <div className="flex items-center gap-6">
-        <h1 className="text-xl font-semibold text-gray-900">云店+商品导入</h1>
+        <h1 className="text-xl font-semibold text-gray-900">云店+ WordPress产品导入助手</h1>
         <nav className="flex gap-2">
 
           <button
