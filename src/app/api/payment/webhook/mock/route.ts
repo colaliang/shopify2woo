@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
 import { headers } from 'next/headers';
+import { sendEmail } from '@/lib/resend';
+import { EmailTemplates } from '@/lib/emailTemplates';
 
 // This is a shared/mock webhook handler. 
 // Real Stripe/WeChat webhooks would verify signatures here.
@@ -40,6 +42,29 @@ export async function POST(req: Request) {
     if (error) {
         console.error('Webhook RPC error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Send Notification
+    // Fetch order details to get user_id and credits
+    const { data: order } = await supabase
+        .from('payment_orders')
+        .select('user_id, credits_amount')
+        .eq('id', orderId)
+        .single();
+
+    if (order && order.user_id) {
+        const { data: userData } = await supabase.auth.admin.getUserById(order.user_id);
+        const email = userData.user?.email;
+        if (email) {
+            sendEmail({
+                to: email,
+                subject: 'Payment Successful - Shopify2Woo',
+                html: EmailTemplates.orderPaid(orderId, order.credits_amount),
+                userId: order.user_id,
+                type: 'order_paid',
+                metadata: { orderId }
+            }).catch(e => console.error('Failed to send payment email', e));
+        }
     }
 
     return NextResponse.json({ success: true, data });

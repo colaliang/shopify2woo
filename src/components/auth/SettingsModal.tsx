@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Globe, History, Languages, HelpCircle } from "lucide-react";
+import { X, Globe, History, Languages, HelpCircle, Bell } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
+import SubscriptionSettings from "@/components/user/SubscriptionSettings";
 
 interface Transaction {
   id: string;
@@ -14,7 +15,7 @@ interface Transaction {
 
 export default function SettingsModal() {
   const { settings, updateSettings, user, logout, settingsModalOpen, closeSettingsModal } = useUserStore();
-  const [activeTab, setActiveTab] = useState<'wordpress' | 'language' | 'history'>('wordpress');
+  const [activeTab, setActiveTab] = useState<'wordpress' | 'language' | 'history' | 'notifications'>('wordpress');
   const [config, setConfig] = useState({ wordpressUrl: "", consumerKey: "", consumerSecret: "" });
   const [loadingCfg, setLoadingCfg] = useState(false);
   
@@ -194,6 +195,18 @@ export default function SettingsModal() {
             积分流水
           </button>
 
+          <button
+            onClick={() => setActiveTab('notifications')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 ${
+              activeTab === 'notifications'
+                ? 'text-primary-600 border-primary-600'
+                : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            通知设置
+          </button>
+
           <a
             href="/docs/index.html"
             target="_blank"
@@ -300,34 +313,36 @@ export default function SettingsModal() {
                            <div className={`font-bold text-sm ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
                              {tx.amount > 0 ? '+' : ''}{tx.amount}
                            </div>
-                           <div className="text-xs text-gray-400">余额: {tx.balance_after}</div>
+                           <div className="text-xs text-gray-500">余额: {tx.balance_after}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                   {/* Pagination */}
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                     <button 
-                        disabled={historyPage <= 1}
-                        onClick={() => fetchHistory(historyPage - 1)}
-                        className="text-sm text-gray-600 hover:text-primary-600 disabled:opacity-50"
-                     >
-                       上一页
-                     </button>
-                     <span className="text-xs text-gray-500">
-                       第 {historyPage} 页 / 共 {Math.ceil(historyTotal / 10)} 页
-                     </span>
-                     <button 
-                        disabled={historyPage >= Math.ceil(historyTotal / 10)}
-                        onClick={() => fetchHistory(historyPage + 1)}
-                        className="text-sm text-gray-600 hover:text-primary-600 disabled:opacity-50"
-                     >
-                       下一页
-                     </button>
+                  <div className="flex justify-between items-center pt-2">
+                    <button 
+                       disabled={historyPage <= 1}
+                       onClick={() => fetchHistory(historyPage - 1)}
+                       className="text-xs text-gray-500 disabled:opacity-50 hover:text-gray-900"
+                    >
+                      上一页
+                    </button>
+                    <span className="text-xs text-gray-500">第 {historyPage} 页</span>
+                    <button 
+                       disabled={historyPage * 10 >= historyTotal}
+                       onClick={() => fetchHistory(historyPage + 1)}
+                       className="text-xs text-gray-500 disabled:opacity-50 hover:text-gray-900"
+                    >
+                      下一页
+                    </button>
                   </div>
                 </>
               )}
             </div>
+          )}
+
+          {activeTab === 'notifications' && (
+             <SubscriptionSettings />
           )}
           
           {user && (

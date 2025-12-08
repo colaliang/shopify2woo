@@ -28,6 +28,7 @@ interface UserStore {
   settingsModalOpen: boolean;
   debugModalOpen: boolean;
   rechargeModalOpen: boolean;
+  contactModalOpen: boolean;
   
   // Actions
   login: (email: string, password: string) => Promise<boolean>;
@@ -39,6 +40,8 @@ interface UserStore {
   closeSettingsModal: () => void;
   openRechargeModal: () => void;
   closeRechargeModal: () => void;
+  openContactModal: () => void;
+  closeContactModal: () => void;
   initFromSupabase: () => Promise<void>;
   openDebugModal: () => void;
   closeDebugModal: () => void;
@@ -64,6 +67,7 @@ export const useUserStore = create<UserStore>((set, get) => ({
   settingsModalOpen: false,
   debugModalOpen: false,
   rechargeModalOpen: false,
+  contactModalOpen: false,
   
   login: async (email: string, password: string) => {
     try {
@@ -106,6 +110,8 @@ export const useUserStore = create<UserStore>((set, get) => ({
   closeSettingsModal: () => set({ settingsModalOpen: false }),
   openRechargeModal: () => set({ rechargeModalOpen: true }),
   closeRechargeModal: () => set({ rechargeModalOpen: false }),
+  openContactModal: () => set({ contactModalOpen: true }),
+  closeContactModal: () => set({ contactModalOpen: false }),
   openDebugModal: () => set({ debugModalOpen: true }),
   closeDebugModal: () => set({ debugModalOpen: false }),
   refreshCredits: async () => {

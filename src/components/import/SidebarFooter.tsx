@@ -1,6 +1,9 @@
 import React from 'react';
+import { useUserStore } from '@/stores/userStore';
 
 export default function SidebarFooter() {
+  const { openContactModal } = useUserStore();
+  
   return (
     <div className="border-t border-gray-200 p-4 bg-white shrink-0">
       <div className="flex flex-row items-center justify-start gap-6">
@@ -26,12 +29,19 @@ export default function SidebarFooter() {
              </a>
              <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
              <a 
-               href="mailto:support@ydjia.com"
-               className="hover:text-primary-600 hover:underline"
-             >
-               support@ydjia.com
-             </a>
-           </div>
+              href="mailto:support@ydplus.net"
+              className="hover:text-primary-600 hover:underline"
+            >
+              support@ydplus.net
+            </a>
+            <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
+            <button
+              onClick={openContactModal}
+              className="hover:text-primary-600 hover:underline text-left"
+            >
+              联系我们
+            </button>
+          </div>
            
 
         </div>

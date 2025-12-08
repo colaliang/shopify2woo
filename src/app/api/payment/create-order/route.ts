@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
 import { headers } from 'next/headers';
+import { sendEmail } from '@/lib/resend';
+import { EmailTemplates } from '@/lib/emailTemplates';
 
 const PACKAGES = {
   'basic': { credits: 300, price: 2.99, name: 'Basic Package' },
@@ -55,6 +57,18 @@ export async function POST(req: Request) {
     if (orderError) {
       console.error('Create order error:', orderError);
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+    }
+
+    // Send Order Created Email (Async)
+    if (user.email) {
+      sendEmail({
+        to: user.email,
+        subject: 'Order Confirmation - Shopify2Woo',
+        html: EmailTemplates.orderCreated(order.id, pkg.price, 'USD', pkg.name),
+        userId: user.id,
+        type: 'order_created',
+        metadata: { orderId: order.id }
+      }).catch(err => console.error('Failed to send order created email', err));
     }
 
     // 4. Initiate Payment (Mock / Skeleton)

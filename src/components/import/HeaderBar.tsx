@@ -6,6 +6,7 @@ import LoginModal from "@/components/auth/LoginModal";
 import SettingsModal from "@/components/auth/SettingsModal";
 import RechargeModal from "@/components/auth/RechargeModal";
 import DebugPanel from "@/components/auth/DebugPanel";
+import ContactModal from "@/components/contact/ContactModal";
 
 interface HeaderBarProps {
   activeTab: "listing" | "product";
@@ -42,7 +43,16 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
     <header className="relative flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
       {/* Left */}
       <div className="flex items-center gap-6">
-        <h1 className="text-xl font-semibold text-gray-900">云店+ WordPress产品导入助手</h1>
+        <div className="flex items-center gap-3">
+          <Image 
+            src="/logo.jpg" 
+            alt="Logo" 
+            width={32} 
+            height={32} 
+            className="w-8 h-8 rounded object-contain"
+          />
+          <h1 className="text-xl font-semibold text-gray-900">云店+WordPress产品导入助手</h1>
+        </div>
         <nav className="flex gap-2">
 
           <button
@@ -166,6 +176,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
       <DebugPanel />
       <SettingsModal />
       <RechargeModal />
+      <ContactModal />
     </header>
   );
 }

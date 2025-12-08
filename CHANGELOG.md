@@ -25,18 +25,16 @@
 8. **多语言支持改造**
    - 实现支持英语，法语，德语，西班牙语，意大利语，俄语，葡萄牙语，中文（简体），中文（繁体），日语，韩语
 
-9. **提交表单支持**
-   - 增加了提交表单的支持，用户可以提交需求和反馈问题
-
-
 10. **接入Deepseek AI优化标题/描述**
    - 利用Deepseek AI模型，根据现有标题，优化生成更符合SEO规范的标题和描述。
 
-11. **接入Resend**
-      - 增加Resend的mail群发
+11. **完善Resend的邮件通知**
+   - 在管理后台，管理通知模板，可自定义编辑邮件通知的内容。
 
 12. **多目标Wordpress站点支持**
    - 增加对多个Wordpress站点的支持，用户可以在一个账号下导入到可选的多个Wordpress站点。
+
+   
 
 
 ---
@@ -69,8 +67,16 @@
 6. **集成docsify**
    - 用于帮助文档，使用说明
 
+7. **接入Resend**
+   - 增加订阅管理
+   - 增加订单通知
 
+   - 测试欢迎邮件： /api/test/email?email=your@email.com&type=welcome
+   - 测试订单创建： /api/test/email?email=your@email.com&type=order_created
+   - 测试支付成功： /api/test/email?email=your@email.com&type=order_paid
 
+8. **提交表单支持**
+   - 增加了提交表单的支持，用户可以提交需求和反馈问题
 
 ## [Latest] - 2025-12-07
 
