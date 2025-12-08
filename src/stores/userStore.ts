@@ -17,6 +17,7 @@ export interface UserSettings {
   importThreads: number;
   autoPagination: boolean;
   waitSeconds: number;
+  language: string;
 }
 
 interface UserStore {
@@ -52,6 +53,7 @@ const defaultSettings: UserSettings = {
   importThreads: 10,
   autoPagination: true,
   waitSeconds: 0,
+  language: 'zh-CN',
 };
 
 export const useUserStore = create<UserStore>((set, get) => ({

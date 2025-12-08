@@ -120,6 +120,8 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                     </span>
                   </div>
                 </div>
+
+                {/*
                 <button 
                   onClick={() => {
                     openRechargeModal();
@@ -129,6 +131,8 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                 >
                   充值 (Recharge)
                 </button>
+                */}
+
                 <button 
                   onClick={() => {
                     openSettingsModal();

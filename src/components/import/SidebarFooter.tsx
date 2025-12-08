@@ -25,20 +25,9 @@ export default function SidebarFooter() {
              </a>
            </div>
            
-           <div className="flex items-center gap-2">
-             <span className="font-medium">添加企业微信</span>
-             <span className="text-[10px] text-gray-400">扫码咨询</span>
-           </div>
+
         </div>
         
-        <div className="flex items-center">
-           {/* eslint-disable-next-line @next/next/no-img-element */}
-           <img 
-             src="/wechat-qrcode.png" 
-             alt="WeChat QRCode" 
-             className="w-28 h-28 object-contain border border-gray-200 rounded p-1 bg-white shadow-sm" 
-           />
-        </div>
       </div>
     </div>
   );

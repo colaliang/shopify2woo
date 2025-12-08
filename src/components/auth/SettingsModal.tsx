@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Globe, Folder, Settings as SettingsIcon, History } from "lucide-react";
+import { X, Globe, History, Languages } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
 
@@ -14,8 +14,7 @@ interface Transaction {
 
 export default function SettingsModal() {
   const { settings, updateSettings, user, logout, settingsModalOpen, closeSettingsModal } = useUserStore();
-  const [localSettings, setLocalSettings] = useState(settings);
-  const [activeTab, setActiveTab] = useState<'wordpress' | 'import' | 'history'>('wordpress');
+  const [activeTab, setActiveTab] = useState<'wordpress' | 'language' | 'history'>('wordpress');
   const [config, setConfig] = useState({ wordpressUrl: "", consumerKey: "", consumerSecret: "" });
   const [loadingCfg, setLoadingCfg] = useState(false);
   
@@ -85,11 +84,6 @@ export default function SettingsModal() {
     }
   };
 
-  const handleSave = () => {
-    updateSettings(localSettings);
-    closeSettingsModal();
-  };
-
   const saveConfig = async () => {
     setLoadingCfg(true);
     try {
@@ -130,6 +124,24 @@ export default function SettingsModal() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [closeSettingsModal]);
 
+  const languages = [
+    { code: 'en', name: 'English' },
+    { code: 'fr', name: 'Français' },
+    { code: 'de', name: 'Deutsch' },
+    { code: 'es', name: 'Español' },
+    { code: 'it', name: 'Italiano' },
+    { code: 'ru', name: 'Русский' },
+    { code: 'pt', name: 'Português' },
+    { code: 'zh-CN', name: '中文（简体）' },
+    { code: 'zh-TW', name: '中文（繁体）' },
+    { code: 'ja', name: '日本語' },
+    { code: 'ko', name: '한국어' },
+  ];
+
+  const handleLanguageChange = (code: string) => {
+    updateSettings({ language: code });
+  };
+
   if (!settingsModalOpen) return null;
 
   return (
@@ -157,17 +169,19 @@ export default function SettingsModal() {
             <Globe className="w-4 h-4" />
             WordPress 设置
           </button>
+
           <button
-            onClick={() => setActiveTab('import')}
+            onClick={() => setActiveTab('language')}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 ${
-              activeTab === 'import'
+              activeTab === 'language'
                 ? 'text-primary-600 border-primary-600'
                 : 'text-gray-500 border-transparent hover:text-gray-700'
             }`}
           >
-            <SettingsIcon className="w-4 h-4" />
-            导入选项
+            <Languages className="w-4 h-4" />
+            语言
           </button>
+
           <button
             onClick={() => setActiveTab('history')}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 ${
@@ -228,65 +242,34 @@ export default function SettingsModal() {
               </div>
             </>
           )}
-          
-          {activeTab === 'import' && (
-            <>
+
+          {activeTab === 'language' && (
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  默认商品分类
-                </label>
-                <div className="relative">
-                  <Folder className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={localSettings.defaultCategory}
-                    onChange={(e) => setLocalSettings({...localSettings, defaultCategory: e.target.value})}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="请输入默认分类"
-                  />
+                <label className="block text-sm font-medium text-gray-700 mb-2">选择界面语言</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {languages.map((lang) => (
+                    <button
+                      key={lang.code}
+                      onClick={() => handleLanguageChange(lang.code)}
+                      className={`flex items-center px-4 py-3 border rounded-lg text-sm transition-colors ${
+                        settings.language === lang.code
+                          ? 'border-primary-600 bg-primary-50 text-primary-700'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full mr-3 ${
+                         settings.language === lang.code ? 'bg-primary-600' : 'bg-transparent'
+                      }`} />
+                      {lang.name}
+                    </button>
+                  ))}
                 </div>
+                <p className="mt-4 text-xs text-gray-500">
+                  注意：语言切换功能目前仅更新设置，界面多语言支持正在开发中。
+                </p>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  导入线程数
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={localSettings.importThreads}
-                  onChange={(e) => setLocalSettings({...localSettings, importThreads: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              
-              <div>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={localSettings.autoPagination}
-                    onChange={(e) => setLocalSettings({...localSettings, autoPagination: e.target.checked})}
-                    className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">自动分页</span>
-                </label>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  等待时间（秒）
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={60}
-                  value={localSettings.waitSeconds}
-                  onChange={(e) => setLocalSettings({...localSettings, waitSeconds: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-            </>
+            </div>
           )}
 
           {activeTab === 'history' && (
@@ -359,21 +342,6 @@ export default function SettingsModal() {
               </div>
             </div>
           )}
-        </div>
-        
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
-          <button
-            onClick={closeSettingsModal}
-            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            取消
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-          >
-            保存设置
-          </button>
         </div>
       </div>
     </div>
