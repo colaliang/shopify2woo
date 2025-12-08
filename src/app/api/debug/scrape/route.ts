@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 import { fetchHtmlMeta, buildWpPayloadFromHtml, extractProductPrices } from "@/lib/wordpressScrape";
 import { buildWixPayload, buildWixVariationsFromHtml } from "@/lib/wixScrape";
+import { fetchProductByHandle } from "@/lib/shopify";
 import type { WooProductPayload } from "@/lib/importMap";
 import { saveImportCache, sha256 } from "@/lib/cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function getShopifyHandle(url: string) {
+  try {
+    const u = new URL(url);
+    const m = u.pathname.match(/\/products\/([^\/?#]+)/);
+    if (m) return m[1];
+  } catch {}
+  return "";
+}
 
 export async function GET(req: Request) {
   try {
@@ -28,7 +38,49 @@ export async function GET(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let rawPrices: any = [];
 
-    if (platform === "Wix") {
+    if (platform === "Shopify") {
+      const handle = getShopifyHandle(finalUrl);
+      if (!handle) throw new Error("无法从 URL 提取 Shopify Handle");
+      const shopifyBase = new URL(finalUrl).origin;
+      const product = await fetchProductByHandle(shopifyBase, handle);
+      if (!product) throw new Error("无法通过 Shopify API 获取产品数据");
+
+      // Map ShopifyProduct to debug format
+      const images = (product.images || []).map(img => img.src);
+      const variants = (product.variants || []).map(v => ({
+        id: String(v.id),
+        price: v.price,
+        sku: v.sku,
+        attributes: [
+          v.option1 && { name: product.options?.[0]?.name || "Option1", value: v.option1 },
+          v.option2 && { name: product.options?.[1]?.name || "Option2", value: v.option2 },
+          v.option3 && { name: product.options?.[2]?.name || "Option3", value: v.option3 },
+        ].filter(Boolean)
+      }));
+
+      p = {
+        name: product.title,
+        description: product.body_html || "",
+        short_description: "", // Shopify usually doesn't have explicit short desc in API
+        regular_price: product.variants?.[0]?.price,
+        images: images.map(src => ({ src })),
+        sku: product.variants?.[0]?.sku,
+        categories: product.product_type ? [{ name: product.product_type }] : [],
+      } as WooProductPayload;
+
+      built = {
+        catNames: product.product_type ? [product.product_type] : [],
+        imagesAbs: images,
+        short_description: "",
+        variations: variants,
+      };
+      
+      // Cache for runner (though Shopify runner usually fetches again or uses passed data)
+       try {
+         await saveImportCache(url, sha256(JSON.stringify(product)), built);
+      } catch {}
+
+    } else if (platform === "Wix") {
       const wixBuilt = buildWixPayload(finalUrl, meta.html);
       const vars = buildWixVariationsFromHtml(meta.html);
       

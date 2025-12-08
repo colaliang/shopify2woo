@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   if (error || !supabase) return NextResponse.json({ error }, { status });
 
   const { searchParams } = new URL(req.url);
-  const query = searchParams.get('q') || '';
+  const query = (searchParams.get('q') || '').trim();
   const page = parseInt(searchParams.get('page') || '1');
   
   try {
@@ -20,9 +20,13 @@ export async function GET(req: Request) {
     if (error) throw error;
 
     return NextResponse.json({ users: data });
-  } catch (e) {
+  } catch (e: any) {
     console.error('Admin user search error:', e);
-    return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Internal Error', 
+      details: e.message || String(e),
+      hint: 'Check database logs or RPC permissions' 
+    }, { status: 500 });
   }
 }
 

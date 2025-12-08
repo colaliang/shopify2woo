@@ -62,9 +62,9 @@ export default function AdminDashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0">
           <h3 className="text-lg font-semibold mb-6">User Growth (30 Days)</h3>
-          <div className="h-80">
+          <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={charts?.growth || []}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -77,9 +77,9 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 min-w-0">
           <h3 className="text-lg font-semibold mb-6">Revenue Trend (30 Days)</h3>
-          <div className="h-80">
+          <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={charts?.revenue || []}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />

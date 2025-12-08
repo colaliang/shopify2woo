@@ -19,11 +19,27 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        console.warn('No active session found');
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch(`/api/admin/users?q=${query}&page=${page}`, {
-        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
       });
+      
+      if (res.status === 401) {
+         // Token might be expired or invalid
+         console.error('Unauthorized access');
+         return;
+      }
+
       const data = await res.json();
       if (data.users) setUsers(data.users);
+    } catch (err) {
+      console.error('Fetch users error:', err);
     } finally {
       setLoading(false);
     }
@@ -38,11 +54,17 @@ export default function UsersPage() {
     if (!selectedUser || !adjustAmount || !adjustReason) return;
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        alert('Authentication error. Please reload.');
+        return;
+      }
+
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           userId: selectedUser.id,

@@ -24,6 +24,13 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+  -- Allow if service_role (API calls with Service Key)
+  -- We check the setting directly
+  IF COALESCE(current_setting('request.jwt.claim.role', true), '') = 'service_role' THEN
+    RETURN true;
+  END IF;
+
+  -- Standard check for authenticated users
   RETURN EXISTS (
     SELECT 1 FROM public.admin_users WHERE user_id = auth.uid()
   );
@@ -172,10 +179,32 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+  clean_term text;
 BEGIN
   -- Check admin permission first
   IF NOT is_admin() THEN
     RAISE EXCEPTION 'Access denied';
+  END IF;
+
+  -- Clean the search term
+  clean_term := TRIM(search_term);
+
+  -- If empty search term, return all users (paginated)
+  IF clean_term = '' THEN
+    RETURN QUERY
+    SELECT 
+      au.id,
+      au.email::varchar,
+      au.raw_user_meta_data,
+      au.created_at,
+      uc.credits
+    FROM auth.users au
+    LEFT JOIN public.user_configs uc ON au.id = uc.user_id
+    ORDER BY au.created_at DESC
+    LIMIT limit_count
+    OFFSET (page - 1) * limit_count;
+    RETURN;
   END IF;
 
   RETURN QUERY
@@ -188,10 +217,14 @@ BEGIN
   FROM auth.users au
   LEFT JOIN public.user_configs uc ON au.id = uc.user_id
   WHERE 
-    au.email ILIKE '%' || search_term || '%'
-    OR (au.raw_user_meta_data->>'name') ILIKE '%' || search_term || '%'
-    OR (au.raw_user_meta_data->>'full_name') ILIKE '%' || search_term || '%'
-    OR (au.raw_user_meta_data->>'nickname') ILIKE '%' || search_term || '%'
+    au.email ILIKE '%' || clean_term || '%'
+    OR (au.raw_user_meta_data->>'name') ILIKE '%' || clean_term || '%'
+    OR (au.raw_user_meta_data->>'full_name') ILIKE '%' || clean_term || '%'
+    OR (au.raw_user_meta_data->>'nickname') ILIKE '%' || clean_term || '%'
+    OR (au.raw_user_meta_data->>'user_name') ILIKE '%' || clean_term || '%'
+    OR (au.raw_user_meta_data->>'username') ILIKE '%' || clean_term || '%'
+    OR (au.raw_user_meta_data->>'preferred_username') ILIKE '%' || clean_term || '%'
+    OR (au.raw_user_meta_data->>'email') ILIKE '%' || clean_term || '%'
   ORDER BY au.created_at DESC
   LIMIT limit_count
   OFFSET (page - 1) * limit_count;

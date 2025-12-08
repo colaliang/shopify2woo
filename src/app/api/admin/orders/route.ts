@@ -11,20 +11,46 @@ export async function GET(req: Request) {
   const offset = (page - 1) * limit;
 
   try {
-    const { data, error, count } = await supabase
-        .from('payment_orders')
-        .select('*, user:user_id(email)', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+    const { data, error } = await supabase.rpc('get_admin_orders', {
+        page: page,
+        limit_count: limit
+    });
 
     if (error) throw error;
 
+    // Transform data to match expected frontend format
+    // The RPC returns flat structure, we need to nest user email if frontend expects it
+    // But based on previous code: .select('*, user:user_id(email)')
+    // The frontend likely expects { ...order, user: { email: '...' } }
+    
+    const count = data?.[0]?.total_count || 0;
+    
+    const orders = data?.map((order: any) => ({
+        id: order.id,
+        user_id: order.user_id,
+        package_id: order.package_id,
+        amount: order.amount,
+        currency: order.currency,
+        credits_amount: order.credits_amount,
+        payment_method: order.payment_method,
+        status: order.status,
+        external_order_id: order.external_order_id,
+        metadata: order.metadata,
+        created_at: order.created_at,
+        updated_at: order.updated_at,
+        user: { email: order.user_email }
+    })) || [];
+
     return NextResponse.json({ 
-        orders: data, 
-        pagination: { page, limit, total: count, totalPages: Math.ceil((count || 0) / limit) } 
+        orders: orders, 
+        pagination: { page, limit, total: Number(count), totalPages: Math.ceil(Number(count) / limit) } 
     });
   } catch (e) {
     console.error('Admin orders error:', e);
-    return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
+    // Return detailed error for debugging
+    return NextResponse.json({ 
+      error: 'Internal Error', 
+      details: e instanceof Error ? e.message : String(e) 
+    }, { status: 500 });
   }
 }

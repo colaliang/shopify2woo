@@ -63,6 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Overview', href: '/admin', icon: LayoutDashboard },
     { name: 'Users & Credits', href: '/admin/users', icon: Users },
     { name: 'Orders & Revenue', href: '/admin/orders', icon: ShoppingCart },
+    { name: 'Credit Logs', href: '/admin/logs', icon: FileText },
     { name: 'Reconciliation', href: '/admin/reconciliation', icon: AlertOctagon },
   ];
 

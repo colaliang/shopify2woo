@@ -9,9 +9,16 @@ export async function checkAdmin() {
   // Get token from Authorization header
   const headersList = await headers();
   const authHeader = headersList.get('authorization');
-  const token = authHeader?.replace('Bearer ', '');
+  
+  if (!authHeader) {
+    return { error: 'Unauthorized: No token provided', status: 401 };
+  }
 
-  if (!token) return { error: 'Unauthorized: No token provided', status: 401 };
+  const token = authHeader.replace('Bearer ', '');
+
+  if (!token || token === 'undefined' || token === 'null') {
+    return { error: 'Unauthorized: Invalid token format', status: 401 };
+  }
 
   const { data: { user }, error } = await supabase.auth.getUser(token);
   
@@ -29,5 +36,19 @@ export async function checkAdmin() {
 
   if (!admin) return { error: 'Forbidden: Not an admin', status: 403 };
 
+  // For RPC calls that use auth.uid(), we need to use a client that is authenticated as the user,
+  // NOT the service role client.
+  // However, the RPC search_users_admin needs special privileges (service role) to read all users.
+  // BUT the RPC checks auth.uid() inside is_admin()!
+  //
+  // Solution: We must use the Service Role client (which has super powers) but we also need to pass
+  // the context that we are authorized.
+  // 
+  // Our is_admin() function allows 'service_role' role.
+  // When we use getSupabaseServer(), we are using the Service Role Key.
+  // The Postgres role will be 'service_role'.
+  // 
+  // So, returning the service role client is correct.
+  
   return { user, supabase };
 }
