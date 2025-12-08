@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, Filter } from 'lucide-react';
+import { Download } from 'lucide-react';
 import supabase from '@/lib/supabase';
 
 export default function CreditLogsPage() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);

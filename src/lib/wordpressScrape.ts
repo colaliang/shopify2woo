@@ -136,10 +136,12 @@ export function extractJsonLdProduct(html: string): LdProduct | null {
       if (obj["@graph"] && Array.isArray(obj["@graph"])) {
         const graph = obj["@graph"];
         // Try to find explicit Product
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const p = graph.find((x: any) => x && x["@type"] === "Product");
         if (p) return p as LdProduct;
         
         // Fallback: Find WebPage or WebSite that might have product info
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const webPage = graph.find((x: any) => x && (x["@type"] === "WebPage" || x["@type"] === "ItemPage"));
         if (webPage && webPage.name) {
            // If we found a WebPage with a name, return it as a partial product

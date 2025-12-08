@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle } from 'lucide-react';
 import supabase from '@/lib/supabase';
 
 export default function ReconciliationPage() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [discrepancies, setDiscrepancies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,7 +70,7 @@ export default function ReconciliationPage() {
                 </table>
                 <p className="text-xs text-gray-500 mt-2">
                     * Calculated balance is derived from the sum of all transaction logs (init + recharges - deductions). 
-                    If mismatch exists, it might be due to missing 'init' log for old users or concurrent update issues.
+                    If mismatch exists, it might be due to missing &apos;init&apos; log for old users or concurrent update issues.
                 </p>
             </div>
         )}

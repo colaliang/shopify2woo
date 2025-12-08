@@ -18,6 +18,14 @@ export default function SidebarFooter() {
              </a>
              <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
              <a 
+               href="/docs/index.html"
+               target="_blank"
+               className="hover:text-primary-600 hover:underline"
+             >
+               帮助
+             </a>
+             <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
+             <a 
                href="mailto:support@ydjia.com"
                className="hover:text-primary-600 hover:underline"
              >

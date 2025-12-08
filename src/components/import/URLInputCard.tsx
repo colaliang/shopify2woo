@@ -11,8 +11,6 @@ interface URLInputCardProps {
 export default function URLInputCard({
   value,
   onChange,
-  onExtract,
-  loading = false,
   disabled = false,
 }: URLInputCardProps) {
   return (

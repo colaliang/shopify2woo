@@ -20,11 +20,11 @@ export async function GET(req: Request) {
     if (error) throw error;
 
     return NextResponse.json({ users: data });
-  } catch (e: any) {
+  } catch (e) {
     console.error('Admin user search error:', e);
     return NextResponse.json({ 
       error: 'Internal Error', 
-      details: e.message || String(e),
+      details: e instanceof Error ? e.message : String(e),
       hint: 'Check database logs or RPC permissions' 
     }, { status: 500 });
   }

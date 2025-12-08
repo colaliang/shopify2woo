@@ -1,21 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Search, Plus, Minus, MoreHorizontal } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search } from 'lucide-react';
 import supabase from '@/lib/supabase';
 
 export default function UsersPage() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [users, setUsers] = useState<any[]>([]);
   const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
+  const [page] = useState(1);
   const [loading, setLoading] = useState(false);
   
   // Modal State
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [adjustAmount, setAdjustAmount] = useState(0);
   const [adjustReason, setAdjustReason] = useState('');
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -43,12 +45,12 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query, page]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchUsers(), 500);
     return () => clearTimeout(timer);
-  }, [query, page]);
+  }, [fetchUsers]);
 
   const handleAdjust = async () => {
     if (!selectedUser || !adjustAmount || !adjustReason) return;

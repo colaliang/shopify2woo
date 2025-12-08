@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { checkAdmin } from '@/lib/adminAuth';
 
-export async function GET(req: Request) {
+export async function GET() {
   // This is just a helper file, but Next.js route handlers need an export.
   // We can use this route to verify admin status on client side.
   const check = await checkAdmin();

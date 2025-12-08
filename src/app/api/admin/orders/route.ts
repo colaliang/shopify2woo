@@ -8,7 +8,6 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get('page') || '1');
   const limit = 50;
-  const offset = (page - 1) * limit;
 
   try {
     const { data, error } = await supabase.rpc('get_admin_orders', {
@@ -25,6 +24,7 @@ export async function GET(req: Request) {
     
     const count = data?.[0]?.total_count || 0;
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const orders = data?.map((order: any) => ({
         id: order.id,
         user_id: order.user_id,

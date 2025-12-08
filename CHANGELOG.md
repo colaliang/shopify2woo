@@ -27,10 +27,17 @@
 
 9. **提交表单支持**
    - 增加了提交表单的支持，用户可以提交需求和反馈问题
-   - 增加Resend的mail群发
 
-10. **SEO优化**
-   - 增加了对产品页面的SEO优化，包括标题、描述、关键词等。
+
+10. **接入Deepseek AI优化标题/描述**
+   - 利用Deepseek AI模型，根据现有标题，优化生成更符合SEO规范的标题和描述。
+
+11. **接入Resend**
+      - 增加Resend的mail群发
+
+12. **多目标Wordpress站点支持**
+   - 增加对多个Wordpress站点的支持，用户可以在一个账号下导入到可选的多个Wordpress站点。
+
 
 ---
 
@@ -57,6 +64,12 @@
 
 5. **抓取回归测试 (Regression Testing)**
    - 增加了对不同类型 WordPress 官网的产品导入功能的回归测试用例，确保功能正常。
+   - https://www.ydplus.net/debug/regression
+
+6. **集成docsify**
+   - 用于帮助文档，使用说明
+
+
 
 
 ## [Latest] - 2025-12-07

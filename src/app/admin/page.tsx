@@ -6,7 +6,9 @@ import { Users, TrendingUp, CreditCard, Activity } from 'lucide-react';
 import supabase from '@/lib/supabase';
 
 export default function AdminDashboard() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [stats, setStats] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [charts, setCharts] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 

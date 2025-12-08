@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Trash2, Plus, Play, CheckCircle, XCircle, Save } from "lucide-react";
+import { Trash2, Plus, Play, CheckCircle, XCircle } from "lucide-react";
 
 type TestCase = {
   id: string;
@@ -215,7 +215,7 @@ export default function RegressionPage() {
                   <label className="block text-xs text-gray-500 mb-1">平台</label>
                   <select
                     value={c.platform}
-                    onChange={(e) => updateCase(c.id, { platform: e.target.value as any })}
+                    onChange={(e) => updateCase(c.id, { platform: e.target.value as TestCase['platform'] })}
                     className="w-full border rounded px-2 py-1 text-sm"
                   >
                     <option value="WordPress">WordPress</option>
@@ -305,7 +305,7 @@ export default function RegressionPage() {
                       {Object.entries(res.details).map(([key, val]) => (
                         <div key={key} className={`flex gap-2 ${val.pass ? "text-green-700" : "text-red-700"}`}>
                           <span className="w-24 font-semibold">{key}:</span>
-                          <span>Expected "{String(val.expected)}", Got "{String(val.actual)}"</span>
+                          <span>Expected &quot;{String(val.expected)}&quot;, Got &quot;{String(val.actual)}&quot;</span>
                           {!val.pass && <XCircle size={14} className="mt-1" />}
                         </div>
                       ))}

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { checkAdmin } from '@/lib/adminAuth';
 
-export async function GET(req: Request) {
+export async function GET() {
   const { supabase, error, status } = await checkAdmin();
   if (error || !supabase) return NextResponse.json({ error }, { status });
 

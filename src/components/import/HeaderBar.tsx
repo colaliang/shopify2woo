@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Settings, User, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useUserStore } from "@/stores/userStore";
@@ -13,7 +14,7 @@ interface HeaderBarProps {
 
 export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
   const [open, setOpen] = useState(false);
-  const { user, isAuthenticated, openLoginModal, openSettingsModal, openRechargeModal, logout, initFromSupabase, openDebugModal } = useUserStore();
+  const { user, isAuthenticated, openLoginModal, openSettingsModal, logout, initFromSupabase, openDebugModal } = useUserStore();
 
   useEffect(() => {
     initFromSupabase();
@@ -82,9 +83,11 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
           aria-label="User settings"
         >
           {user?.avatar ? (
-            <img 
+            <Image 
               src={user.avatar} 
               alt="User Avatar" 
+              width={24}
+              height={24}
               className="w-6 h-6 rounded-full object-cover border border-gray-200"
             />
           ) : (

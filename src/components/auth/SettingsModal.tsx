@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Globe, History, Languages } from "lucide-react";
+import { X, Globe, History, Languages, HelpCircle } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
 
@@ -193,6 +193,15 @@ export default function SettingsModal() {
             <History className="w-4 h-4" />
             积分流水
           </button>
+
+          <a
+            href="/docs/index.html"
+            target="_blank"
+            className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700"
+          >
+            <HelpCircle className="w-4 h-4" />
+            帮助
+          </a>
         </div>
         
         <div className="flex-1 overflow-y-auto p-6 space-y-6">

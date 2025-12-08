@@ -9,7 +9,7 @@ import supabase from '@/lib/supabase';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isAuthenticated, initFromSupabase, logout } = useUserStore();
+  const { isAuthenticated, initFromSupabase, logout } = useUserStore();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {

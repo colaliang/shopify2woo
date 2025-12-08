@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
 import { checkAdmin } from '@/lib/adminAuth';
 
+interface AdminLog {
+    id: string;
+    user_id: string;
+    amount: number;
+    type: string;
+    description: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: any;
+    created_at: string;
+    user_email: string;
+    total_count: number;
+}
+
 export async function GET(req: Request) {
   const { supabase, error, status } = await checkAdmin();
   if (error || !supabase) return NextResponse.json({ error }, { status });
@@ -21,7 +34,7 @@ export async function GET(req: Request) {
     
     const count = data?.[0]?.total_count || 0;
     
-    const logs = data?.map((log: any) => ({
+    const logs = data?.map((log: AdminLog) => ({
         id: log.id,
         user_id: log.user_id,
         amount: log.amount,

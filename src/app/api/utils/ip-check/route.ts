@@ -4,7 +4,7 @@ export async function GET(req: Request) {
   try {
     // Get IP from headers
     const forwardedFor = req.headers.get('x-forwarded-for');
-    let ip = forwardedFor ? forwardedFor.split(',')[0] : '127.0.0.1';
+    const ip = forwardedFor ? forwardedFor.split(',')[0] : '127.0.0.1';
 
     // For local development, mock China IP if requested via query param ?mock_country=CN
     const { searchParams } = new URL(req.url);
@@ -44,12 +44,12 @@ export async function GET(req: Request) {
       country: data.countryCode
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('IP check error:', error);
     return NextResponse.json({
       isChina: false,
       error: 'Check failed',
-      details: error.message
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 }
