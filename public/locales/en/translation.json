@@ -1,7 +1,7 @@
 {
   "app": {
-    "title": "Shopify/Wix/WP to WooCommerce Importer",
-    "description": "Professional cross-border e-commerce product migration tool"
+    "title": "Yundian+ WooCommerce Importer",
+    "description": "Professional tool import products from WordPress, Shopify, Wix to WooCommerce/WordPress."
   },
   "nav": {
     "home": "Home",
@@ -105,7 +105,8 @@
     "login": {
       "title": "User Login",
       "google": "Login with Google",
-      "wechat": "Login with WeChat"
+      "wechat": "Login with WeChat",
+      "btn_login": "Login"
     },
     "error": {
       "env_missing": "Supabase environment variables missing",
@@ -114,6 +115,11 @@
   },
   "settings": {
     "title": "Settings",
+    "user": {
+      "current_user": "Current User",
+      "credits": "Credits: {{credits}}",
+      "logout": "Logout"
+    },
     "tab": {
       "wordpress": "WordPress Settings",
       "language": "Language",
@@ -123,12 +129,15 @@
     },
     "wp": {
       "url_label": "WordPress Site URL",
+      "key_label": "Consumer Key",
+      "secret_label": "Consumer Secret",
       "save_loading": "Saving...",
       "save": "Save Config",
       "save_failed": "Save Failed"
     },
     "lang": {
-      "label": "Select Interface Language"
+      "label": "Select Interface Language",
+      "save": "Save and Switch Language"
     },
     "history": {
       "loading": "Loading...",
@@ -141,11 +150,48 @@
     "sub": {
       "title": "Email Notifications",
       "label": "Subscribe to Emails",
+      "save_btn": "Save Preferences",
       "saved": "Preferences saved!",
-      "error": "Save Failed"
+      "error": "Save Failed",
+      "status": {
+        "subscribed": "Subscribed",
+        "unsubscribed": "Unsubscribed"
+      },
+      "pref": {
+        "orders": "Order Updates (Created, Paid)",
+        "marketing": "Marketing & News",
+        "freq": "Frequency",
+        "immediate": "Immediate",
+        "daily": "Daily Digest",
+        "weekly": "Weekly Digest"
+      }
     }
   },
   "contact": {
-    "default_category": "Feature Suggestion"
+    "default_category": "Feature Suggestion",
+    "title": "Contact Us",
+    "success": {
+      "title": "Submitted Successfully",
+      "msg": "Thank you for your feedback, we will process it as soon as possible."
+    },
+    "form": {
+      "category": "Category",
+      "category_placeholder": "Select a category",
+      "categories": {
+        "feature": "✨ Feature Suggestion",
+        "bug": "🐛 Bug Report",
+        "account": "👤 Account Issue",
+        "payment": "💰 Payment Issue",
+        "business": "🤝 Business Inquiry",
+        "other": "📝 Other"
+      },
+      "contact": "Contact Info",
+      "contact_placeholder": "Email or Phone",
+      "desc": "Description",
+      "desc_placeholder": "Please describe your request or issue in detail...",
+      "submit": "Submit",
+      "submitting": "Submitting...",
+      "error": "Submission failed, please try again later"
+    }
   }
 }

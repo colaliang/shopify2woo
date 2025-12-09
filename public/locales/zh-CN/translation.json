@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "云店+WordPress产品导入助手",
-    "description": "专业的跨境电商产品搬家工具"
+    "description": "支持从WordPress, Shopify, Wix导入产品到WooCommerce/WordPress。无需原网站API，支持批量采集"
   },
   "nav": {
     "home": "首页",
@@ -80,8 +80,6 @@
     "options": {
       "default_category": "默认分类",
       "uncategorized": "未分类",
-      "led_lights": "LED Lights",
-      "profiles": "Aluminium Profiles",
       "threads": "导入线程数",
       "auto_pagination": "自动分页"
     },
@@ -105,7 +103,8 @@
     "login": {
       "title": "用户登录",
       "google": "使用 Google 登录",
-      "wechat": "使用微信登录"
+      "wechat": "使用微信登录",
+      "btn_login": "登录"
     },
     "error": {
       "env_missing": "未配置 Supabase 环境变量",
@@ -114,6 +113,11 @@
   },
   "settings": {
     "title": "系统设置",
+    "user": {
+      "current_user": "当前用户",
+      "credits": "剩余积分: {{credits}}",
+      "logout": "退出登录"
+    },
     "tab": {
       "wordpress": "WordPress 设置",
       "language": "语言",
@@ -123,12 +127,15 @@
     },
     "wp": {
       "url_label": "WordPress 站点网址",
+      "key_label": "消费者密钥 (Consumer Key)",
+      "secret_label": "消费者密钥 (Consumer Secret)",
       "save_loading": "保存中…",
       "save": "保存配置",
       "save_failed": "保存失败"
     },
     "lang": {
-      "label": "选择界面语言"
+      "label": "选择界面语言",
+      "save": "保存并切换语言"
     },
     "history": {
       "loading": "加载中...",
@@ -141,11 +148,48 @@
     "sub": {
       "title": "邮件通知",
       "label": "订阅邮件",
+      "save_btn": "保存设置",
       "saved": "设置已保存！",
-      "error": "保存失败"
+      "error": "保存失败",
+      "status": {
+        "subscribed": "已订阅",
+        "unsubscribed": "未订阅"
+      },
+      "pref": {
+        "orders": "订单更新通知 (创建、支付)",
+        "marketing": "营销与新闻",
+        "freq": "通知频率",
+        "immediate": "即时",
+        "daily": "每日摘要",
+        "weekly": "每周摘要"
+      }
     }
   },
   "contact": {
-    "default_category": "功能建议"
+    "default_category": "功能建议",
+    "title": "联系我们",
+    "success": {
+      "title": "提交成功",
+      "msg": "感谢您的反馈，我们会尽快处理。"
+    },
+    "form": {
+      "category": "问题分类",
+      "category_placeholder": "请选择分类",
+      "categories": {
+        "feature": "✨ 功能建议",
+        "bug": "🐛 Bug反馈",
+        "account": "👤 账号问题",
+        "payment": "💰 充值问题",
+        "business": "🤝 商务合作",
+        "other": "📝 其他"
+      },
+      "contact": "联系方式",
+      "contact_placeholder": "邮箱或手机号",
+      "desc": "详细描述",
+      "desc_placeholder": "请详细描述您的需求或遇到的问题...",
+      "submit": "提交",
+      "submitting": "提交中...",
+      "error": "提交失败，请稍后重试"
+    }
   }
 }

@@ -87,7 +87,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
       {/* Right */}
       <div className="relative flex items-center gap-2">
         {process.env.NODE_ENV !== 'production' && (
-          <span className="text-xs text-gray-600">免登录</span>
+          <span className="text-xs text-gray-600">{t('auth.login.btn_login')} Free</span>
         )}
         <button
           onClick={() => setOpen((v) => !v)}
@@ -120,7 +120,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
               >
-                登录
+                {t('auth.login.btn_login')}
               </button>
             ) : (
               <>
@@ -131,7 +131,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                   )}
                   <div className="mt-2 flex items-center justify-between">
                     <span className="text-xs text-gray-600 font-medium bg-gray-100 px-2 py-0.5 rounded-full">
-                      Credits: {user?.credits ?? 0}
+                      {t('settings.user.credits', { credits: user?.credits ?? 0 })}
                     </span>
                   </div>
                 </div>
@@ -155,7 +155,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                   }}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  系统设置
+                  {t('settings.title')}
                 </button>
                 <button 
                   onClick={() => {
@@ -165,7 +165,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                   className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                 >
                   <LogOut className="w-4 h-4" />
-                  退出登录
+                  {t('settings.user.logout')}
                 </button>
               </>
             )}

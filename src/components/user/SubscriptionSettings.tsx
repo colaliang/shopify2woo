@@ -102,7 +102,7 @@ export default function SubscriptionSettings() {
           onClick={() => setSub({...sub, status: sub.status === 'active' ? 'unsubscribed' : 'active'})}
           className={`px-3 py-1 rounded-full text-xs ${sub.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
         >
-          {sub.status === 'active' ? 'Subscribed' : 'Unsubscribed'}
+          {sub.status === 'active' ? t('settings.sub.status.subscribed') : t('settings.sub.status.unsubscribed')}
         </button>
       </div>
 
@@ -115,7 +115,7 @@ export default function SubscriptionSettings() {
               onChange={e => setSub({...sub, preferences: {...sub.preferences, order_updates: e.target.checked}})}
               id="pref_orders"
             />
-            <label htmlFor="pref_orders" className="text-sm">Order Updates (Created, Paid)</label>
+            <label htmlFor="pref_orders" className="text-sm">{t('settings.sub.pref.orders')}</label>
           </div>
 
           <div className="flex items-center gap-2">
@@ -125,19 +125,19 @@ export default function SubscriptionSettings() {
               onChange={e => setSub({...sub, preferences: {...sub.preferences, marketing: e.target.checked}})}
               id="pref_marketing"
             />
-            <label htmlFor="pref_marketing" className="text-sm">Marketing & News</label>
+            <label htmlFor="pref_marketing" className="text-sm">{t('settings.sub.pref.marketing')}</label>
           </div>
 
           <div className="flex flex-col gap-1 mt-2">
-             <label className="text-xs text-gray-500">Frequency</label>
+             <label className="text-xs text-gray-500">{t('settings.sub.pref.freq')}</label>
              <select 
                value={sub.preferences.frequency}
                onChange={e => setSub({...sub, preferences: {...sub.preferences, frequency: e.target.value as 'immediate' | 'daily' | 'weekly'}})}
                className="text-sm border rounded p-1"
              >
-               <option value="immediate">Immediate</option>
-               <option value="daily">Daily Digest</option>
-               <option value="weekly">Weekly Digest</option>
+               <option value="immediate">{t('settings.sub.pref.immediate')}</option>
+               <option value="daily">{t('settings.sub.pref.daily')}</option>
+               <option value="weekly">{t('settings.sub.pref.weekly')}</option>
              </select>
           </div>
         </div>
@@ -146,10 +146,10 @@ export default function SubscriptionSettings() {
       <button 
         onClick={save}
         disabled={saving}
-        className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50 text-sm mt-2"
+        className="flex items-center gap-2 px-6 py-2.5 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-sm mt-4"
       >
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-        Save Preferences
+        {t('settings.sub.save_btn') || 'Save Preferences'}
       </button>
     </div>
   );

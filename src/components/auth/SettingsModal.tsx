@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, Globe, History, Languages, HelpCircle, Bell } from "lucide-react";
+import { X, Globe, History, Languages, HelpCircle, Bell, Save } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
 import SubscriptionSettings from "@/components/user/SubscriptionSettings";
@@ -148,9 +148,26 @@ export default function SettingsModal() {
     { code: 'ko', name: '한국어' },
   ];
 
+  const [selectedLang, setSelectedLang] = useState(i18n.resolvedLanguage);
+
+  useEffect(() => {
+    setSelectedLang(i18n.resolvedLanguage);
+  }, [i18n.resolvedLanguage]);
+
   const handleLanguageChange = (code: string) => {
-    i18n.changeLanguage(code);
-    updateSettings({ language: code });
+    setSelectedLang(code);
+  };
+
+  const saveLanguage = () => {
+    if (selectedLang) {
+      i18n.changeLanguage(selectedLang)
+        .then(() => {
+           localStorage.setItem('i18nextLng', selectedLang); // Explicitly set localStorage
+           updateSettings({ language: selectedLang });
+           closeSettingsModal();
+        })
+        .catch(err => console.error('Failed to switch language', err));
+    }
   };
 
   if (!settingsModalOpen) return null;
@@ -243,7 +260,7 @@ export default function SettingsModal() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">CONSUMER_KEY</label>
+                  <label className="block text-sm font-medium mb-1">{t('settings.wp.key_label')}</label>
                   <input
                     type="text"
                     value={config.consumerKey}
@@ -253,7 +270,7 @@ export default function SettingsModal() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">CONSUMER_SECRET</label>
+                  <label className="block text-sm font-medium mb-1">{t('settings.wp.secret_label')}</label>
                   <input
                     type="password"
                     value={config.consumerSecret}
@@ -267,8 +284,9 @@ export default function SettingsModal() {
                 <button
                   onClick={saveConfig}
                   disabled={loadingCfg}
-                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-sm"
                 >
+                  <Save className="w-4 h-4" />
                   {loadingCfg ? t('settings.wp.save_loading') : t('settings.wp.save')}
                 </button>
               </div>
@@ -285,18 +303,27 @@ export default function SettingsModal() {
                       key={lang.code}
                       onClick={() => handleLanguageChange(lang.code)}
                       className={`flex items-center px-4 py-3 border rounded-lg text-sm transition-colors ${
-                        i18n.resolvedLanguage === lang.code
+                        selectedLang === lang.code
                           ? 'border-primary-600 bg-primary-50 text-primary-700'
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700'
                       }`}
                     >
                       <span className={`w-2 h-2 rounded-full mr-3 ${
-                         i18n.resolvedLanguage === lang.code ? 'bg-primary-600' : 'bg-transparent'
+                         selectedLang === lang.code ? 'bg-primary-600' : 'bg-transparent'
                       }`} />
                       {lang.name}
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="pt-2">
+                <button
+                  onClick={saveLanguage}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
+                >
+                  <Save className="w-4 h-4" />
+                  {t('settings.lang.save')}
+                </button>
               </div>
             </div>
           )}
@@ -356,19 +383,19 @@ export default function SettingsModal() {
             <div className="pt-4 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-700">当前用户</p>
+                  <p className="text-sm font-medium text-gray-700">{t('settings.user.current_user')}</p>
                   <p className="text-sm text-gray-500">
                     {user.email && user.email.endsWith('wechat') ? user.name : user.email}
                   </p>
                   <p className="text-xs text-blue-600 mt-1 font-medium">
-                    剩余积分: {user.credits ?? 0}
+                    {t('settings.user.credits', { credits: user.credits ?? 0 })}
                   </p>
                 </div>
                 <button
                   onClick={handleLogout}
                   className="px-4 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50"
                 >
-                  退出登录
+                  {t('settings.user.logout')}
                 </button>
               </div>
             </div>

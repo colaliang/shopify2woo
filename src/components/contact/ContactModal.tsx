@@ -100,14 +100,14 @@ export default function ContactModal() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '提交失败');
+      if (!res.ok) throw new Error(data.error || t('contact.form.error'));
 
       setSuccess(true);
       setTimeout(() => {
         closeContactModal();
       }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '提交失败，请稍后重试');
+      setError(err instanceof Error ? err.message : t('contact.form.error'));
     } finally {
       setLoading(false);
     }
@@ -122,7 +122,7 @@ export default function ContactModal() {
         
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900">联系我们</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t('contact.title')}</h2>
           <button
             onClick={closeContactModal}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -138,8 +138,8 @@ export default function ContactModal() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
                 <Send className="w-8 h-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-medium text-gray-900">提交成功</h3>
-              <p className="text-gray-500">感谢您的反馈，我们会尽快处理。</p>
+              <h3 className="text-xl font-medium text-gray-900">{t('contact.success.title')}</h3>
+              <p className="text-gray-500">{t('contact.success.msg')}</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -147,7 +147,7 @@ export default function ContactModal() {
               {/* Category */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  问题分类 <span className="text-red-500">*</span>
+                  {t('contact.form.category')} <span className="text-red-500">*</span>
                 </label>
                 <select
                   required
@@ -155,25 +155,25 @@ export default function ContactModal() {
                   onChange={e => setFormData({...formData, category: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
                 >
-                  <option value="" disabled>请选择分类</option>
-                  <option value="功能建议">✨ 功能建议</option>
-                  <option value="Bug反馈">🐛 Bug反馈</option>
-                  <option value="账号问题">👤 账号问题</option>
-                  <option value="充值问题">💰 充值问题</option>
-                  <option value="商务合作">🤝 商务合作</option>
-                  <option value="其他">📝 其他</option>
+                  <option value="" disabled>{t('contact.form.category_placeholder')}</option>
+                  <option value="功能建议">{t('contact.form.categories.feature')}</option>
+                  <option value="Bug反馈">{t('contact.form.categories.bug')}</option>
+                  <option value="账号问题">{t('contact.form.categories.account')}</option>
+                  <option value="充值问题">{t('contact.form.categories.payment')}</option>
+                  <option value="商务合作">{t('contact.form.categories.business')}</option>
+                  <option value="其他">{t('contact.form.categories.other')}</option>
                 </select>
               </div>
 
               {/* Contact Info */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  联系方式 <span className="text-red-500">*</span>
+                  {t('contact.form.contact')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="邮箱或手机号"
+                  placeholder={t('contact.form.contact_placeholder')}
                   value={formData.contact_info}
                   onChange={e => setFormData({...formData, contact_info: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
@@ -183,12 +183,12 @@ export default function ContactModal() {
               {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  详细描述 <span className="text-red-500">*</span>
+                  {t('contact.form.desc')} <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   required
                   rows={5}
-                  placeholder="请详细描述您的需求或遇到的问题..."
+                  placeholder={t('contact.form.desc_placeholder')}
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all resize-none"
@@ -214,10 +214,10 @@ export default function ContactModal() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    提交中...
+                    {t('contact.form.submitting')}
                   </>
                 ) : (
-                  '提交'
+                  t('contact.form.submit')
                 )}
               </button>
             </form>

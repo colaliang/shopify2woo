@@ -20,11 +20,11 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   title: {
-    default: "云店+WordPress产品导入助手 | WordPress Products Import Assistant",
+    default: "云店+WordPress产品导入助手 | Yundian+ WooCommerce Importer",
     template: "%s | 云店+WordPress产品导入助手"
   },
   description: "支持从WordPress, Shopify, Wix导入产品到WooCommerce/WordPress。无需原网站API，支持批量采集。Professional tool import products from WordPress, Shopify, Wix to WooCommerce/WordPress. ",
-  keywords: ["WordPress产品迁移", "Shopify导入WooCommerce", "Wix导入WooCommerce", "产品搬家", "WooCommerce产品导入", "产品采集", "Yundian+", "云店+"],
+  keywords: ["WordPress产品迁移", "Shopify导入WooCommerce", "Wix导入WooCommerce", "产品搬家", "WooCommerce产品导入", "产品采集", "Yundian+", "云店+", "WooCommerce Importer"],
   icons: {
     icon: '/logo-28.jpg',
     shortcut: '/logo-28.jpg',
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "zh_CN",
     url: "https://www.ydplus.net", // 假设的域名，需确认或使用process.env.NEXT_PUBLIC_SITE_URL
-    title: "云店+WordPress产品导入助手 | Yundian+ WordPress Products Import Assistant",
+    title: "云店+WordPress产品导入助手 | Yundian+ WooCommerce Importer",
     description: "支持从WordPress, Shopify, Wix导入产品到WooCommerce/WordPress。无需原网站API，支持批量采集。Professional tool import products from WordPress, Shopify, Wix to WooCommerce/WordPress. ",
     siteName: "云店+WordPress产品导入助手",
     images: [
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "云店+WordPress产品导入助手 | Yundian+ WordPress Products Import Assistant",
+    title: "云店+WordPress产品导入助手 | Yundian+ WooCommerce Importer",
     description: "支持从WordPress, Shopify, Wix导入产品到WooCommerce/WordPress。无需原网站API，支持批量采集。Professional tool import products from WordPress, Shopify, Wix to WooCommerce/WordPress. ",  
     images: ['/logo.jpg'],
   },

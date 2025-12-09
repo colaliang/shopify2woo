@@ -22,9 +22,10 @@ if (!isServer) {
 }
 
 i18nInstance.init({
-  fallbackLng: 'en',
   supportedLngs: supportedLanguages,
-  nonExplicitSupportedLngs: true,
+  // nonExplicitSupportedLngs: true, // REMOVED: This causes strict matching issues with 'zh-CN'
+  fallbackLng: 'en',
+  partialBundledLanguages: true, // Allow loading other languages via backend even if resources are provided
   
   // Namespaces
   ns: ['translation'],
@@ -50,13 +51,28 @@ i18nInstance.init({
     }
   } : {
     // Client-side
+    // Provide English resources as fallback to avoid raw keys if backend fails or is slow
+    resources: {
+      en: {
+        translation: enTranslation
+      }
+    },
+    // Important: We must tell i18next NOT to use the bundled 'en' resource for other languages
+    // partialBundledLanguages: true is set above, which is correct.
+    
     backend: {
       loadPath: '/locales/{{lng}}/{{ns}}.json',
+      requestOptions: {
+        cache: 'no-store',
+      }
     },
+    // Detection configuration
     detection: {
-      order: ['localStorage', 'navigator', 'htmlTag'],
-      caches: ['localStorage'],
+      order: ['querystring', 'localStorage', 'navigator', 'htmlTag'],
+      caches: ['localStorage'], // persist language selection
+      lookupQuerystring: 'lng', // ?lng=zh-CN
       lookupLocalStorage: 'i18nextLng',
+      // checkWhitelist is not a valid option in newer types, but logic is handled by supportedLngs + fallbackLng
     },
     react: {
       useSuspense: true,
