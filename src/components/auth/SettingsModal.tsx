@@ -4,6 +4,7 @@ import { useUserStore } from "@/stores/userStore";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
 import SubscriptionSettings from "@/components/user/SubscriptionSettings";
 import { useTranslation } from "react-i18next";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 interface Transaction {
   id: string;
@@ -149,6 +150,10 @@ export default function SettingsModal() {
     { code: 'ar', name: 'العربية' },
   ];
 
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [selectedLang, setSelectedLang] = useState(i18n.resolvedLanguage);
 
   useEffect(() => {
@@ -165,6 +170,12 @@ export default function SettingsModal() {
         .then(() => {
            localStorage.setItem('i18nextLng', selectedLang); // Explicitly set localStorage
            updateSettings({ language: selectedLang });
+           
+           // Update URL with new language
+           const newParams = new URLSearchParams(searchParams.toString());
+           newParams.set('lng', selectedLang);
+           router.push(`${pathname}?${newParams.toString()}`);
+
            closeSettingsModal();
         })
         .catch(err => console.error('Failed to switch language', err));
