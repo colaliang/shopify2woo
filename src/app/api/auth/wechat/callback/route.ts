@@ -131,12 +131,39 @@ export async function GET(req: Request) {
     // 使用 onConflict: 'user_id' 和 ignoreDuplicates: true 来避免覆盖已存在的用户的 credits。
     // 如果记录不存在，则插入 { user_id: userId, credits: 30 }。
     // 如果记录存在，则什么都不做（保留现有 credits）。
-    await supabase
+    const { error: upsertError } = await supabase
       .from("user_configs")
       .upsert({
         user_id: userId,
         credits: 30, // Default for new users
       }, { onConflict: "user_id", ignoreDuplicates: true });
+
+    if (!upsertError) {
+        // Double check if we need to insert init log
+        // If the trigger exists on auth.users, it might have already inserted it.
+        // But if we are here, we might want to ensure it.
+        // However, checking if log exists is safer.
+        const { count } = await supabase.from('credit_transactions').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('type', 'init');
+        if (count === 0) {
+             // If user_configs was just inserted (or existed but no log), we might want to add log?
+             // Actually, if ignoreDuplicates=true and it existed, we don't know if we inserted it.
+             // But if we have 0 init logs, and user has credits, we should probably add one if the balance is 30?
+             // Or just add 'init' log if it's missing.
+             // But wait, if user has been using it and has other logs but no init log?
+             // Safest is: if NO transactions at all, insert init log.
+             const { count: totalLogs } = await supabase.from('credit_transactions').select('*', { count: 'exact', head: true }).eq('user_id', userId);
+             if (totalLogs === 0) {
+                 await supabase.from('credit_transactions').insert({
+                     user_id: userId,
+                     amount: 30,
+                     balance_before: 0,
+                     balance_after: 30,
+                     type: 'init',
+                     description: 'Welcome Bonus'
+                 });
+             }
+        }
+    }
     
     // 如果上面的 upsert 因为 ignoreDuplicates 而跳过了更新，但我们确实需要确保记录存在（比如 credits 字段是后来加的）
     // 我们可以再执行一次 update 来更新其他字段（如果有的话），或者对于现有用户，我们假设记录已存在。

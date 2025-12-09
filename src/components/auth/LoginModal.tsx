@@ -30,7 +30,13 @@ export default function LoginModal() {
       }
       await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined },
+        options: { 
+          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/api/auth/callback` : undefined,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
       })
     } catch {
       alert('登录失败，请稍后重试')

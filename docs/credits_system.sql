@@ -136,8 +136,8 @@ $$;
 CREATE OR REPLACE FUNCTION public.handle_new_user_credits()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.user_configs (user_id, credits)
-  VALUES (NEW.id, 30)
+  INSERT INTO public.user_configs (user_id, credits, wordpress_url, consumer_key, consumer_secret)
+  VALUES (NEW.id, 30, '', '', '')
   ON CONFLICT (user_id) DO NOTHING;
   RETURN NEW;
 END;

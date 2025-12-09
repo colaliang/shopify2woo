@@ -61,9 +61,9 @@ export default function ReconciliationPage() {
                         {discrepancies.map((d, i) => (
                             <tr key={i} className="border-b">
                                 <td className="py-2 font-mono text-xs">{d.user_id}</td>
-                                <td className="py-2 font-bold text-red-600">{d.credits}</td>
-                                <td className="py-2 font-bold text-green-600">{d.calculated}</td>
-                                <td className="py-2 font-bold">{d.credits - d.calculated}</td>
+                                <td className="py-2 font-bold text-red-600">{d.current_balance}</td>
+                                <td className="py-2 font-bold text-green-600">{d.calculated_balance}</td>
+                                <td className="py-2 font-bold">{d.current_balance - d.calculated_balance}</td>
                             </tr>
                         ))}
                     </tbody>

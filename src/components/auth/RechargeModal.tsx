@@ -3,6 +3,7 @@
 import { useUserStore } from '@/stores/userStore';
 import { X, Check, CreditCard, MessageCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { getSupabaseBrowser } from '@/lib/supabaseClient';
 
 const packages = [
   { id: 'basic', credits: 300, price: 2.99, name: 'Basic' },
@@ -29,9 +30,16 @@ export default function RechargeModal() {
   const handlePurchase = async (pkg: typeof packages[0]) => {
     setLoading(true);
     try {
+        const supabase = getSupabaseBrowser();
+        const { data: { session } } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+        const token = session?.access_token;
+
         const res = await fetch('/api/payment/create-order', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ packageId: pkg.id, paymentMethod })
         });
         

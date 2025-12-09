@@ -124,7 +124,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
               <>
                 <div className="px-4 py-3 border-b border-gray-100">
                   <div className="font-medium text-gray-900">{user?.name}</div>
-                  {user?.email && !user.email.startsWith('wechat_') && (
+                  {user?.email && !user.email.endsWith('wechat') && (
                     <div className="text-xs text-gray-500 mt-0.5 truncate">{user.email}</div>
                   )}
                   <div className="mt-2 flex items-center justify-between">

@@ -27,13 +27,7 @@ export default function SidebarFooter() {
              >
                帮助
              </a>
-             <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
-             <a 
-              href="mailto:support@ydplus.net"
-              className="hover:text-primary-600 hover:underline"
-            >
-              support@ydplus.net
-            </a>
+
             <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
             <button
               onClick={openContactModal}

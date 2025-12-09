@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { X, Globe, History, Languages, HelpCircle, Bell } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
@@ -62,16 +62,16 @@ export default function SettingsModal() {
   }, [settingsModalOpen, disableAuth, envUrl, envKey, envSecret]);
 
   // Fetch history when tab changes to history
-  useEffect(() => {
-    if (activeTab === 'history' && settingsModalOpen) {
-      fetchHistory(1);
-    }
-  }, [activeTab, settingsModalOpen]);
-
-  const fetchHistory = async (page: number) => {
+  const fetchHistory = useCallback(async (page: number) => {
     setLoadingHistory(true);
     try {
-      const res = await fetch(`/api/credits/history?page=${page}&limit=10`);
+      const supabase = getSupabaseBrowser();
+      const { data: sessionData } = supabase && !disableAuth ? await supabase.auth.getSession() : { data: { session: null } };
+      const t = sessionData.session?.access_token || null;
+      const headers: Record<string, string> = {};
+      if (t && !disableAuth) headers["Authorization"] = `Bearer ${t}`;
+
+      const res = await fetch(`/api/credits/history?page=${page}&limit=10`, { headers });
       const data = await res.json();
       if (data.data) {
         setTransactions(data.data);
@@ -83,7 +83,14 @@ export default function SettingsModal() {
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [disableAuth]);
+
+  // Fetch history when tab changes to history
+  useEffect(() => {
+    if (activeTab === 'history' && settingsModalOpen) {
+      fetchHistory(1);
+    }
+  }, [activeTab, settingsModalOpen, fetchHistory]);
 
   const saveConfig = async () => {
     setLoadingCfg(true);
@@ -351,7 +358,7 @@ export default function SettingsModal() {
                 <div>
                   <p className="text-sm font-medium text-gray-700">当前用户</p>
                   <p className="text-sm text-gray-500">
-                    {user.email && user.email.startsWith('wechat_') ? user.name : user.email}
+                    {user.email && user.email.endsWith('wechat') ? user.name : user.email}
                   </p>
                   <p className="text-xs text-blue-600 mt-1 font-medium">
                     剩余积分: {user.credits ?? 0}

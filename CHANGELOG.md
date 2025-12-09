@@ -34,10 +34,33 @@
 12. **多目标Wordpress站点支持**
    - 增加对多个Wordpress站点的支持，用户可以在一个账号下导入到可选的多个Wordpress站点。
 
+13. **增加BLOG功能**
+    - 增加blog页，可以更方便做SEO优化
    
+14. **增加WordPress插件版**
+   - 增加WordPress插件版，用户可以在WordPress后台直接安装使用，无须配置Woo API。
+   - 可以跟Web版打通，实现数据同步。
+
+15. **分享和好评，赠送积分活动**
+   - 增加了分享和好评的功能，用户可以分享商品到社交媒体，获得积分奖励。
 
 
 ---
+
+## [Latest] - 2025-12-09
+
+### ✨ 新增功能 (Features)
+
+1. **SEO优化**
+
+2. **积分bug修复**
+   - **新用户注册积分问题**：修复了新用户注册后，积分显示为0的问题。
+
+3. **更新WeChat授权**
+   - 修复了授权过程中出错的问题，现在可以正常注册。
+
+
+
 
 ## [Latest] - 2025-12-08
 
@@ -75,8 +98,11 @@
    - 测试订单创建： /api/test/email?email=your@email.com&type=order_created
    - 测试支付成功： /api/test/email?email=your@email.com&type=order_paid
 
+   - 修复新用户注册时，欢迎邮件发送失败的问题。
+
 8. **提交表单支持**
    - 增加了提交表单的支持，用户可以提交需求和反馈问题
+   - 要增加验证CLOUDFLARE_TURNSTILE_SECRET_KEY
 
 ## [Latest] - 2025-12-07
 
