@@ -23,6 +23,8 @@
     "images": "画像",
     "source": "ソース",
     "view": "表示",
+    "prev": "前へ",
+    "next": "次へ",
     "welcome_user": "おかえりなさい、{{name}}"
   },
   "platform": {
@@ -76,7 +78,10 @@
       "errors": "エラー"
     },
     "stats": {
-      "text": "インポート済み: {{imported}} / キュー: {{queue}} / エラー: {{errors}}"
+      "error": "失敗",
+      "summary": "概要",
+      "text_full": "取得済み: {{fetched}} | 成功: {{imported}} | キュー: {{queue}} | エラー: {{errors}}",
+      "text": "取得済み: {{fetched}} | キュー: {{queue}}"
     },
     "options": {
       "default_category": "デフォルトカテゴリ",

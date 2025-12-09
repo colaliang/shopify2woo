@@ -23,6 +23,8 @@
     "images": "Images",
     "source": "Source",
     "view": "View",
+    "prev": "Prev",
+    "next": "Next",
     "welcome_user": "Welcome back, {{name}}"
   },
   "platform": {
@@ -76,7 +78,10 @@
       "errors": "Errors"
     },
     "stats": {
-      "text": "Imported: {{imported}} / Queue: {{queue}} / Errors: {{errors}}"
+      "error": "Failed",
+      "summary": "Summary",
+      "text_full": "Fetched: {{fetched}} | Imported: {{imported}} | Queue: {{queue}} | Errors: {{errors}}",
+      "text": "Fetched: {{fetched}} | Queue: {{queue}}"
     },
     "options": {
       "default_category": "Default Category",

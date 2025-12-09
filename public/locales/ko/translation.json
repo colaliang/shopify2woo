@@ -23,6 +23,8 @@
     "images": "이미지",
     "source": "소스",
     "view": "보기",
+    "prev": "이전",
+    "next": "다음",
     "welcome_user": "환영합니다, {{name}}님"
   },
   "platform": {
@@ -76,7 +78,10 @@
       "errors": "오류"
     },
     "stats": {
-      "text": "가져옴: {{imported}} / 대기열: {{queue}} / 오류: {{errors}}"
+      "error": "실패",
+      "summary": "요약",
+      "text_full": "가져옴: {{fetched}} | 성공: {{imported}} | 대기열: {{queue}} | 오류: {{errors}}",
+      "text": "가져옴: {{fetched}} | 대기열: {{queue}}"
     },
     "options": {
       "default_category": "기본 카테고리",

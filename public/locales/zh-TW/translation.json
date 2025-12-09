@@ -23,6 +23,8 @@
     "images": "圖片",
     "source": "來源",
     "view": "查看",
+    "prev": "上一頁",
+    "next": "下一頁",
     "welcome_user": "歡迎回來，{{name}}"
   },
   "platform": {
@@ -76,7 +78,10 @@
       "errors": "錯誤"
     },
     "stats": {
-      "text": "已導入: {{imported}} / 隊列中: {{queue}} / 錯誤: {{errors}}"
+      "error": "失敗",
+      "summary": "概要",
+      "text_full": "已獲取: {{fetched}} | 成功: {{imported}} | 隊列: {{queue}} | 錯誤: {{errors}}",
+      "text": "已獲取: {{fetched}} | 隊列: {{queue}}"
     },
     "options": {
       "default_category": "默認分類",

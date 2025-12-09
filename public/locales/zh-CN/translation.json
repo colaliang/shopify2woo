@@ -23,6 +23,8 @@
     "images": "图片",
     "source": "来源",
     "view": "查看",
+    "prev": "上一页",
+    "next": "下一页",
     "welcome_user": "欢迎回来，{{name}}"
   },
   "platform": {
@@ -76,7 +78,10 @@
       "errors": "错误"
     },
     "stats": {
-      "text": "已导入: {{imported}} / 队列中: {{queue}} / 错误: {{errors}}"
+      "error": "失败",
+      "summary": "概要",
+      "text_full": "已获取: {{fetched}} | 成功: {{imported}} | 队列: {{queue}} | 错误: {{errors}}",
+      "text": "已获取: {{fetched}} | 队列: {{queue}}"
     },
     "options": {
       "default_category": "默认分类",

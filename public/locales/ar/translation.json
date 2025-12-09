@@ -23,6 +23,8 @@
     "images": "الصور",
     "source": "المصدر",
     "view": "عرض",
+    "prev": "السابق",
+    "next": "التالي",
     "welcome_user": "مرحبًا بعودتك، {{name}}"
   },
   "platform": {
@@ -76,7 +78,10 @@
       "errors": "أخطاء"
     },
     "stats": {
-      "text": "تم الاستيراد: {{imported}} / الانتظار: {{queue}} / الأخطاء: {{errors}}"
+      "error": "فشل",
+      "summary": "ملخص",
+      "text_full": "تم الجلب: {{fetched}} | تم الاستيراد: {{imported}} | قائمة الانتظار: {{queue}} | أخطاء: {{errors}}",
+      "text": "تم الجلب: {{fetched}} | قائمة الانتظار: {{queue}}"
     },
     "options": {
       "default_category": "الفئة الافتراضية",
