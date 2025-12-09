@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import I18nProvider from "@/components/providers/I18nProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,9 +30,9 @@ export const metadata: Metadata = {
     shortcut: '/logo-28.jpg',
     apple: '/logo-28.jpg',
   },
-  authors: [{ name: "Shopify2Woo Team" }],
-  creator: "Shopify2Woo Team",
-  publisher: "Shopify2Woo Team",
+  authors: [{ name: "Yundian+ Team" }],
+  creator: "Yundian+ Team",
+  publisher: "Yundian+ Team",
   robots: {
     index: true,
     follow: true,
@@ -47,7 +48,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "zh_CN",
     url: "https://www.ydplus.net", // 假设的域名，需确认或使用process.env.NEXT_PUBLIC_SITE_URL
-    title: "云店+WordPress产品导入助手 | Yundian+WordPress Products Import Assistant",
+    title: "云店+WordPress产品导入助手 | Yundian+ WordPress Products Import Assistant",
     description: "支持从WordPress, Shopify, Wix导入产品到WooCommerce/WordPress。无需原网站API，支持批量采集。Professional tool import products from WordPress, Shopify, Wix to WooCommerce/WordPress. ",
     siteName: "云店+WordPress产品导入助手",
     images: [
@@ -61,7 +62,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "云店+WordPress产品导入助手 | Yundian+WordPress Products Import Assistant",
+    title: "云店+WordPress产品导入助手 | Yundian+ WordPress Products Import Assistant",
     description: "支持从WordPress, Shopify, Wix导入产品到WooCommerce/WordPress。无需原网站API，支持批量采集。Professional tool import products from WordPress, Shopify, Wix to WooCommerce/WordPress. ",  
     images: ['/logo.jpg'],
   },
@@ -83,6 +84,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <I18nProvider>
         <Script id="baidu-analytics" strategy="afterInteractive">
           {`
             var _hmt = _hmt || [];
@@ -108,6 +110,7 @@ export default function RootLayout({
           `}
         </Script>
         {children}
+        </I18nProvider>
       </body>
     </html>
   );

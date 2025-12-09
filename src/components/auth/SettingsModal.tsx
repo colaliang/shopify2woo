@@ -3,6 +3,7 @@ import { X, Globe, History, Languages, HelpCircle, Bell } from "lucide-react";
 import { useUserStore } from "@/stores/userStore";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
 import SubscriptionSettings from "@/components/user/SubscriptionSettings";
+import { useTranslation } from "react-i18next";
 
 interface Transaction {
   id: string;
@@ -14,6 +15,7 @@ interface Transaction {
 }
 
 export default function SettingsModal() {
+  const { t, i18n } = useTranslation();
   const { settings, updateSettings, user, logout, settingsModalOpen, closeSettingsModal } = useUserStore();
   const [activeTab, setActiveTab] = useState<'wordpress' | 'language' | 'history' | 'notifications'>('wordpress');
   const [config, setConfig] = useState({ wordpressUrl: "", consumerKey: "", consumerSecret: "" });
@@ -109,7 +111,7 @@ export default function SettingsModal() {
         body: JSON.stringify(config),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(String(data?.error || "保存失败"));
+      if (!res.ok) throw new Error(String(data?.error || t('settings.wp.save_failed')));
     } finally {
       setLoadingCfg(false);
     }
@@ -147,6 +149,7 @@ export default function SettingsModal() {
   ];
 
   const handleLanguageChange = (code: string) => {
+    i18n.changeLanguage(code);
     updateSettings({ language: code });
   };
 
@@ -156,7 +159,7 @@ export default function SettingsModal() {
     <div className="absolute right-0 top-full mt-2 z-50 w-full max-w-2xl">
       <div ref={panelRef} className="bg-white rounded-lg shadow-xl border border-gray-200 max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">系统设置</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t('settings.title')}</h2>
           <button
             onClick={closeSettingsModal}
             className="p-2 hover:bg-gray-100 rounded-lg"
@@ -175,7 +178,7 @@ export default function SettingsModal() {
             }`}
           >
             <Globe className="w-4 h-4" />
-            WordPress 设置
+            {t('settings.tab.wordpress')}
           </button>
 
           <button
@@ -187,7 +190,7 @@ export default function SettingsModal() {
             }`}
           >
             <Languages className="w-4 h-4" />
-            语言
+            {t('settings.tab.language')}
           </button>
 
           <button
@@ -199,7 +202,7 @@ export default function SettingsModal() {
             }`}
           >
             <History className="w-4 h-4" />
-            积分流水
+            {t('settings.tab.history')}
           </button>
 
           <button
@@ -211,7 +214,7 @@ export default function SettingsModal() {
             }`}
           >
             <Bell className="w-4 h-4" />
-            通知设置
+            {t('settings.tab.notifications')}
           </button>
 
           <a
@@ -220,7 +223,7 @@ export default function SettingsModal() {
             className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700"
           >
             <HelpCircle className="w-4 h-4" />
-            帮助
+            {t('settings.tab.help')}
           </a>
         </div>
         
@@ -228,7 +231,7 @@ export default function SettingsModal() {
           {activeTab === 'wordpress' && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">WordPress 站点网址</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('settings.wp.url_label')}</label>
                 <input
                   type="url"
                   placeholder="https://example.com"
@@ -266,7 +269,7 @@ export default function SettingsModal() {
                   disabled={loadingCfg}
                   className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
                 >
-                  {loadingCfg ? "保存中…" : "保存配置"}
+                  {loadingCfg ? t('settings.wp.save_loading') : t('settings.wp.save')}
                 </button>
               </div>
             </>
@@ -275,28 +278,25 @@ export default function SettingsModal() {
           {activeTab === 'language' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">选择界面语言</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('settings.lang.label')}</label>
                 <div className="grid grid-cols-2 gap-3">
                   {languages.map((lang) => (
                     <button
                       key={lang.code}
                       onClick={() => handleLanguageChange(lang.code)}
                       className={`flex items-center px-4 py-3 border rounded-lg text-sm transition-colors ${
-                        settings.language === lang.code
+                        i18n.resolvedLanguage === lang.code
                           ? 'border-primary-600 bg-primary-50 text-primary-700'
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700'
                       }`}
                     >
                       <span className={`w-2 h-2 rounded-full mr-3 ${
-                         settings.language === lang.code ? 'bg-primary-600' : 'bg-transparent'
+                         i18n.resolvedLanguage === lang.code ? 'bg-primary-600' : 'bg-transparent'
                       }`} />
                       {lang.name}
                     </button>
                   ))}
                 </div>
-                <p className="mt-4 text-xs text-gray-500">
-                  注意：语言切换功能目前仅更新设置，界面多语言支持正在开发中。
-                </p>
               </div>
             </div>
           )}
@@ -304,9 +304,9 @@ export default function SettingsModal() {
           {activeTab === 'history' && (
             <div className="space-y-4">
               {loadingHistory ? (
-                <div className="text-center py-8 text-gray-500">加载中...</div>
+                <div className="text-center py-8 text-gray-500">{t('settings.history.loading')}</div>
               ) : transactions.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">暂无交易记录</div>
+                <div className="text-center py-8 text-gray-500">{t('settings.history.empty')}</div>
               ) : (
                 <>
                   <div className="space-y-2">
@@ -320,7 +320,7 @@ export default function SettingsModal() {
                            <div className={`font-bold text-sm ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
                              {tx.amount > 0 ? '+' : ''}{tx.amount}
                            </div>
-                           <div className="text-xs text-gray-500">余额: {tx.balance_after}</div>
+                           <div className="text-xs text-gray-500">{t('settings.history.balance')} {tx.balance_after}</div>
                         </div>
                       </div>
                     ))}
@@ -332,15 +332,15 @@ export default function SettingsModal() {
                        onClick={() => fetchHistory(historyPage - 1)}
                        className="text-xs text-gray-500 disabled:opacity-50 hover:text-gray-900"
                     >
-                      上一页
+                      {t('settings.history.prev')}
                     </button>
-                    <span className="text-xs text-gray-500">第 {historyPage} 页</span>
+                    <span className="text-xs text-gray-500">{t('settings.history.page', { page: historyPage })}</span>
                     <button 
                        disabled={historyPage * 10 >= historyTotal}
                        onClick={() => fetchHistory(historyPage + 1)}
                        className="text-xs text-gray-500 disabled:opacity-50 hover:text-gray-900"
                     >
-                      下一页
+                      {t('settings.history.next')}
                     </button>
                   </div>
                 </>

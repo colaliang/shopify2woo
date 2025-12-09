@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ProductData } from "@/services/importApi";
+import { useTranslation } from "react-i18next";
 
 export interface LogItemData {
   level: "info" | "warn" | "error" | "success";
@@ -71,24 +72,25 @@ export default function RightPanel({
   // waitSeconds,
   // setWaitSeconds,
 }: RightPanelProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const totalPages = Math.ceil(total / limit);
 
   const summaryLines = (() => {
     const out: Array<{ text: string; level: 'info' | 'success' | 'error' }> = [];
-    if (status === 'running' || status === 'parsing') out.push({ text: '任务开始', level: 'info' });
-    if (status === 'completed') out.push({ text: '任务结束', level: 'success' });
-    if (status === 'stopping') out.push({ text: '正在停止...', level: 'info' });
-    if (status === 'stopped') out.push({ text: '任务已停止', level: 'info' });
-    if (status === 'error') out.push({ text: '任务异常', level: 'error' });
+    if (status === 'running' || status === 'parsing') out.push({ text: t('import.status.started'), level: 'info' });
+    if (status === 'completed') out.push({ text: t('import.status.completed'), level: 'success' });
+    if (status === 'stopping') out.push({ text: t('import.status.stopping'), level: 'info' });
+    if (status === 'stopped') out.push({ text: t('import.status.stopped'), level: 'info' });
+    if (status === 'error') out.push({ text: t('import.status.error'), level: 'error' });
 
     return out;
   })();
 
   const renderResultItem = (res: ResultItemData) => {
     const product = products.find(p => p.link === res.itemKey || p.id === res.itemKey);
-    const title = decodeHtml(res.name || product?.title || res.itemKey || "Unknown Product");
+    const title = decodeHtml(res.name || product?.title || res.itemKey || t('common.unknown_product'));
     const thumb = res.imageUrl || product?.thumbnail;
     // Use product data if available, otherwise defaults
     const galCount = res.galleryCount ?? product?.galleryCount ?? 0;
@@ -117,18 +119,18 @@ export default function RightPanel({
           <div className="flex items-start justify-between gap-2">
              <h4 className="text-sm font-bold text-gray-900 truncate" title={title}>{title}</h4>
              {res.status === 'success' ? (
-               <span className="text-xs text-green-600 font-medium bg-green-50 px-1.5 py-0.5 rounded flex-shrink-0">Success</span>
+               <span className="text-xs text-green-600 font-medium bg-green-50 px-1.5 py-0.5 rounded flex-shrink-0">{t('common.success')}</span>
              ) : (
-               <span className="text-xs text-red-600 font-medium bg-red-50 px-1.5 py-0.5 rounded flex-shrink-0">Error</span>
+               <span className="text-xs text-red-600 font-medium bg-red-50 px-1.5 py-0.5 rounded flex-shrink-0">{t('common.error')}</span>
              )}
           </div>
           
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-gray-500 mt-1.5">
             <span className="whitespace-nowrap" title={res.requestId}>ID: {res.requestId?.slice(0, 8) || '-'}</span>
             <span className="text-gray-300">|</span>
-            <span className="whitespace-nowrap">Price: {salePrice}</span>
+            <span className="whitespace-nowrap">{t('common.price')}: {salePrice}</span>
             <span className="text-gray-300">|</span>
-            <span className="whitespace-nowrap">Images: {galCount}</span>
+            <span className="whitespace-nowrap">{t('common.images')}: {galCount}</span>
             <span className="text-gray-300">|</span>
             <span className="whitespace-nowrap truncate max-w-[80px]" title={primaryCat}>
               {primaryCat}
@@ -142,7 +144,7 @@ export default function RightPanel({
                   rel="noopener noreferrer" 
                   className="text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap hover:underline"
                 >
-                  Source
+                  {t('common.source')}
                 </a>
               </>
             )}
@@ -155,7 +157,7 @@ export default function RightPanel({
                   rel="noopener noreferrer" 
                   className="text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap hover:underline"
                 >
-                  View
+                  {t('common.view')}
                 </a>
               </>
             )}
@@ -178,17 +180,17 @@ export default function RightPanel({
         {/* Logs Header */}
         <div className="px-4 py-3 border-b border-gray-200 bg-white shrink-0 space-y-3">
           {status === 'idle' ? (
-            <div className="text-sm text-gray-500 text-center py-1">任务未开始</div>
+            <div className="text-sm text-gray-500 text-center py-1">{t('import.status.idle')}</div>
           ) : (
             <>
               <div className="flex items-center justify-between text-xs text-gray-600">
-                <span>已获取: <span className="font-medium text-gray-900">{fetched}</span></span>
+                <span>{t('import.status.fetched')}: <span className="font-medium text-gray-900">{fetched}</span></span>
                 <span className="text-gray-300">|</span>
-                <span>成功: <span className="font-medium text-green-600">{imported}</span></span>
+                <span>{t('import.status.success')}: <span className="font-medium text-green-600">{imported}</span></span>
                 <span className="text-gray-300">|</span>
-                <span>队列: <span className="font-medium text-gray-900">{queue}</span></span>
+                <span>{t('import.status.queue')}: <span className="font-medium text-gray-900">{queue}</span></span>
                 <span className="text-gray-300">|</span>
-                <span>错误: <span className="font-medium text-red-600">{errors}</span></span>
+                <span>{t('import.status.errors')}: <span className="font-medium text-red-600">{errors}</span></span>
               </div>
               
               <div className="relative w-full bg-gray-100 rounded-full h-2 overflow-hidden">

@@ -1,0 +1,18 @@
+{
+  "app": {
+    "title": "Shopify/Wix/WP產品導入WooCommerce助手",
+    "description": "專業的跨境電商產品搬家工具"
+  },
+  "nav": {
+    "home": "首頁",
+    "tasks": "任務列表",
+    "settings": "設置"
+  },
+  "common": {
+    "language": "語言",
+    "loading": "加載中...",
+    "save": "保存",
+    "cancel": "取消",
+    "welcome_user": "歡迎回來，{{name}}"
+  }
+}

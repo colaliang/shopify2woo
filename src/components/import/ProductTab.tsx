@@ -6,6 +6,7 @@ import RightPanel from "@/components/import/RightPanel";
 import SidebarFooter from "@/components/import/SidebarFooter";
 import ChoosePlatform, { PlatformType } from "@/components/import/ChoosePlatform";
 import { parseInputLinks } from "@/lib/inputHelpers";
+import { useTranslation } from "react-i18next";
 
 function detectPlatformFromUrl(url: string): PlatformType | null {
   try {
@@ -26,6 +27,7 @@ function detectPlatformFromUrl(url: string): PlatformType | null {
 }
 
 export default function ProductTab() {
+  const { t } = useTranslation();
   const [platform, setPlatform] = useState<PlatformType>('wordpress');
   
   const {
@@ -84,11 +86,14 @@ export default function ProductTab() {
       const detected = detectPlatformFromUrl(uniq[0]);
       if (detected && detected !== platform) {
         const platformNames: Record<string, string> = {
-          wordpress: 'WordPress',
-          shopify: 'Shopify',
-          wix: 'Wix'
+          wordpress: t('platform.wordpress'),
+          shopify: t('platform.shopify'),
+          wix: t('platform.wix')
         };
-        const msg = `检测到链接可能来自 ${platformNames[detected] || detected}，但当前选择的是 ${platformNames[platform] || platform}。\n\n是否继续？`;
+        const msg = t('import.product.platform_mismatch_msg', {
+          detected: platformNames[detected] || detected,
+          current: platformNames[platform] || platform
+        });
         if (!window.confirm(msg)) {
           return;
         }
@@ -133,33 +138,33 @@ export default function ProductTab() {
             disabled={isLoading || status === 'running' || status === 'parsing' || !productUrl}
             className="w-32 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading || status === 'running' || status === 'parsing' ? "导入中..." : "导入"}
+            {isLoading || status === 'running' || status === 'parsing' ? t('import.product.btn_importing') : t('import.product.btn_import')}
           </button>
           <button
             onClick={() => useImportStore.getState().stopImport()}
             className="w-32 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
             disabled={status !== 'running' && status !== 'parsing'}
           >
-            {status === 'stopping' ? '正在停止...' : '结束'}
+            {status === 'stopping' ? t('import.status.stopping') : t('import.listing.btn_stop')}
           </button>
         </div>
 
         {/* Product Intro & Instructions */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900 space-y-3">
           <div>
-            <h2 className="font-semibold mb-1">产品介绍：</h2>
+            <h2 className="font-semibold mb-1">{t('import.product.intro.title')}</h2>
             <p className="text-blue-800 leading-relaxed">
-              本工具支持从Wordpress,Shopify,Wix抓取产品公开信息（标题，图片，价格，描述等），不需要原网站的API，高效导入到自己的Wordpress/Woo系统。
+              {t('import.product.intro.content')}
             </p>
           </div>
           <div>
-            <h3 className="font-semibold mb-1">使用说明：</h3>
+            <h3 className="font-semibold mb-1">{t('import.product.intro.usage_title')}</h3>
             <ul className="list-decimal list-inside space-y-1 text-blue-800">
-              <li>需要先登录，支持Google，微信</li>
-              <li>导入需要取得Wordpress的API，需要在设置里登记</li>
-              <li>支持单个或者多个产品导入，每次批量链接需要同一个平台的产品链接</li>
-              <li>新注册用户赠送 30 个导入点数，可购买更多的导入点数</li>
-              <li>感谢支持！</li>
+              <li>{t('import.product.intro.usage_1')}</li>
+              <li>{t('import.product.intro.usage_2')}</li>
+              <li>{t('import.product.intro.usage_3')}</li>
+              <li>{t('import.product.intro.usage_4')}</li>
+              <li>{t('import.product.intro.usage_5')}</li>
             </ul>
           </div>
         </div>

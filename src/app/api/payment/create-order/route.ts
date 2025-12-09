@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     if (user.email) {
       sendEmail({
         to: user.email,
-        subject: 'Order Confirmation - Shopify2Woo',
+        subject: 'Order Confirmation - Yundian+ WordPress Products Import Assistant',
         html: EmailTemplates.orderCreated(order.id, pkg.price, 'USD', pkg.name),
         userId: user.id,
         type: 'order_created',

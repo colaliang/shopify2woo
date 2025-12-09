@@ -1,0 +1,151 @@
+{
+  "app": {
+    "title": "Shopify/Wix/WP to WooCommerce Importer",
+    "description": "Professional cross-border e-commerce product migration tool"
+  },
+  "nav": {
+    "home": "Home",
+    "product_import": "Product Import",
+    "tasks": "Tasks",
+    "settings": "Settings"
+  },
+  "common": {
+    "language": "Language",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "unknown_product": "Unknown Product",
+    "success": "Success",
+    "error": "Error",
+    "price": "Price",
+    "images": "Images",
+    "source": "Source",
+    "view": "View",
+    "welcome_user": "Welcome back, {{name}}"
+  },
+  "platform": {
+    "wordpress": "WordPress",
+    "shopify": "Shopify",
+    "wix": "Wix"
+  },
+  "import": {
+    "product": {
+      "platform_mismatch_msg": "Detected link might be from {{detected}}, but currently selected is {{current}}.\n\nContinue?",
+      "btn_importing": "Importing...",
+      "btn_import": "Import",
+      "intro": {
+        "title": "Introduction:",
+        "content": "This tool scrapes product information (title, images, price, description, etc.) from Wordpress, Shopify, and Wix sites without requiring API access, allowing efficient import into your own Wordpress/Woo system.",
+        "usage_title": "Instructions:",
+        "usage_1": "Login required, supports Google and WeChat.",
+        "usage_2": "Wordpress API credentials must be registered in Settings for import.",
+        "usage_3": "Supports single or multiple product imports. Batch links must be from the same platform.",
+        "usage_4": "New users receive 30 free import credits; more can be purchased.",
+        "usage_5": "Thanks for your support!"
+      }
+    },
+    "listing": {
+      "btn_import_selected": "Import Selected ({{count}})",
+      "btn_stop": "Stop",
+      "btn_select_all": "Select All",
+      "btn_deselect_all": "Deselect All",
+      "btn_clear_all": "Clear All"
+    },
+    "url_input": {
+      "label": "Product Links (Multiple supported, comma/space/newline separated)",
+      "placeholder": "https://www.example.com/product/a, https://www.example.com/product/b\nor one link per line"
+    },
+    "site_input": {
+      "label": "Website URL",
+      "placeholder": "https://www.example.com/",
+      "btn_loading": "Scraping...",
+      "btn_discover": "Scrape All Products"
+    },
+    "status": {
+      "started": "Task Started",
+      "completed": "Task Completed",
+      "stopping": "Stopping...",
+      "stopped": "Task Stopped",
+      "error": "Task Error",
+      "idle": "Task Not Started",
+      "fetched": "Fetched",
+      "success": "Success",
+      "queue": "Queue",
+      "errors": "Errors"
+    },
+    "stats": {
+      "text": "Imported: {{imported}} / Queue: {{queue}} / Errors: {{errors}}"
+    },
+    "options": {
+      "default_category": "Default Category",
+      "uncategorized": "Uncategorized",
+      "led_lights": "LED Lights",
+      "profiles": "Aluminium Profiles",
+      "threads": "Import Threads",
+      "auto_pagination": "Automatic Pagination"
+    },
+    "item": {
+      "attributes": "Attributes: {{count}}",
+      "reviews": "Reviews: {{count}}",
+      "gallery": "Images: {{count}}",
+      "in_stock": "In Stock",
+      "out_of_stock": "Out of Stock",
+      "btn_importing": "Importing...",
+      "btn_import": "Import Product"
+    }
+  },
+  "footer": {
+    "copyright": "© {{year}} YDPlus Team",
+    "cloud_store": "YDPlus B2B Marketing Service",
+    "help": "Help",
+    "contact": "Contact Us"
+  },
+  "auth": {
+    "login": {
+      "title": "User Login",
+      "google": "Login with Google",
+      "wechat": "Login with WeChat"
+    },
+    "error": {
+      "env_missing": "Supabase environment variables missing",
+      "login_failed": "Login failed, please try again later"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "tab": {
+      "wordpress": "WordPress Settings",
+      "language": "Language",
+      "history": "Credit History",
+      "notifications": "Notifications",
+      "help": "Help"
+    },
+    "wp": {
+      "url_label": "WordPress Site URL",
+      "save_loading": "Saving...",
+      "save": "Save Config",
+      "save_failed": "Save Failed"
+    },
+    "lang": {
+      "label": "Select Interface Language"
+    },
+    "history": {
+      "loading": "Loading...",
+      "empty": "No transaction records",
+      "balance": "Balance:",
+      "prev": "Prev",
+      "page": "Page {{page}}",
+      "next": "Next"
+    },
+    "sub": {
+      "title": "Email Notifications",
+      "label": "Subscribe to Emails",
+      "saved": "Preferences saved!",
+      "error": "Save Failed"
+    }
+  },
+  "contact": {
+    "default_category": "Feature Suggestion"
+  }
+}

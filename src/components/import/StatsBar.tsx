@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 interface StatsBarProps {
   imported: number;
   queue: number;
@@ -6,6 +8,7 @@ interface StatsBarProps {
 }
 
 export default function StatsBar({ imported, queue, errors, total }: StatsBarProps) {
+  const { t } = useTranslation();
   const percent = total ? Math.round((imported / total) * 100) : 0;
 
   return (
@@ -19,7 +22,7 @@ export default function StatsBar({ imported, queue, errors, total }: StatsBarPro
         </div>
       </div>
       <div className="text-sm text-gray-700 whitespace-nowrap">
-        Imported: {imported} / In queue: {queue} / Errors: {errors}
+        {t('import.stats.text', { imported, queue, errors })}
       </div>
     </div>
   );

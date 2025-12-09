@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Save } from 'lucide-react';
 import { getSupabaseBrowser } from '@/lib/supabaseClient';
+import { useTranslation } from 'react-i18next';
 
 interface Subscription {
   status: 'active' | 'unsubscribed';
@@ -13,6 +14,7 @@ interface Subscription {
 }
 
 export default function SubscriptionSettings() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sub, setSub] = useState<Subscription>({
@@ -80,9 +82,9 @@ export default function SubscriptionSettings() {
       
       const data = await res.json();
       if (data.subscription) setSub(data.subscription);
-      alert('Preferences saved!');
+      alert(t('settings.sub.saved'));
     } catch {
-      alert('Error saving preferences');
+      alert(t('settings.sub.error'));
     } finally {
       setSaving(false);
     }
@@ -92,10 +94,10 @@ export default function SubscriptionSettings() {
 
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-white/50 dark:bg-black/20">
-      <h3 className="font-medium text-lg">Email Notifications</h3>
+      <h3 className="font-medium text-lg">{t('settings.sub.title')}</h3>
       
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium">Subscribe to Emails</label>
+        <label className="text-sm font-medium">{t('settings.sub.label')}</label>
         <button 
           onClick={() => setSub({...sub, status: sub.status === 'active' ? 'unsubscribed' : 'active'})}
           className={`px-3 py-1 rounded-full text-xs ${sub.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}

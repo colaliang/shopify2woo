@@ -5,8 +5,10 @@ import StatsBar from "@/components/import/StatsBar";
 import OptionsRow from "@/components/import/OptionsRow";
 import ProductItem from "@/components/import/ProductItem";
 import RightPanel from "@/components/import/RightPanel";
+import { useTranslation } from "react-i18next";
 
 export default function ListingTab() {
+  const { t } = useTranslation();
   const {
     products,
     logs,
@@ -139,35 +141,35 @@ export default function ListingTab() {
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
               disabled={selectedProducts.size === 0 || isLoading || status === 'running' || status === 'parsing'}
             >
-              导入选中 ({selectedProducts.size})
+              {t('import.listing.btn_import_selected', { count: selectedProducts.size })}
             </button>
             <button
               onClick={() => useImportStore.getState().stopImport()}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
               disabled={status !== 'running' && status !== 'parsing'}
             >
-              结束
+              {t('import.listing.btn_stop')}
             </button>
             <button
               onClick={selectAllProducts}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading || status === 'running' || status === 'parsing'}
             >
-              全选
+              {t('import.listing.btn_select_all')}
             </button>
             <button
               onClick={deselectAllProducts}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading || status === 'running' || status === 'parsing'}
             >
-              取消全选
+              {t('import.listing.btn_deselect_all')}
             </button>
             <button
               onClick={handleRemoveAll}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading || status === 'running' || status === 'parsing'}
             >
-              清空全部
+              {t('import.listing.btn_clear_all')}
             </button>
           </div>
         )}
@@ -176,7 +178,7 @@ export default function ListingTab() {
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
             <div className="flex items-center gap-2">
-              <div className="text-red-600 font-medium">错误:</div>
+              <div className="text-red-600 font-medium">{t('common.error')}:</div>
               <div className="text-red-700">{error}</div>
             </div>
           </div>

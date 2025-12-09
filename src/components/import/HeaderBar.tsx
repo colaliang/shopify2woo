@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Settings, User, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useUserStore } from "@/stores/userStore";
+import { useTranslation } from "react-i18next";
 import LoginModal from "@/components/auth/LoginModal";
 import SettingsModal from "@/components/auth/SettingsModal";
 import RechargeModal from "@/components/auth/RechargeModal";
@@ -14,6 +15,7 @@ interface HeaderBarProps {
 }
 
 export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const { user, isAuthenticated, openLoginModal, openSettingsModal, logout, initFromSupabase, openDebugModal } = useUserStore();
 
@@ -51,7 +53,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
             height={32} 
             className="w-8 h-8 rounded object-contain"
           />
-          <h1 className="text-xl font-semibold text-gray-900">云店+WordPress产品导入助手</h1>
+          <h1 className="text-xl font-semibold text-gray-900">{t('app.title')}</h1>
         </div>
         <nav className="flex gap-2">
 
@@ -63,7 +65,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                 : "text-gray-500 border-transparent hover:text-primary-600"
             }`}
           >
-            产品导入
+            {t('nav.product_import')}
           </button>
 
           {/* 

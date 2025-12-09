@@ -1,0 +1,151 @@
+{
+  "app": {
+    "title": "云店+WordPress产品导入助手",
+    "description": "专业的跨境电商产品搬家工具"
+  },
+  "nav": {
+    "home": "首页",
+    "product_import": "产品导入",
+    "tasks": "任务列表",
+    "settings": "设置"
+  },
+  "common": {
+    "language": "语言",
+    "loading": "加载中...",
+    "save": "保存",
+    "cancel": "取消",
+    "confirm": "确认",
+    "unknown_product": "未知商品",
+    "success": "成功",
+    "error": "错误",
+    "price": "价格",
+    "images": "图片",
+    "source": "来源",
+    "view": "查看",
+    "welcome_user": "欢迎回来，{{name}}"
+  },
+  "platform": {
+    "wordpress": "WordPress",
+    "shopify": "Shopify",
+    "wix": "Wix"
+  },
+  "import": {
+    "product": {
+      "platform_mismatch_msg": "检测到链接可能来自 {{detected}}，但当前选择的是 {{current}}。\n\n是否继续？",
+      "btn_importing": "导入中...",
+      "btn_import": "导入",
+      "intro": {
+        "title": "产品介绍：",
+        "content": "本工具支持从Wordpress,Shopify,Wix抓取产品公开信息（标题，图片，价格，描述等），不需要原网站的API，高效导入到自己的Wordpress/Woo系统。",
+        "usage_title": "使用说明：",
+        "usage_1": "需要先登录，支持Google，微信",
+        "usage_2": "导入需要取得Wordpress的API，需要在设置里登记",
+        "usage_3": "支持单个或者多个产品导入，每次批量链接需要同一个平台的产品链接",
+        "usage_4": "新注册用户赠送 30 个导入点数，可购买更多的导入点数",
+        "usage_5": "感谢支持！"
+      }
+    },
+    "listing": {
+      "btn_import_selected": "导入选中 ({{count}})",
+      "btn_stop": "结束",
+      "btn_select_all": "全选",
+      "btn_deselect_all": "取消全选",
+      "btn_clear_all": "清空全部"
+    },
+    "url_input": {
+      "label": "商品链接地址（支持多个，逗号/空格/换行分隔）",
+      "placeholder": "https://www.example.com/product/a, https://www.example.com/product/b\n或每行一个链接"
+    },
+    "site_input": {
+      "label": "网站地址",
+      "placeholder": "https://www.example.com/",
+      "btn_loading": "抓取中...",
+      "btn_discover": "抓取全站商品"
+    },
+    "status": {
+      "started": "任务开始",
+      "completed": "任务结束",
+      "stopping": "正在停止...",
+      "stopped": "任务已停止",
+      "error": "任务异常",
+      "idle": "任务未开始",
+      "fetched": "已获取",
+      "success": "成功",
+      "queue": "队列",
+      "errors": "错误"
+    },
+    "stats": {
+      "text": "已导入: {{imported}} / 队列中: {{queue}} / 错误: {{errors}}"
+    },
+    "options": {
+      "default_category": "默认分类",
+      "uncategorized": "未分类",
+      "led_lights": "LED Lights",
+      "profiles": "Aluminium Profiles",
+      "threads": "导入线程数",
+      "auto_pagination": "自动分页"
+    },
+    "item": {
+      "attributes": "属性: {{count}}",
+      "reviews": "评价: {{count}}",
+      "gallery": "图片: {{count}}",
+      "in_stock": "有库存",
+      "out_of_stock": "缺货",
+      "btn_importing": "导入中...",
+      "btn_import": "导入商品"
+    }
+  },
+  "footer": {
+    "copyright": "© {{year}} 搞跨境的可乐哥",
+    "cloud_store": "云店+B2B出海营销服务",
+    "help": "帮助",
+    "contact": "联系我们"
+  },
+  "auth": {
+    "login": {
+      "title": "用户登录",
+      "google": "使用 Google 登录",
+      "wechat": "使用微信登录"
+    },
+    "error": {
+      "env_missing": "未配置 Supabase 环境变量",
+      "login_failed": "登录失败，请稍后重试"
+    }
+  },
+  "settings": {
+    "title": "系统设置",
+    "tab": {
+      "wordpress": "WordPress 设置",
+      "language": "语言",
+      "history": "积分流水",
+      "notifications": "通知设置",
+      "help": "帮助"
+    },
+    "wp": {
+      "url_label": "WordPress 站点网址",
+      "save_loading": "保存中…",
+      "save": "保存配置",
+      "save_failed": "保存失败"
+    },
+    "lang": {
+      "label": "选择界面语言"
+    },
+    "history": {
+      "loading": "加载中...",
+      "empty": "暂无交易记录",
+      "balance": "余额:",
+      "prev": "上一页",
+      "page": "第 {{page}} 页",
+      "next": "下一页"
+    },
+    "sub": {
+      "title": "邮件通知",
+      "label": "订阅邮件",
+      "saved": "设置已保存！",
+      "error": "保存失败"
+    }
+  },
+  "contact": {
+    "default_category": "功能建议"
+  }
+}

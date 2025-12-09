@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Send } from 'lucide-react';
 import { useUserStore } from '@/stores/userStore';
 import supabase from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
 
 declare global {
   interface Window {
@@ -14,6 +15,7 @@ declare global {
 }
 
 export default function ContactModal() {
+  const { t } = useTranslation();
   const { contactModalOpen, closeContactModal, user } = useUserStore();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -34,7 +36,7 @@ export default function ContactModal() {
       // Reset form when opening
       setFormData({
         description: '',
-        category: '功能建议',
+        category: t('contact.default_category'),
         contact_info: user?.email || '',
         token: ''
       });

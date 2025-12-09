@@ -1,0 +1,18 @@
+{
+  "app": {
+    "title": "Shopify/Wix/WP to WooCommerce Importer",
+    "description": "Professional cross-border e-commerce product migration tool"
+  },
+  "nav": {
+    "home": "Home",
+    "tasks": "Tasks",
+    "settings": "Settings"
+  },
+  "common": {
+    "language": "언어",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "welcome_user": "Welcome back, {{name}}"
+  }
+}
