@@ -1,63 +1,46 @@
-"use client";
+import { Metadata } from 'next';
+import HomeClient from "@/components/HomeClient";
+import { getTranslations } from "@/lib/i18nServer";
+import { supportedLanguages } from '@/lib/i18n';
 
-import { useState, useEffect } from "react";
-import HeaderBar from "@/components/import/HeaderBar";
-import ListingTab from "@/components/import/ListingTab";
-import ProductTab from "@/components/import/ProductTab";
-import { useImportStore } from "@/stores/importStore";
+interface Props {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
 
-export default function Home() {
-  const [tab, setTab] = useState<"listing" | "product">("product");
-  const { currentRequestId, status } = useImportStore();
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const resolvedSearchParams = await searchParams;
+  const lng = typeof resolvedSearchParams.lng === 'string' ? resolvedSearchParams.lng : 'en';
+  const t = await getTranslations(lng);
 
-  // Resume subscriptions on mount if running, or fetch results if missing
-  useEffect(() => {
-    const st = useImportStore.getState();
-    const hasRequest = !!currentRequestId;
-    const isRunning = status === 'running' || status === 'parsing';
-    // Check store state directly to avoid dependency loop
-    const emptyResults = st.results.length === 0;
+  const title = t?.app?.title || "Shopify/Wix/WP to WooCommerce Importer";
+  const description = t?.app?.description || "Professional cross-border e-commerce product migration tool";
+  const baseUrl = "https://www.ydplus.net";
 
-    if (hasRequest) {
-      if (isRunning) {
-        st.startLogsForRequest(currentRequestId!);
-        st.startResultsForRequest(currentRequestId!, false);
-        st.startRunnerAutoCall();
-      } else if (emptyResults) {
-        st.startResultsForRequest(currentRequestId!, false);
-      }
-    }
-  }, [currentRequestId, status]); // Re-run when request ID restores or status changes
+  // Generate alternates for SEO
+  const languages: Record<string, string> = {};
+  supportedLanguages.forEach(lang => {
+    languages[lang] = `${baseUrl}/?lng=${lang}`;
+  });
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Shopify/Wix/WP产品导入WooCommerce助手",
-    "applicationCategory": "BusinessApplication",
-    "operatingSystem": "Web",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "CNY"
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `${baseUrl}${lng !== 'en' ? `/?lng=${lng}` : ''}`,
+      languages: languages,
     },
-    "description": "专业的跨境电商产品搬家工具，支持从WordPress, Shopify, Wix一键导入产品到WooCommerce。",
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.8",
-      "ratingCount": "100"
+    openGraph: {
+        title,
+        description,
+        locale: lng.replace('-', '_'),
+    },
+    twitter: {
+        title,
+        description,
     }
   };
+}
 
-  return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-      <HeaderBar activeTab={tab} onTabChange={setTab} />
-      <div className="flex-1 overflow-hidden">
-        {tab === "listing" ? <ListingTab /> : <ProductTab />}
-      </div>
-    </div>
-  );
+export default function Home() {
+  return <HomeClient />;
 }
