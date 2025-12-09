@@ -1,18 +1,196 @@
 {
   "app": {
-    "title": "Shopify/Wix/WP to WooCommerce Importer",
-    "description": "Professional cross-border e-commerce product migration tool"
+    "title": "Yundian+ WooCommerce 임포터",
+    "description": "WordPress, Shopify, Wix에서 WooCommerce/WordPress로 제품을 가져오는 전문 도구입니다.",
+    "keywords": "WordPress 마이그레이션, WordPress에서 WordPress로, Shopify에서 WooCommerce로, Wix에서 WooCommerce로, 제품 가져오기, WooCommerce 임포터, Yundian+"
   },
   "nav": {
-    "home": "Home",
-    "tasks": "Tasks",
-    "settings": "Settings"
+    "home": "홈",
+    "product_import": "제품 가져오기",
+    "tasks": "작업",
+    "settings": "설정"
   },
   "common": {
     "language": "언어",
-    "loading": "Loading...",
-    "save": "Save",
-    "cancel": "Cancel",
-    "welcome_user": "Welcome back, {{name}}"
+    "loading": "로딩 중...",
+    "save": "저장",
+    "cancel": "취소",
+    "confirm": "확인",
+    "unknown_product": "알 수 없는 제품",
+    "success": "성공",
+    "error": "오류",
+    "price": "가격",
+    "images": "이미지",
+    "source": "소스",
+    "view": "보기",
+    "welcome_user": "환영합니다, {{name}}님"
+  },
+  "platform": {
+    "wordpress": "WordPress",
+    "shopify": "Shopify",
+    "wix": "Wix"
+  },
+  "import": {
+    "product": {
+      "platform_mismatch_msg": "감지된 링크는 {{detected}}일 수 있지만, 현재 선택된 것은 {{current}}입니다.\n\n계속하시겠습니까?",
+      "btn_importing": "가져오는 중...",
+      "btn_import": "가져오기",
+      "intro": {
+        "title": "소개:",
+        "content": "이 도구는 API 액세스 없이 WordPress, Shopify 및 Wix 사이트에서 제품 정보(제목, 이미지, 가격, 설명 등)를 스크래핑하여 자신의 WordPress/Woo 시스템으로 효율적으로 가져옵니다.",
+        "usage_title": "사용법:",
+        "usage_1": "로그인이 필요하며 Google 및 WeChat을 지원합니다.",
+        "usage_2": "가져오려면 설정에 WordPress API 자격 증명을 등록해야 합니다.",
+        "usage_3": "단일 또는 다중 제품 가져오기를 지원합니다. 일괄 링크는 동일한 플랫폼이어야 합니다.",
+        "usage_4": "신규 사용자는 30회의 무료 가져오기 크레딧을 받습니다. 추가 구매가 가능합니다.",
+        "usage_5": "이용해 주셔서 감사합니다!"
+      }
+    },
+    "listing": {
+      "btn_import_selected": "선택한 항목 가져오기 ({{count}})",
+      "btn_stop": "중지",
+      "btn_select_all": "모두 선택",
+      "btn_deselect_all": "모두 선택 해제",
+      "btn_clear_all": "모두 지우기"
+    },
+    "url_input": {
+      "label": "제품 링크 (여러 개 지원, 쉼표/공백/줄바꿈 구분)",
+      "placeholder": "https://www.example.com/product/a, https://www.example.com/product/b\n또는 한 줄에 하나의 링크"
+    },
+    "site_input": {
+      "label": "웹사이트 URL",
+      "placeholder": "https://www.example.com/",
+      "btn_loading": "스크래핑 중...",
+      "btn_discover": "모든 제품 스크래핑"
+    },
+    "status": {
+      "started": "작업 시작됨",
+      "completed": "작업 완료됨",
+      "stopping": "중지 중...",
+      "stopped": "작업 중지됨",
+      "error": "작업 오류",
+      "idle": "작업 시작 안 됨",
+      "fetched": "가져옴",
+      "success": "성공",
+      "queue": "대기열",
+      "errors": "오류"
+    },
+    "stats": {
+      "text": "가져옴: {{imported}} / 대기열: {{queue}} / 오류: {{errors}}"
+    },
+    "options": {
+      "default_category": "기본 카테고리",
+      "uncategorized": "미분류",
+      "threads": "가져오기 스레드",
+      "auto_pagination": "자동 페이지 매김"
+    },
+    "item": {
+      "attributes": "속성: {{count}}",
+      "reviews": "리뷰: {{count}}",
+      "gallery": "이미지: {{count}}",
+      "in_stock": "재고 있음",
+      "out_of_stock": "재고 없음",
+      "btn_importing": "가져오는 중...",
+      "btn_import": "제품 가져오기"
+    }
+  },
+  "footer": {
+    "copyright": "© {{year}} Yundian+ Team",
+    "cloud_store": "Yundian+ B2B 마케팅 서비스",
+    "help": "도움말",
+    "contact": "문의하기"
+  },
+  "auth": {
+    "login": {
+      "title": "사용자 로그인",
+      "google": "Google로 로그인",
+      "wechat": "WeChat으로 로그인",
+      "btn_login": "로그인"
+    },
+    "error": {
+      "env_missing": "Supabase 환경 변수가 없습니다",
+      "login_failed": "로그인 실패, 나중에 다시 시도해 주세요"
+    }
+  },
+  "settings": {
+    "title": "설정",
+    "user": {
+      "current_user": "현재 사용자",
+      "credits": "크레딧: {{credits}}",
+      "logout": "로그아웃"
+    },
+    "tab": {
+      "wordpress": "WordPress 설정",
+      "language": "언어",
+      "history": "크레딧 기록",
+      "notifications": "알림",
+      "help": "도움말"
+    },
+    "wp": {
+      "url_label": "WordPress 사이트 URL",
+      "key_label": "소비자 키 (Consumer Key)",
+      "secret_label": "소비자 비밀 (Consumer Secret)",
+      "save_loading": "저장 중...",
+      "save": "설정 저장",
+      "save_failed": "저장 실패"
+    },
+    "lang": {
+      "label": "인터페이스 언어 선택",
+      "save": "저장 및 언어 전환"
+    },
+    "history": {
+      "loading": "로딩 중...",
+      "empty": "거래 기록 없음",
+      "balance": "잔액:",
+      "prev": "이전",
+      "page": "페이지 {{page}}",
+      "next": "다음"
+    },
+    "sub": {
+      "title": "이메일 알림",
+      "label": "이메일 구독",
+      "save_btn": "환경 설정 저장",
+      "saved": "환경 설정이 저장되었습니다!",
+      "error": "저장 실패",
+      "status": {
+        "subscribed": "구독 중",
+        "unsubscribed": "구독 취소됨"
+      },
+      "pref": {
+        "orders": "주문 업데이트 (생성됨, 결제됨)",
+        "marketing": "마케팅 및 뉴스",
+        "freq": "빈도",
+        "immediate": "즉시",
+        "daily": "일일 요약",
+        "weekly": "주간 요약"
+      }
+    }
+  },
+  "contact": {
+    "default_category": "기능 제안",
+    "title": "문의하기",
+    "success": {
+      "title": "제출 성공",
+      "msg": "피드백을 보내주셔서 감사합니다. 가능한 한 빨리 처리하겠습니다."
+    },
+    "form": {
+      "category": "카테고리",
+      "category_placeholder": "카테고리 선택",
+      "categories": {
+        "feature": "✨ 기능 제안",
+        "bug": "🐛 버그 신고",
+        "account": "👤 계정 문제",
+        "payment": "💰 결제 문제",
+        "business": "🤝 비즈니스 문의",
+        "other": "📝 기타"
+      },
+      "contact": "연락처 정보",
+      "contact_placeholder": "이메일 또는 전화번호",
+      "desc": "설명",
+      "desc_placeholder": "요청이나 문제를 자세히 설명해 주세요...",
+      "submit": "제출",
+      "submitting": "제출 중...",
+      "error": "제출 실패, 나중에 다시 시도해 주세요"
+    }
   }
 }

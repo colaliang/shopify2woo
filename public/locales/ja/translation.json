@@ -1,18 +1,196 @@
 {
   "app": {
-    "title": "Shopify/Wix/WP to WooCommerce Importer",
-    "description": "Professional cross-border e-commerce product migration tool"
+    "title": "Yundian+ WooCommerce インポーター",
+    "description": "WordPress、Shopify、WixからWooCommerce/WordPressへ製品をインポートするプロフェッショナルツール。",
+    "keywords": "WordPress移行, WordPressからWordPress, ShopifyからWooCommerce, WixからWooCommerce, 製品インポート, WooCommerceインポーター, Yundian+"
   },
   "nav": {
-    "home": "Home",
-    "tasks": "Tasks",
-    "settings": "Settings"
+    "home": "ホーム",
+    "product_import": "製品インポート",
+    "tasks": "タスク",
+    "settings": "設定"
   },
   "common": {
     "language": "言語",
-    "loading": "Loading...",
-    "save": "Save",
-    "cancel": "Cancel",
-    "welcome_user": "Welcome back, {{name}}"
+    "loading": "読み込み中...",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "unknown_product": "不明な製品",
+    "success": "成功",
+    "error": "エラー",
+    "price": "価格",
+    "images": "画像",
+    "source": "ソース",
+    "view": "表示",
+    "welcome_user": "おかえりなさい、{{name}}"
+  },
+  "platform": {
+    "wordpress": "WordPress",
+    "shopify": "Shopify",
+    "wix": "Wix"
+  },
+  "import": {
+    "product": {
+      "platform_mismatch_msg": "リンクが {{detected}} の可能性がありますが、現在 {{current}} が選択されています。\n\n続行しますか？",
+      "btn_importing": "インポート中...",
+      "btn_import": "インポート",
+      "intro": {
+        "title": "はじめに:",
+        "content": "このツールは、APIアクセスを必要とせずに、WordPress、Shopify、およびWixサイトから製品情報（タイトル、画像、価格、説明など）をスクレイピングし、独自のWordPress/Wooシステムに効率的にインポートします。",
+        "usage_title": "使用方法:",
+        "usage_1": "ログインが必要です。GoogleとWeChatをサポートしています。",
+        "usage_2": "インポートするには、設定でWordPress API認証情報を登録する必要があります。",
+        "usage_3": "単一または複数の製品インポートをサポートしています。バッチリンクは同じプラットフォームからである必要があります。",
+        "usage_4": "新規ユーザーには30回の無料インポートクレジットが付与されます。追加購入も可能です。",
+        "usage_5": "ご利用ありがとうございます！"
+      }
+    },
+    "listing": {
+      "btn_import_selected": "選択した項目をインポート ({{count}})",
+      "btn_stop": "停止",
+      "btn_select_all": "すべて選択",
+      "btn_deselect_all": "すべて選択解除",
+      "btn_clear_all": "すべてクリア"
+    },
+    "url_input": {
+      "label": "製品リンク（複数可、カンマ/スペース/改行区切り）",
+      "placeholder": "https://www.example.com/product/a, https://www.example.com/product/b\nまたは1行に1つのリンク"
+    },
+    "site_input": {
+      "label": "ウェブサイトURL",
+      "placeholder": "https://www.example.com/",
+      "btn_loading": "スクレイピング中...",
+      "btn_discover": "すべての製品をスクレイピング"
+    },
+    "status": {
+      "started": "タスク開始",
+      "completed": "タスク完了",
+      "stopping": "停止中...",
+      "stopped": "タスク停止",
+      "error": "タスクエラー",
+      "idle": "タスク未開始",
+      "fetched": "取得済み",
+      "success": "成功",
+      "queue": "キュー",
+      "errors": "エラー"
+    },
+    "stats": {
+      "text": "インポート済み: {{imported}} / キュー: {{queue}} / エラー: {{errors}}"
+    },
+    "options": {
+      "default_category": "デフォルトカテゴリ",
+      "uncategorized": "未分類",
+      "threads": "インポートスレッド",
+      "auto_pagination": "自動ページネーション"
+    },
+    "item": {
+      "attributes": "属性: {{count}}",
+      "reviews": "レビュー: {{count}}",
+      "gallery": "画像: {{count}}",
+      "in_stock": "在庫あり",
+      "out_of_stock": "在庫なし",
+      "btn_importing": "インポート中...",
+      "btn_import": "製品をインポート"
+    }
+  },
+  "footer": {
+    "copyright": "© {{year}} Yundian+ Team",
+    "cloud_store": "Yundian+ B2B マーケティングサービス",
+    "help": "ヘルプ",
+    "contact": "お問い合わせ"
+  },
+  "auth": {
+    "login": {
+      "title": "ユーザーログイン",
+      "google": "Googleでログイン",
+      "wechat": "WeChatでログイン",
+      "btn_login": "ログイン"
+    },
+    "error": {
+      "env_missing": "Supabase環境変数がありません",
+      "login_failed": "ログインに失敗しました。後でもう一度お試しください"
+    }
+  },
+  "settings": {
+    "title": "設定",
+    "user": {
+      "current_user": "現在のユーザー",
+      "credits": "クレジット: {{credits}}",
+      "logout": "ログアウト"
+    },
+    "tab": {
+      "wordpress": "WordPress設定",
+      "language": "言語",
+      "history": "クレジット履歴",
+      "notifications": "通知",
+      "help": "ヘルプ"
+    },
+    "wp": {
+      "url_label": "WordPressサイトURL",
+      "key_label": "コンシューマーキー",
+      "secret_label": "コンシューマーシークレット",
+      "save_loading": "保存中...",
+      "save": "設定を保存",
+      "save_failed": "保存に失敗しました"
+    },
+    "lang": {
+      "label": "インターフェース言語を選択",
+      "save": "保存して言語を切り替え"
+    },
+    "history": {
+      "loading": "読み込み中...",
+      "empty": "取引記録なし",
+      "balance": "残高:",
+      "prev": "前へ",
+      "page": "ページ {{page}}",
+      "next": "次へ"
+    },
+    "sub": {
+      "title": "メール通知",
+      "label": "メールを購読",
+      "save_btn": "設定を保存",
+      "saved": "設定が保存されました！",
+      "error": "保存に失敗しました",
+      "status": {
+        "subscribed": "購読中",
+        "unsubscribed": "未購読"
+      },
+      "pref": {
+        "orders": "注文更新（作成、支払い済み）",
+        "marketing": "マーケティングとニュース",
+        "freq": "頻度",
+        "immediate": "即時",
+        "daily": "日次ダイジェスト",
+        "weekly": "週次ダイジェスト"
+      }
+    }
+  },
+  "contact": {
+    "default_category": "機能提案",
+    "title": "お問い合わせ",
+    "success": {
+      "title": "送信成功",
+      "msg": "フィードバックありがとうございます。できるだけ早く処理いたします。"
+    },
+    "form": {
+      "category": "カテゴリ",
+      "category_placeholder": "カテゴリを選択",
+      "categories": {
+        "feature": "✨ 機能提案",
+        "bug": "🐛 バグ報告",
+        "account": "👤 アカウントの問題",
+        "payment": "💰 支払いの問題",
+        "business": "🤝 ビジネスに関するお問い合わせ",
+        "other": "📝 その他"
+      },
+      "contact": "連絡先情報",
+      "contact_placeholder": "メールまたは電話",
+      "desc": "説明",
+      "desc_placeholder": "リクエストや問題を詳しく説明してください...",
+      "submit": "送信",
+      "submitting": "送信中...",
+      "error": "送信に失敗しました。後でもう一度お試しください"
+    }
   }
 }

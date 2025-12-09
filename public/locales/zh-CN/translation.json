@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "云店+WordPress产品导入助手",
+    "title": "云店+WooCommerce产品导入助手",
     "description": "支持从WordPress, Shopify, Wix导入产品到WooCommerce/WordPress。无需原网站API，支持批量采集",
     "keywords": "WordPress迁移, WordPress到WordPress, Shopify转WooCommerce, Wix转WooCommerce, 产品导入, WooCommerce导入插件, 云店+"
   },
