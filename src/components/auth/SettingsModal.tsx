@@ -16,7 +16,7 @@ interface Transaction {
 
 export default function SettingsModal() {
   const { t, i18n } = useTranslation();
-  const { settings, updateSettings, user, logout, settingsModalOpen, closeSettingsModal } = useUserStore();
+  const { updateSettings, user, logout, settingsModalOpen, closeSettingsModal } = useUserStore();
   const [activeTab, setActiveTab] = useState<'wordpress' | 'language' | 'history' | 'notifications'>('wordpress');
   const [config, setConfig] = useState({ wordpressUrl: "", consumerKey: "", consumerSecret: "" });
   const [loadingCfg, setLoadingCfg] = useState(false);

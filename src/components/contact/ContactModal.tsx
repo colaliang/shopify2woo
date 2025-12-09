@@ -43,7 +43,7 @@ export default function ContactModal() {
       setSuccess(false);
       setError(null);
     }
-  }, [contactModalOpen, user]);
+  }, [contactModalOpen, user, t]);
 
   // Load Turnstile script
   useEffect(() => {
