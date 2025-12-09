@@ -206,12 +206,12 @@ export default function RightPanel({
               
               <div className="flex justify-between text-xs text-gray-500">
                  <span>
-                    {status === 'parsing' && '正在解析...'}
-                    {status === 'running' && '正在导入...'}
-                    {status === 'stopping' && '正在停止...'}
-                    {status === 'stopped' && '已停止'}
-                    {status === 'completed' && '任务完成'}
-                    {status === 'error' && '任务异常'}
+                    {status === 'parsing' && t('import.status.parsing')}
+                    {status === 'running' && t('import.status.running')}
+                    {status === 'stopping' && t('import.status.stopping')}
+                    {status === 'stopped' && t('import.status.stopped')}
+                    {status === 'completed' && t('import.status.completed')}
+                    {status === 'error' && t('import.status.error')}
                  </span>
                  <span>
                    {queue > 0 ? Math.round(((imported + errors) / queue) * 100) : 0}%
@@ -226,8 +226,8 @@ export default function RightPanel({
           {results.length > 0 && (
             <div className="pt-2 space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Results ({total})</div>
-                {resultsLoading && <div className="text-xs text-gray-400">Loading...</div>}
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('import.results_title', { count: total })}</div>
+                {resultsLoading && <div className="text-xs text-gray-400">{t('common.loading')}</div>}
               </div>
               {results.map(res => renderResultItem(res))}
               
@@ -289,9 +289,9 @@ export default function RightPanel({
               {results.length > 0 && (
                 <div className="pt-2 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Results ({total})</div>
-                    {resultsLoading && <div className="text-xs text-gray-400">Loading...</div>}
-                  </div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('import.results_title', { count: total })}</div>
+                {resultsLoading && <div className="text-xs text-gray-400">{t('common.loading')}</div>}
+              </div>
                   {results.map(res => renderResultItem(res))}
 
                   {/* Pagination Mobile */}

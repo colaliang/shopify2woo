@@ -23,6 +23,8 @@
     "images": "Изображения",
     "source": "Источник",
     "view": "Просмотр",
+    "prev": "Назад",
+    "next": "Вперед",
     "welcome_user": "С возвращением, {{name}}"
   },
   "platform": {
@@ -65,6 +67,8 @@
     },
     "status": {
       "started": "Задача запущена",
+      "parsing": "Анализ...",
+      "running": "Импорт...",
       "completed": "Задача завершена",
       "stopping": "Остановка...",
       "stopped": "Задача остановлена",
@@ -76,8 +80,12 @@
       "errors": "Ошибки"
     },
     "stats": {
-      "text": "Импортировано: {{imported}} / Очередь: {{queue}} / Ошибки: {{errors}}"
+      "error": "Ошибка",
+      "summary": "Сводка",
+      "text_full": "Получено: {{fetched}} | Импортировано: {{imported}} | Очередь: {{queue}} | Ошибки: {{errors}}",
+      "text": "Получено: {{fetched}} | Очередь: {{queue}}"
     },
+    "results_title": "Результаты ({{count}})",
     "options": {
       "default_category": "Категория по умолчанию",
       "uncategorized": "Без категории",
@@ -105,12 +113,45 @@
       "title": "Вход пользователя",
       "google": "Войти через Google",
       "wechat": "Войти через WeChat",
+      "recharge": "Пополнить",
       "btn_login": "Войти"
     },
     "error": {
       "env_missing": "Отсутствуют переменные окружения Supabase",
       "login_failed": "Вход не удался, попробуйте позже"
     }
+  },
+  "payment": {
+    "title": "Пополнить кредиты",
+    "balance": "Текущий баланс: {{credits}} кредитов",
+    "select_method": "Выберите способ оплаты",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "Кредитная карта / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "Базовый",
+        "desc_1": "Действует бессрочно",
+        "desc_2": "Импорт 300 товаров"
+      },
+      "pro": {
+        "name": "Профессиональный",
+        "desc_1": "Действует бессрочно",
+        "desc_2": "Импорт 1500 товаров",
+        "popular": "САМЫЙ ПОПУЛЯРНЫЙ"
+      },
+      "enterprise": {
+        "name": "Корпоративный",
+        "desc_1": "Действует бессрочно",
+        "desc_2": "Импорт 10000 товаров"
+      }
+    },
+    "buy_now": "Купить сейчас",
+    "processing": "Обработка...",
+    "success_title": "Оплата прошла успешно!",
+    "success_desc": "Кредиты были добавлены на ваш счет.",
+    "cancel_title": "Оплата отменена",
+    "cancel_desc": "Вы отменили процесс оплаты.",
+    "close_window": "Закрыть окно"
   },
   "settings": {
     "title": "Настройки",

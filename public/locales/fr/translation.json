@@ -23,6 +23,8 @@
     "images": "Images",
     "source": "Source",
     "view": "Voir",
+    "prev": "Précédent",
+    "next": "Suivant",
     "welcome_user": "Bon retour, {{name}}"
   },
   "platform": {
@@ -65,6 +67,8 @@
     },
     "status": {
       "started": "Tâche démarrée",
+      "parsing": "Analyse en cours...",
+      "running": "Importation...",
       "completed": "Tâche terminée",
       "stopping": "Arrêt en cours...",
       "stopped": "Tâche arrêtée",
@@ -76,8 +80,12 @@
       "errors": "Erreurs"
     },
     "stats": {
-      "text": "Importé : {{imported}} / File : {{queue}} / Erreurs : {{errors}}"
+      "error": "Échoué",
+      "summary": "Résumé",
+      "text_full": "Récupéré : {{fetched}} | Importé : {{imported}} | File : {{queue}} | Erreurs : {{errors}}",
+      "text": "Récupéré : {{fetched}} | File : {{queue}}"
     },
+    "results_title": "Résultats ({{count}})",
     "options": {
       "default_category": "Catégorie par défaut",
       "uncategorized": "Non classé",
@@ -105,12 +113,45 @@
       "title": "Connexion utilisateur",
       "google": "Se connecter avec Google",
       "wechat": "Se connecter avec WeChat",
+      "recharge": "Recharger",
       "btn_login": "Se connecter"
     },
     "error": {
       "env_missing": "Variables d'environnement Supabase manquantes",
       "login_failed": "Échec de la connexion, veuillez réessayer plus tard"
     }
+  },
+  "payment": {
+    "title": "Recharger des crédits",
+    "balance": "Solde actuel : {{credits}} Crédits",
+    "select_method": "Sélectionner le mode de paiement",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "Carte de crédit / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "Basique",
+        "desc_1": "Valable à vie",
+        "desc_2": "Importer 300 produits"
+      },
+      "pro": {
+        "name": "Professionnel",
+        "desc_1": "Valable à vie",
+        "desc_2": "Importer 1500 produits",
+        "popular": "LE PLUS POPULAIRE"
+      },
+      "enterprise": {
+        "name": "Entreprise",
+        "desc_1": "Valable à vie",
+        "desc_2": "Importer 10000 produits"
+      }
+    },
+    "buy_now": "Acheter maintenant",
+    "processing": "Traitement...",
+    "success_title": "Paiement réussi !",
+    "success_desc": "Vos crédits ont été ajoutés à votre compte.",
+    "cancel_title": "Paiement annulé",
+    "cancel_desc": "Vous avez annulé le processus de paiement.",
+    "close_window": "Fermer la fenêtre"
   },
   "settings": {
     "title": "Paramètres",

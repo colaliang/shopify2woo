@@ -23,6 +23,8 @@
     "images": "Bilder",
     "source": "Quelle",
     "view": "Ansehen",
+    "prev": "Zurück",
+    "next": "Weiter",
     "welcome_user": "Willkommen zurück, {{name}}"
   },
   "platform": {
@@ -65,6 +67,8 @@
     },
     "status": {
       "started": "Aufgabe gestartet",
+      "parsing": "Wird analysiert...",
+      "running": "Importieren...",
       "completed": "Aufgabe abgeschlossen",
       "stopping": "Stoppe...",
       "stopped": "Aufgabe gestoppt",
@@ -76,8 +80,12 @@
       "errors": "Fehler"
     },
     "stats": {
-      "text": "Importiert: {{imported}} / Warteschlange: {{queue}} / Fehler: {{errors}}"
+      "error": "Fehlgeschlagen",
+      "summary": "Zusammenfassung",
+      "text_full": "Abgerufen: {{fetched}} | Importiert: {{imported}} | Warteschlange: {{queue}} | Fehler: {{errors}}",
+      "text": "Abgerufen: {{fetched}} | Warteschlange: {{queue}}"
     },
+    "results_title": "Ergebnisse ({{count}})",
     "options": {
       "default_category": "Standardkategorie",
       "uncategorized": "Nicht kategorisiert",
@@ -103,14 +111,47 @@
   "auth": {
     "login": {
       "title": "Benutzer-Login",
-      "google": "Mit Google anmelden",
-      "wechat": "Mit WeChat anmelden",
+      "google": "Anmelden mit Google",
+      "wechat": "Anmelden mit WeChat",
+      "recharge": "Aufladen",
       "btn_login": "Anmelden"
     },
     "error": {
       "env_missing": "Supabase-Umgebungsvariablen fehlen",
       "login_failed": "Anmeldung fehlgeschlagen, bitte versuchen Sie es später erneut"
     }
+  },
+  "payment": {
+    "title": "Guthaben aufladen",
+    "balance": "Aktuelles Guthaben: {{credits}} Credits",
+    "select_method": "Zahlungsmethode wählen",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "Kreditkarte / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "Basis",
+        "desc_1": "Gültig für immer",
+        "desc_2": "300 Produkte importieren"
+      },
+      "pro": {
+        "name": "Profi",
+        "desc_1": "Gültig für immer",
+        "desc_2": "1500 Produkte importieren",
+        "popular": "BELIEBTESTE"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "desc_1": "Gültig für immer",
+        "desc_2": "10000 Produkte importieren"
+      }
+    },
+    "buy_now": "Jetzt kaufen",
+    "processing": "Verarbeitung...",
+    "success_title": "Zahlung erfolgreich!",
+    "success_desc": "Ihre Credits wurden Ihrem Konto gutgeschrieben.",
+    "cancel_title": "Zahlung abgebrochen",
+    "cancel_desc": "Sie haben den Zahlungsvorgang abgebrochen.",
+    "close_window": "Fenster schließen"
   },
   "settings": {
     "title": "Einstellungen",

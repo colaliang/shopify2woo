@@ -23,6 +23,8 @@
     "images": "Imágenes",
     "source": "Fuente",
     "view": "Ver",
+    "prev": "Anterior",
+    "next": "Siguiente",
     "welcome_user": "Bienvenido de nuevo, {{name}}"
   },
   "platform": {
@@ -65,6 +67,8 @@
     },
     "status": {
       "started": "Tarea Iniciada",
+      "parsing": "Analizando...",
+      "running": "Importando...",
       "completed": "Tarea Completada",
       "stopping": "Deteniendo...",
       "stopped": "Tarea Detenida",
@@ -76,8 +80,12 @@
       "errors": "Errores"
     },
     "stats": {
-      "text": "Importado: {{imported}} / Cola: {{queue}} / Errores: {{errors}}"
+      "error": "Fallido",
+      "summary": "Resumen",
+      "text_full": "Extraído: {{fetched}} | Importado: {{imported}} | Cola: {{queue}} | Errores: {{errors}}",
+      "text": "Extraído: {{fetched}} | Cola: {{queue}}"
     },
+    "results_title": "Resultados ({{count}})",
     "options": {
       "default_category": "Categoría Predeterminada",
       "uncategorized": "Sin categorizar",
@@ -103,14 +111,47 @@
   "auth": {
     "login": {
       "title": "Inicio de Sesión",
-      "google": "Iniciar con Google",
-      "wechat": "Iniciar con WeChat",
-      "btn_login": "Iniciar Sesión"
+      "google": "Iniciar sesión con Google",
+      "wechat": "Iniciar sesión con WeChat",
+      "btn_login": "Iniciar Sesión",
+      "recharge": "Recargar"
     },
     "error": {
       "env_missing": "Faltan variables de entorno Supabase",
       "login_failed": "Error de inicio de sesión, inténtelo de nuevo más tarde"
     }
+  },
+  "payment": {
+    "title": "Recargar Créditos",
+    "balance": "Saldo Actual: {{credits}} Créditos",
+    "select_method": "Seleccionar Método de Pago",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "Tarjeta de Crédito / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "Básico",
+        "desc_1": "Válido para siempre",
+        "desc_2": "Importar 300 productos"
+      },
+      "pro": {
+        "name": "Profesional",
+        "desc_1": "Válido para siempre",
+        "desc_2": "Importar 1500 productos",
+        "popular": "MÁS POPULAR"
+      },
+      "enterprise": {
+        "name": "Empresarial",
+        "desc_1": "Válido para siempre",
+        "desc_2": "Importar 10000 productos"
+      }
+    },
+    "buy_now": "Comprar Ahora",
+    "processing": "Procesando...",
+    "success_title": "¡Pago Exitoso!",
+    "success_desc": "Sus créditos han sido añadidos a su cuenta.",
+    "cancel_title": "Pago Cancelado",
+    "cancel_desc": "Ha cancelado el proceso de pago.",
+    "close_window": "Cerrar Ventana"
   },
   "settings": {
     "title": "Ajustes",

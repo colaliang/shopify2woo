@@ -13,6 +13,74 @@
     "loading": "Loading...",
     "save": "Save",
     "cancel": "Cancel",
+    "prev": "Anterior",
+    "next": "Próximo",
     "welcome_user": "Welcome back, {{name}}"
+  },
+  "import": {
+    "stats": {
+      "error": "Falhou",
+      "summary": "Resumo",
+      "text_full": "Obtido: {{fetched}} | Importado: {{imported}} | Fila: {{queue}} | Erros: {{errors}}",
+      "text": "Obtido: {{fetched}} | Fila: {{queue}}"
+    },
+    "results_title": "Resultados ({{count}})",
+    "status": {
+      "started": "Tarefa Iniciada",
+      "parsing": "Analisando...",
+      "running": "Importando...",
+      "completed": "Tarefa Concluída"
+    }
+  },
+  "auth": {
+    "login": {
+        "title": "Login",
+        "google": "Entrar com Google",
+        "wechat": "Entrar com WeChat",
+        "btn_login": "Entrar",
+        "recharge": "Recarregar"
+    }
+  },
+  "payment": {
+    "title": "Recarregar Créditos",
+    "balance": "Saldo Atual: {{credits}} Créditos",
+    "select_method": "Selecionar Método de Pago",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "Cartão de Crédito / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "Básico",
+        "desc_1": "Válido para sempre",
+        "desc_2": "Importar 300 produtos"
+      },
+      "pro": {
+        "name": "Profissional",
+        "desc_1": "Válido para sempre",
+        "desc_2": "Importar 1500 produtos",
+        "popular": "MAIS POPULAR"
+      },
+      "enterprise": {
+        "name": "Empresarial",
+        "desc_1": "Válido para sempre",
+        "desc_2": "Importar 10000 produtos"
+      }
+    },
+    "buy_now": "Comprar Agora",
+    "processing": "Processando...",
+    "success_title": "Pagamento Bem-sucedido!",
+    "success_desc": "Seus créditos foram adicionados à sua conta.",
+    "cancel_title": "Pagamento Cancelado",
+    "cancel_desc": "Você cancelou o processo de pagamento.",
+    "close_window": "Fechar Janela"
+  },
+  "settings": {
+    "title": "Configurações",
+    "tab": {
+      "wordpress": "WordPress",
+      "language": "Idioma",
+      "history": "Histórico",
+      "notifications": "Notificações",
+      "help": "Ajuda"
+    }
   }
 }

@@ -67,6 +67,8 @@
     },
     "status": {
       "started": "任務開始",
+      "parsing": "正在解析...",
+      "running": "正在導入...",
       "completed": "任務結束",
       "stopping": "正在停止...",
       "stopped": "任務已停止",
@@ -79,10 +81,11 @@
     },
     "stats": {
       "error": "失敗",
-      "summary": "概要",
-      "text_full": "已獲取: {{fetched}} | 成功: {{imported}} | 隊列: {{queue}} | 錯誤: {{errors}}",
+      "summary": "摘要",
+      "text_full": "已獲取: {{fetched}} | 已導入: {{imported}} | 隊列: {{queue}} | 錯誤: {{errors}}",
       "text": "已獲取: {{fetched}} | 隊列: {{queue}}"
     },
+    "results_title": "結果 ({{count}})",
     "options": {
       "default_category": "默認分類",
       "uncategorized": "未分類",
@@ -108,14 +111,47 @@
   "auth": {
     "login": {
       "title": "用戶登錄",
-      "google": "使用 Google 登錄",
-      "wechat": "使用微信登錄",
+      "google": "Google 登錄",
+      "wechat": "微信登錄",
+      "recharge": "充值",
       "btn_login": "登錄"
     },
     "error": {
       "env_missing": "未配置 Supabase 環境變量",
       "login_failed": "登錄失敗，請稍後重試"
     }
+  },
+  "payment": {
+    "title": "充值中心",
+    "balance": "當前餘額：{{credits}} 點數",
+    "select_method": "選擇支付方式",
+    "wechat_pay": "微信支付",
+    "credit_card": "信用卡 / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "基礎版",
+        "desc_1": "永久有效",
+        "desc_2": "導入 300 個產品"
+      },
+      "pro": {
+        "name": "專業版",
+        "desc_1": "永久有效",
+        "desc_2": "導入 1500 個產品",
+        "popular": "最受歡迎"
+      },
+      "enterprise": {
+        "name": "企業版",
+        "desc_1": "永久有效",
+        "desc_2": "導入 10000 個產品"
+      }
+    },
+    "buy_now": "立即購買",
+    "processing": "處理中...",
+    "success_title": "支付成功！",
+    "success_desc": "您的點數已添加到賬戶。",
+    "cancel_title": "支付取消",
+    "cancel_desc": "您已取消支付流程。",
+    "close_window": "關閉窗口"
   },
   "settings": {
     "title": "系統設置",

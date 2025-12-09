@@ -67,6 +67,8 @@
     },
     "status": {
       "started": "タスク開始",
+      "parsing": "解析中...",
+      "running": "インポート中...",
       "completed": "タスク完了",
       "stopping": "停止中...",
       "stopped": "タスク停止",
@@ -83,6 +85,7 @@
       "text_full": "取得済み: {{fetched}} | 成功: {{imported}} | キュー: {{queue}} | エラー: {{errors}}",
       "text": "取得済み: {{fetched}} | キュー: {{queue}}"
     },
+    "results_title": "結果 ({{count}})",
     "options": {
       "default_category": "デフォルトカテゴリ",
       "uncategorized": "未分類",
@@ -115,7 +118,40 @@
     "error": {
       "env_missing": "Supabase環境変数がありません",
       "login_failed": "ログインに失敗しました。後でもう一度お試しください"
-    }
+    },
+    "recharge": "チャージ"
+  },
+  "payment": {
+    "title": "クレジットをチャージ",
+    "balance": "現在の残高: {{credits}} クレジット",
+    "select_method": "支払い方法を選択",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "クレジットカード / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "ベーシック",
+        "desc_1": "無期限有効",
+        "desc_2": "300製品をインポート"
+      },
+      "pro": {
+        "name": "プロフェッショナル",
+        "desc_1": "無期限有効",
+        "desc_2": "1500製品をインポート",
+        "popular": "一番人気"
+      },
+      "enterprise": {
+        "name": "エンタープライズ",
+        "desc_1": "無期限有効",
+        "desc_2": "10000製品をインポート"
+      }
+    },
+    "buy_now": "今すぐ購入",
+    "processing": "処理中...",
+    "success_title": "支払い成功！",
+    "success_desc": "クレジットがアカウントに追加されました。",
+    "cancel_title": "支払いキャンセル",
+    "cancel_desc": "支払いプロセスをキャンセルしました。",
+    "close_window": "ウィンドウを閉じる"
   },
   "settings": {
     "title": "設定",

@@ -67,6 +67,8 @@
     },
     "status": {
       "started": "Task Started",
+      "parsing": "Parsing...",
+      "running": "Importing...",
       "completed": "Task Completed",
       "stopping": "Stopping...",
       "stopped": "Task Stopped",
@@ -83,6 +85,7 @@
       "text_full": "Fetched: {{fetched}} | Imported: {{imported}} | Queue: {{queue}} | Errors: {{errors}}",
       "text": "Fetched: {{fetched}} | Queue: {{queue}}"
     },
+    "results_title": "Results ({{count}})",
     "options": {
       "default_category": "Default Category",
       "uncategorized": "Uncategorized",
@@ -110,12 +113,45 @@
       "title": "User Login",
       "google": "Login with Google",
       "wechat": "Login with WeChat",
+      "recharge": "Recharge",
       "btn_login": "Login"
     },
     "error": {
       "env_missing": "Supabase environment variables missing",
       "login_failed": "Login failed, please try again later"
     }
+  },
+  "payment": {
+    "title": "Recharge Credits",
+    "balance": "Current Balance: {{credits}} Credits",
+    "select_method": "Select Payment Method",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "Credit Card / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "Basic",
+        "desc_1": "Valid forever",
+        "desc_2": "Import 300 products"
+      },
+      "pro": {
+        "name": "Professional",
+        "desc_1": "Valid forever",
+        "desc_2": "Import 1500 products",
+        "popular": "MOST POPULAR"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "desc_1": "Valid forever",
+        "desc_2": "Import 10000 products"
+      }
+    },
+    "buy_now": "Buy Now",
+    "processing": "Processing...",
+    "success_title": "Payment Successful!",
+    "success_desc": "Your credits have been added to your account.",
+    "cancel_title": "Payment Cancelled",
+    "cancel_desc": "You have cancelled the payment process.",
+    "close_window": "Close Window"
   },
   "settings": {
     "title": "Settings",

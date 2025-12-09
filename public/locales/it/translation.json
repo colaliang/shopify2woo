@@ -23,6 +23,8 @@
     "images": "Immagini",
     "source": "Fonte",
     "view": "Vedi",
+    "prev": "Precedente",
+    "next": "Successivo",
     "welcome_user": "Bentornato, {{name}}"
   },
   "platform": {
@@ -65,6 +67,8 @@
     },
     "status": {
       "started": "Attività Iniziata",
+      "parsing": "Analisi in corso...",
+      "running": "Importazione...",
       "completed": "Attività Completata",
       "stopping": "Arresto in corso...",
       "stopped": "Attività Fermata",
@@ -76,8 +80,12 @@
       "errors": "Errori"
     },
     "stats": {
-      "text": "Importati: {{imported}} / Coda: {{queue}} / Errori: {{errors}}"
+      "error": "Fallito",
+      "summary": "Riepilogo",
+      "text_full": "Estratto: {{fetched}} | Importato: {{imported}} | Coda: {{queue}} | Errori: {{errors}}",
+      "text": "Estratto: {{fetched}} | Coda: {{queue}}"
     },
+    "results_title": "Risultati ({{count}})",
     "options": {
       "default_category": "Categoria Predefinita",
       "uncategorized": "Non categorizzato",
@@ -105,12 +113,45 @@
       "title": "Accesso Utente",
       "google": "Accedi con Google",
       "wechat": "Accedi con WeChat",
+      "recharge": "Ricarica",
       "btn_login": "Accedi"
     },
     "error": {
       "env_missing": "Variabili d'ambiente Supabase mancanti",
       "login_failed": "Accesso fallito, riprova più tardi"
     }
+  },
+  "payment": {
+    "title": "Ricarica Crediti",
+    "balance": "Saldo Attuale: {{credits}} Crediti",
+    "select_method": "Seleziona Metodo di Pagamento",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "Carta di Credito / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "Base",
+        "desc_1": "Valido per sempre",
+        "desc_2": "Importa 300 prodotti"
+      },
+      "pro": {
+        "name": "Professionale",
+        "desc_1": "Valido per sempre",
+        "desc_2": "Importa 1500 prodotti",
+        "popular": "PIÙ POPOLARE"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "desc_1": "Valido per sempre",
+        "desc_2": "Importa 10000 prodotti"
+      }
+    },
+    "buy_now": "Acquista Ora",
+    "processing": "Elaborazione...",
+    "success_title": "Pagamento Riuscito!",
+    "success_desc": "I tuoi crediti sono stati aggiunti al tuo account.",
+    "cancel_title": "Pagamento Annullato",
+    "cancel_desc": "Hai annullato il processo di pagamento.",
+    "close_window": "Chiudi Finestra"
   },
   "settings": {
     "title": "Impostazioni",

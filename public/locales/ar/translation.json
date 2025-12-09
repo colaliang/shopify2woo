@@ -67,6 +67,8 @@
     },
     "status": {
       "started": "بدأت المهمة",
+      "parsing": "جاري التحليل...",
+      "running": "جاري الاستيراد...",
       "completed": "اكتملت المهمة",
       "stopping": "جارٍ الإيقاف...",
       "stopped": "توقفت المهمة",
@@ -80,9 +82,10 @@
     "stats": {
       "error": "فشل",
       "summary": "ملخص",
-      "text_full": "تم الجلب: {{fetched}} | تم الاستيراد: {{imported}} | قائمة الانتظار: {{queue}} | أخطاء: {{errors}}",
+      "text_full": "تم الجلب: {{fetched}} | تم الاستيراد: {{imported}} | قائمة الانتظار: {{queue}} | الأخطاء: {{errors}}",
       "text": "تم الجلب: {{fetched}} | قائمة الانتظار: {{queue}}"
     },
+    "results_title": "النتائج ({{count}})",
     "options": {
       "default_category": "الفئة الافتراضية",
       "uncategorized": "غير مصنف",
@@ -108,14 +111,47 @@
   "auth": {
     "login": {
       "title": "تسجيل دخول المستخدم",
-      "google": "تسجيل الدخول باستخدام Google",
-      "wechat": "تسجيل الدخول باستخدام WeChat",
+      "google": "تسجيل الدخول عبر Google",
+      "wechat": "تسجيل الدخول عبر WeChat",
+      "recharge": "شحن الرصيد",
       "btn_login": "تسجيل الدخول"
     },
     "error": {
       "env_missing": "متغيرات بيئة Supabase مفقودة",
       "login_failed": "فشل تسجيل الدخول، يرجى المحاولة لاحقًا"
     }
+  },
+  "payment": {
+    "title": "شحن الرصيد",
+    "balance": "الرصيد الحالي: {{credits}} رصيد",
+    "select_method": "اختر طريقة الدفع",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "بطاقة ائتمان / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "أساسي",
+        "desc_1": "صالح للأبد",
+        "desc_2": "استيراد 300 منتج"
+      },
+      "pro": {
+        "name": "محترف",
+        "desc_1": "صالح للأبد",
+        "desc_2": "استيراد 1500 منتج",
+        "popular": "الأكثر شعبية"
+      },
+      "enterprise": {
+        "name": "مؤسسة",
+        "desc_1": "صالح للأبد",
+        "desc_2": "استيراد 10000 منتج"
+      }
+    },
+    "buy_now": "اشتر الآن",
+    "processing": "جارٍ المعالجة...",
+    "success_title": "تم الدفع بنجاح!",
+    "success_desc": "تمت إضافة الرصيد إلى حسابك.",
+    "cancel_title": "تم إلغاء الدفع",
+    "cancel_desc": "لقد قمت بإلغاء عملية الدفع.",
+    "close_window": "إغلاق النافذة"
   },
   "settings": {
     "title": "الإعدادات",

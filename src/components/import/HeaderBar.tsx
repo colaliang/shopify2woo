@@ -17,7 +17,7 @@ interface HeaderBarProps {
 export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const { user, isAuthenticated, openLoginModal, openSettingsModal, logout, initFromSupabase, openDebugModal } = useUserStore();
+  const { user, isAuthenticated, openLoginModal, openSettingsModal, openRechargeModal, logout, initFromSupabase, openDebugModal } = useUserStore();
 
   useEffect(() => {
     initFromSupabase();
@@ -111,7 +111,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
         </button>
 
         {open && (
-          <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+          <div className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
             {!isAuthenticated ? (
               <button 
                 onClick={() => {
@@ -136,7 +136,6 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                   </div>
                 </div>
 
-                {/*
                 <button 
                   onClick={() => {
                     openRechargeModal();
@@ -144,9 +143,8 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                   }}
                   className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 font-medium"
                 >
-                  充值 (Recharge)
+                  {t('auth.recharge', '充值 (Recharge)')}
                 </button>
-                */}
 
                 <button 
                   onClick={() => {

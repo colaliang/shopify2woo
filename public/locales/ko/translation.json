@@ -67,6 +67,8 @@
     },
     "status": {
       "started": "작업 시작됨",
+      "parsing": "파싱 중...",
+      "running": "가져오는 중...",
       "completed": "작업 완료됨",
       "stopping": "중지 중...",
       "stopped": "작업 중지됨",
@@ -83,6 +85,7 @@
       "text_full": "가져옴: {{fetched}} | 성공: {{imported}} | 대기열: {{queue}} | 오류: {{errors}}",
       "text": "가져옴: {{fetched}} | 대기열: {{queue}}"
     },
+    "results_title": "결과 ({{count}})",
     "options": {
       "default_category": "기본 카테고리",
       "uncategorized": "미분류",
@@ -110,12 +113,45 @@
       "title": "사용자 로그인",
       "google": "Google로 로그인",
       "wechat": "WeChat으로 로그인",
+      "recharge": "충전",
       "btn_login": "로그인"
     },
     "error": {
       "env_missing": "Supabase 환경 변수가 없습니다",
       "login_failed": "로그인 실패, 나중에 다시 시도해 주세요"
     }
+  },
+  "payment": {
+    "title": "크레딧 충전",
+    "balance": "현재 잔액: {{credits}} 크레딧",
+    "select_method": "결제 방법 선택",
+    "wechat_pay": "WeChat Pay",
+    "credit_card": "신용카드 / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "기본",
+        "desc_1": "평생 유효",
+        "desc_2": "300개 제품 가져오기"
+      },
+      "pro": {
+        "name": "프로페셔널",
+        "desc_1": "평생 유효",
+        "desc_2": "1500개 제품 가져오기",
+        "popular": "가장 인기"
+      },
+      "enterprise": {
+        "name": "엔터프라이즈",
+        "desc_1": "평생 유효",
+        "desc_2": "10000개 제품 가져오기"
+      }
+    },
+    "buy_now": "지금 구매",
+    "processing": "처리 중...",
+    "success_title": "결제 성공!",
+    "success_desc": "크레딧이 계정에 추가되었습니다.",
+    "cancel_title": "결제 취소됨",
+    "cancel_desc": "결제 프로세스를 취소했습니다.",
+    "close_window": "창 닫기"
   },
   "settings": {
     "title": "설정",

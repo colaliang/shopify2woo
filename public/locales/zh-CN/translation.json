@@ -67,6 +67,8 @@
     },
     "status": {
       "started": "任务开始",
+      "parsing": "正在解析...",
+      "running": "正在导入...",
       "completed": "任务结束",
       "stopping": "正在停止...",
       "stopped": "任务已停止",
@@ -83,6 +85,7 @@
       "text_full": "已获取: {{fetched}} | 成功: {{imported}} | 队列: {{queue}} | 错误: {{errors}}",
       "text": "已获取: {{fetched}} | 队列: {{queue}}"
     },
+    "results_title": "结果 ({{count}})",
     "options": {
       "default_category": "默认分类",
       "uncategorized": "未分类",
@@ -108,14 +111,47 @@
   "auth": {
     "login": {
       "title": "用户登录",
-      "google": "使用 Google 登录",
-      "wechat": "使用微信登录",
+      "google": "Google 登录",
+      "wechat": "微信登录",
+      "recharge": "充值",
       "btn_login": "登录"
     },
     "error": {
       "env_missing": "未配置 Supabase 环境变量",
       "login_failed": "登录失败，请稍后重试"
     }
+  },
+  "payment": {
+    "title": "充值中心",
+    "balance": "当前余额：{{credits}} 点数",
+    "select_method": "选择支付方式",
+    "wechat_pay": "微信支付",
+    "credit_card": "信用卡 / PayPal (Stripe)",
+    "packages": {
+      "basic": {
+        "name": "基础版",
+        "desc_1": "永久有效",
+        "desc_2": "导入 300 个产品"
+      },
+      "pro": {
+        "name": "专业版",
+        "desc_1": "永久有效",
+        "desc_2": "导入 1500 个产品",
+        "popular": "最受欢迎"
+      },
+      "enterprise": {
+        "name": "企业版",
+        "desc_1": "永久有效",
+        "desc_2": "导入 10000 个产品"
+      }
+    },
+    "buy_now": "立即购买",
+    "processing": "处理中...",
+    "success_title": "支付成功！",
+    "success_desc": "您的点数已添加到账户。",
+    "cancel_title": "支付取消",
+    "cancel_desc": "您已取消支付流程。",
+    "close_window": "关闭窗口"
   },
   "settings": {
     "title": "系统设置",

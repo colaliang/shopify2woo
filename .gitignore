@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Stripe CLI
+stripe.exe
+stripe_cli.zip
