@@ -185,7 +185,7 @@ export default function SettingsModal() {
   if (!settingsModalOpen) return null;
 
   return (
-    <div className="absolute right-0 top-full mt-2 z-50 w-full max-w-2xl">
+    <div className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-2 z-50 w-full max-w-2xl">
       <div ref={panelRef} className="bg-white rounded-lg shadow-xl border border-gray-200 max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">{t('settings.title')}</h2>
