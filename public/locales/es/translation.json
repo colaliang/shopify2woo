@@ -1,18 +1,196 @@
 {
   "app": {
-    "title": "Shopify/Wix/WP to WooCommerce Importer",
-    "description": "Professional cross-border e-commerce product migration tool"
+    "title": "Yundian+ WooCommerce Importer",
+    "description": "Herramienta profesional para importar productos de WordPress, Shopify, Wix a WooCommerce/WordPress.",
+    "keywords": "Migración WordPress, WordPress a WordPress, Shopify a WooCommerce, Wix a WooCommerce, Importación de productos, Importador WooCommerce, Yundian+"
   },
   "nav": {
-    "home": "Home",
-    "tasks": "Tasks",
-    "settings": "Settings"
+    "home": "Inicio",
+    "product_import": "Importar Productos",
+    "tasks": "Tareas",
+    "settings": "Ajustes"
   },
   "common": {
     "language": "Idioma",
-    "loading": "Loading...",
-    "save": "Save",
-    "cancel": "Cancel",
-    "welcome_user": "Welcome back, {{name}}"
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "unknown_product": "Producto desconocido",
+    "success": "Éxito",
+    "error": "Error",
+    "price": "Precio",
+    "images": "Imágenes",
+    "source": "Fuente",
+    "view": "Ver",
+    "welcome_user": "Bienvenido de nuevo, {{name}}"
+  },
+  "platform": {
+    "wordpress": "WordPress",
+    "shopify": "Shopify",
+    "wix": "Wix"
+  },
+  "import": {
+    "product": {
+      "platform_mismatch_msg": "El enlace detectado parece ser de {{detected}}, pero la selección actual es {{current}}.\n\n¿Continuar?",
+      "btn_importing": "Importando...",
+      "btn_import": "Importar",
+      "intro": {
+        "title": "Introducción:",
+        "content": "Esta herramienta extrae información de productos (título, imágenes, precio, descripción, etc.) de sitios Wordpress, Shopify y Wix sin requerir acceso API, permitiendo una importación eficiente a su propio sistema Wordpress/Woo.",
+        "usage_title": "Instrucciones:",
+        "usage_1": "Se requiere inicio de sesión, soporta Google y WeChat.",
+        "usage_2": "Las credenciales API de Wordpress deben registrarse en Ajustes para la importación.",
+        "usage_3": "Soporta importación de productos individuales o múltiples. Los enlaces por lotes deben ser de la misma plataforma.",
+        "usage_4": "Los nuevos usuarios reciben 30 créditos de importación gratis; se pueden comprar más créditos.",
+        "usage_5": "¡Gracias por su apoyo!"
+      }
+    },
+    "listing": {
+      "btn_import_selected": "Importar Seleccionados ({{count}})",
+      "btn_stop": "Detener",
+      "btn_select_all": "Seleccionar Todo",
+      "btn_deselect_all": "Deseleccionar Todo",
+      "btn_clear_all": "Borrar Todo"
+    },
+    "url_input": {
+      "label": "Enlaces de productos (Múltiples soportados, separados por coma/espacio/nueva línea)",
+      "placeholder": "https://www.example.com/product/a, https://www.example.com/product/b\no un enlace por línea"
+    },
+    "site_input": {
+      "label": "URL del sitio web",
+      "placeholder": "https://www.example.com/",
+      "btn_loading": "Extrayendo...",
+      "btn_discover": "Extraer todos los productos"
+    },
+    "status": {
+      "started": "Tarea Iniciada",
+      "completed": "Tarea Completada",
+      "stopping": "Deteniendo...",
+      "stopped": "Tarea Detenida",
+      "error": "Error de Tarea",
+      "idle": "Tarea No Iniciada",
+      "fetched": "Extraído",
+      "success": "Éxito",
+      "queue": "Cola",
+      "errors": "Errores"
+    },
+    "stats": {
+      "text": "Importado: {{imported}} / Cola: {{queue}} / Errores: {{errors}}"
+    },
+    "options": {
+      "default_category": "Categoría Predeterminada",
+      "uncategorized": "Sin categorizar",
+      "threads": "Hilos de Importación",
+      "auto_pagination": "Paginación Automática"
+    },
+    "item": {
+      "attributes": "Atributos: {{count}}",
+      "reviews": "Reseñas: {{count}}",
+      "gallery": "Imágenes: {{count}}",
+      "in_stock": "En Stock",
+      "out_of_stock": "Agotado",
+      "btn_importing": "Importando...",
+      "btn_import": "Importar Producto"
+    }
+  },
+  "footer": {
+    "copyright": "© {{year}} Equipo Yundian+",
+    "cloud_store": "Servicio de Marketing B2B Yundian+",
+    "help": "Ayuda",
+    "contact": "Contáctenos"
+  },
+  "auth": {
+    "login": {
+      "title": "Inicio de Sesión",
+      "google": "Iniciar con Google",
+      "wechat": "Iniciar con WeChat",
+      "btn_login": "Iniciar Sesión"
+    },
+    "error": {
+      "env_missing": "Faltan variables de entorno Supabase",
+      "login_failed": "Error de inicio de sesión, inténtelo de nuevo más tarde"
+    }
+  },
+  "settings": {
+    "title": "Ajustes",
+    "user": {
+      "current_user": "Usuario Actual",
+      "credits": "Créditos: {{credits}}",
+      "logout": "Cerrar Sesión"
+    },
+    "tab": {
+      "wordpress": "Ajustes de WordPress",
+      "language": "Idioma",
+      "history": "Historial de Créditos",
+      "notifications": "Notificaciones",
+      "help": "Ayuda"
+    },
+    "wp": {
+      "url_label": "URL del Sitio WordPress",
+      "key_label": "Clave de Consumidor (Consumer Key)",
+      "secret_label": "Secreto de Consumidor (Consumer Secret)",
+      "save_loading": "Guardando...",
+      "save": "Guardar Config",
+      "save_failed": "Error al Guardar"
+    },
+    "lang": {
+      "label": "Seleccionar Idioma de Interfaz",
+      "save": "Guardar y Cambiar Idioma"
+    },
+    "history": {
+      "loading": "Cargando...",
+      "empty": "No hay registros de transacciones",
+      "balance": "Saldo:",
+      "prev": "Ant",
+      "page": "Página {{page}}",
+      "next": "Sig"
+    },
+    "sub": {
+      "title": "Notificaciones por Correo",
+      "label": "Suscribirse a Correos",
+      "save_btn": "Guardar Preferencias",
+      "saved": "¡Preferencias guardadas!",
+      "error": "Error al Guardar",
+      "status": {
+        "subscribed": "Suscrito",
+        "unsubscribed": "No suscrito"
+      },
+      "pref": {
+        "orders": "Actualizaciones de Pedidos (Creado, Pagado)",
+        "marketing": "Marketing y Noticias",
+        "freq": "Frecuencia",
+        "immediate": "Inmediato",
+        "daily": "Resumen Diario",
+        "weekly": "Resumen Semanal"
+      }
+    }
+  },
+  "contact": {
+    "default_category": "Sugerencia de Función",
+    "title": "Contáctenos",
+    "success": {
+      "title": "Enviado con Éxito",
+      "msg": "Gracias por sus comentarios, los procesaremos lo antes posible."
+    },
+    "form": {
+      "category": "Categoría",
+      "category_placeholder": "Seleccione una categoría",
+      "categories": {
+        "feature": "✨ Sugerencia de Función",
+        "bug": "🐛 Informe de Error",
+        "account": "👤 Problema de Cuenta",
+        "payment": "💰 Problema de Pago",
+        "business": "🤝 Consulta Comercial",
+        "other": "📝 Otro"
+      },
+      "contact": "Info de Contacto",
+      "contact_placeholder": "Correo o Teléfono",
+      "desc": "Descripción",
+      "desc_placeholder": "Por favor describa su solicitud o problema en detalle...",
+      "submit": "Enviar",
+      "submitting": "Enviando...",
+      "error": "Error al enviar, inténtelo de nuevo más tarde"
+    }
   }
 }

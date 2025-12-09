@@ -8,6 +8,7 @@ export default function I18nProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const handleLanguageChanged = (lng: string) => {
       document.documentElement.lang = lng;

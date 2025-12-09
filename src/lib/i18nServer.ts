@@ -1,11 +1,12 @@
 import fs from 'fs';
 import path from 'path';
-import { supportedLanguages } from '@/lib/i18n';
+import { supportedLanguages } from '@/lib/languages';
 
 interface Translations {
   app: {
     title: string;
     description: string;
+    keywords: string;
   };
   [key: string]: unknown;
 }

@@ -3,11 +3,13 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import HttpBackend from 'i18next-http-backend';
 import enTranslation from '../../public/locales/en/translation.json';
+import { supportedLanguages } from './languages';
 
 // List of supported languages
-export const supportedLanguages = [
-  'en', 'fr', 'de', 'es', 'it', 'ru', 'pt', 'zh-CN', 'zh-TW', 'ja', 'ko'
-];
+// export const supportedLanguages = [
+//   'en', 'fr', 'de', 'es', 'it', 'ru', 'pt', 'zh-CN', 'zh-TW', 'ja', 'ko'
+// ];
+export { supportedLanguages };
 
 const isServer = typeof window === 'undefined';
 

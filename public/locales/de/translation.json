@@ -1,18 +1,196 @@
 {
   "app": {
-    "title": "Shopify/Wix/WP to WooCommerce Importer",
-    "description": "Professional cross-border e-commerce product migration tool"
+    "title": "Yundian+ WooCommerce Importer",
+    "description": "Professionelles Tool zum Importieren von Produkten von WordPress, Shopify, Wix nach WooCommerce/WordPress.",
+    "keywords": "WordPress Migration, WordPress zu WordPress, Shopify zu WooCommerce, Wix zu WooCommerce, Produktimport, WooCommerce Importer, Yundian+"
   },
   "nav": {
-    "home": "Home",
-    "tasks": "Tasks",
-    "settings": "Settings"
+    "home": "Startseite",
+    "product_import": "Produktimport",
+    "tasks": "Aufgaben",
+    "settings": "Einstellungen"
   },
   "common": {
     "language": "Sprache",
-    "loading": "Loading...",
-    "save": "Save",
-    "cancel": "Cancel",
-    "welcome_user": "Welcome back, {{name}}"
+    "loading": "Laden...",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen",
+    "unknown_product": "Unbekanntes Produkt",
+    "success": "Erfolg",
+    "error": "Fehler",
+    "price": "Preis",
+    "images": "Bilder",
+    "source": "Quelle",
+    "view": "Ansehen",
+    "welcome_user": "Willkommen zurück, {{name}}"
+  },
+  "platform": {
+    "wordpress": "WordPress",
+    "shopify": "Shopify",
+    "wix": "Wix"
+  },
+  "import": {
+    "product": {
+      "platform_mismatch_msg": "Erkannter Link scheint von {{detected}} zu sein, aber aktuell ausgewählt ist {{current}}.\n\nFortfahren?",
+      "btn_importing": "Importiere...",
+      "btn_import": "Importieren",
+      "intro": {
+        "title": "Einführung:",
+        "content": "Dieses Tool extrahiert Produktinformationen (Titel, Bilder, Preis, Beschreibung usw.) von Wordpress-, Shopify- und Wix-Seiten ohne API-Zugriff und ermöglicht einen effizienten Import in Ihr eigenes Wordpress/Woo-System.",
+        "usage_title": "Anleitung:",
+        "usage_1": "Anmeldung erforderlich, unterstützt Google und WeChat.",
+        "usage_2": "Wordpress-API-Zugangsdaten müssen für den Import in den Einstellungen registriert werden.",
+        "usage_3": "Unterstützt den Import einzelner oder mehrerer Produkte. Batch-Links müssen von derselben Plattform stammen.",
+        "usage_4": "Neue Benutzer erhalten 30 kostenlose Import-Credits; weitere Credits können gekauft werden.",
+        "usage_5": "Danke für Ihre Unterstützung!"
+      }
+    },
+    "listing": {
+      "btn_import_selected": "Ausgewählte importieren ({{count}})",
+      "btn_stop": "Stopp",
+      "btn_select_all": "Alle auswählen",
+      "btn_deselect_all": "Alle abwählen",
+      "btn_clear_all": "Alles löschen"
+    },
+    "url_input": {
+      "label": "Produktlinks (Mehrere unterstützt, getrennt durch Komma/Leerzeichen/neue Zeile)",
+      "placeholder": "https://www.example.com/product/a, https://www.example.com/product/b\noder ein Link pro Zeile"
+    },
+    "site_input": {
+      "label": "Webseiten-URL",
+      "placeholder": "https://www.example.com/",
+      "btn_loading": "Scraping...",
+      "btn_discover": "Alle Produkte scrapen"
+    },
+    "status": {
+      "started": "Aufgabe gestartet",
+      "completed": "Aufgabe abgeschlossen",
+      "stopping": "Stoppe...",
+      "stopped": "Aufgabe gestoppt",
+      "error": "Aufgabenfehler",
+      "idle": "Aufgabe nicht gestartet",
+      "fetched": "Abgerufen",
+      "success": "Erfolg",
+      "queue": "Warteschlange",
+      "errors": "Fehler"
+    },
+    "stats": {
+      "text": "Importiert: {{imported}} / Warteschlange: {{queue}} / Fehler: {{errors}}"
+    },
+    "options": {
+      "default_category": "Standardkategorie",
+      "uncategorized": "Nicht kategorisiert",
+      "threads": "Import-Threads",
+      "auto_pagination": "Automatische Paginierung"
+    },
+    "item": {
+      "attributes": "Attribute: {{count}}",
+      "reviews": "Bewertungen: {{count}}",
+      "gallery": "Bilder: {{count}}",
+      "in_stock": "Auf Lager",
+      "out_of_stock": "Nicht vorrätig",
+      "btn_importing": "Importiere...",
+      "btn_import": "Produkt importieren"
+    }
+  },
+  "footer": {
+    "copyright": "© {{year}} Yundian+ Team",
+    "cloud_store": "Yundian+ B2B Marketing Service",
+    "help": "Hilfe",
+    "contact": "Kontakt"
+  },
+  "auth": {
+    "login": {
+      "title": "Benutzer-Login",
+      "google": "Mit Google anmelden",
+      "wechat": "Mit WeChat anmelden",
+      "btn_login": "Anmelden"
+    },
+    "error": {
+      "env_missing": "Supabase-Umgebungsvariablen fehlen",
+      "login_failed": "Anmeldung fehlgeschlagen, bitte versuchen Sie es später erneut"
+    }
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "user": {
+      "current_user": "Aktueller Benutzer",
+      "credits": "Credits: {{credits}}",
+      "logout": "Abmelden"
+    },
+    "tab": {
+      "wordpress": "WordPress-Einstellungen",
+      "language": "Sprache",
+      "history": "Credit-Verlauf",
+      "notifications": "Benachrichtigungen",
+      "help": "Hilfe"
+    },
+    "wp": {
+      "url_label": "WordPress-Seiten-URL",
+      "key_label": "Consumer Key",
+      "secret_label": "Consumer Secret",
+      "save_loading": "Speichern...",
+      "save": "Konfiguration speichern",
+      "save_failed": "Speichern fehlgeschlagen"
+    },
+    "lang": {
+      "label": "Schnittstellensprache wählen",
+      "save": "Speichern und Sprache wechseln"
+    },
+    "history": {
+      "loading": "Laden...",
+      "empty": "Keine Transaktionsdatensätze",
+      "balance": "Guthaben:",
+      "prev": "Zurück",
+      "page": "Seite {{page}}",
+      "next": "Weiter"
+    },
+    "sub": {
+      "title": "E-Mail-Benachrichtigungen",
+      "label": "E-Mails abonnieren",
+      "save_btn": "Einstellungen speichern",
+      "saved": "Einstellungen gespeichert!",
+      "error": "Speichern fehlgeschlagen",
+      "status": {
+        "subscribed": "Abonniert",
+        "unsubscribed": "Abbestellt"
+      },
+      "pref": {
+        "orders": "Bestellaktualisierungen (Erstellt, Bezahlt)",
+        "marketing": "Marketing & Neuigkeiten",
+        "freq": "Häufigkeit",
+        "immediate": "Sofort",
+        "daily": "Tägliche Zusammenfassung",
+        "weekly": "Wöchentliche Zusammenfassung"
+      }
+    }
+  },
+  "contact": {
+    "default_category": "Funktionsvorschlag",
+    "title": "Kontaktieren Sie uns",
+    "success": {
+      "title": "Erfolgreich gesendet",
+      "msg": "Vielen Dank für Ihr Feedback, wir werden es so schnell wie möglich bearbeiten."
+    },
+    "form": {
+      "category": "Kategorie",
+      "category_placeholder": "Wählen Sie eine Kategorie",
+      "categories": {
+        "feature": "✨ Funktionsvorschlag",
+        "bug": "🐛 Fehlerbericht",
+        "account": "👤 Kontoproblem",
+        "payment": "💰 Zahlungsproblem",
+        "business": "🤝 Geschäftsanfrage",
+        "other": "📝 Sonstiges"
+      },
+      "contact": "Kontaktinfo",
+      "contact_placeholder": "E-Mail oder Telefon",
+      "desc": "Beschreibung",
+      "desc_placeholder": "Bitte beschreiben Sie Ihre Anfrage oder Ihr Problem im Detail...",
+      "submit": "Absenden",
+      "submitting": "Senden...",
+      "error": "Senden fehlgeschlagen, bitte versuchen Sie es später erneut"
+    }
   }
 }

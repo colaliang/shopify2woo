@@ -1,7 +1,8 @@
 {
   "app": {
     "title": "Yundian+ WooCommerce Importer",
-    "description": "Professional tool import products from WordPress, Shopify, Wix to WooCommerce/WordPress."
+    "description": "Professional tool import products from WordPress, Shopify, Wix to WooCommerce/WordPress.",
+    "keywords": "WordPress Migration, WordPress to WordPress, Shopify to WooCommerce, Wix to WooCommerce, Product Import, WooCommerce Importer, Yundian+"
   },
   "nav": {
     "home": "Home",
@@ -80,8 +81,6 @@
     "options": {
       "default_category": "Default Category",
       "uncategorized": "Uncategorized",
-      "led_lights": "LED Lights",
-      "profiles": "Aluminium Profiles",
       "threads": "Import Threads",
       "auto_pagination": "Automatic Pagination"
     },
@@ -96,8 +95,8 @@
     }
   },
   "footer": {
-    "copyright": "© {{year}} YDPlus Team",
-    "cloud_store": "YDPlus B2B Marketing Service",
+    "copyright": "© {{year}} Yundian+ Team",
+    "cloud_store": "Yundian+ B2B Marketing Service",
     "help": "Help",
     "contact": "Contact Us"
   },

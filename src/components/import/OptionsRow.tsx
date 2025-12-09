@@ -31,8 +31,6 @@ export default function OptionsRow({
           className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
         >
           <option value="">{t('import.options.uncategorized')}</option>
-          <option value="led-lights">{t('import.options.led_lights')}</option>
-          <option value="profiles">{t('import.options.profiles')}</option>
         </select>
       </div>
 
