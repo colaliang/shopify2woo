@@ -1,10 +1,12 @@
 {
   "app": {
-    "title": "Shopify/Wix/WP產品導入WooCommerce助手",
-    "description": "專業的跨境電商產品搬家工具"
+    "title": "雲店+WooCommerce產品導入助手",
+    "description": "支持從WordPress, Shopify, Wix導入產品到WooCommerce/WordPress。無需原網站API，支持批量採集",
+    "keywords": "WordPress遷移, WordPress到WordPress, Shopify轉WooCommerce, Wix轉WooCommerce, 產品導入, WooCommerce導入插件, 雲店+"
   },
   "nav": {
     "home": "首頁",
+    "product_import": "產品導入",
     "tasks": "任務列表",
     "settings": "設置"
   },
@@ -13,6 +15,182 @@
     "loading": "加載中...",
     "save": "保存",
     "cancel": "取消",
+    "confirm": "確認",
+    "unknown_product": "未知商品",
+    "success": "成功",
+    "error": "錯誤",
+    "price": "價格",
+    "images": "圖片",
+    "source": "來源",
+    "view": "查看",
     "welcome_user": "歡迎回來，{{name}}"
+  },
+  "platform": {
+    "wordpress": "WordPress",
+    "shopify": "Shopify",
+    "wix": "Wix"
+  },
+  "import": {
+    "product": {
+      "platform_mismatch_msg": "檢測到鏈接可能來自 {{detected}}，但當前選擇的是 {{current}}。\n\n是否繼續？",
+      "btn_importing": "導入中...",
+      "btn_import": "導入",
+      "intro": {
+        "title": "產品介紹：",
+        "content": "本工具支持從Wordpress,Shopify,Wix抓取產品公開信息（標題，圖片，價格，描述等），不需要原網站的API，高效導入到自己的Wordpress/Woo系統。",
+        "usage_title": "使用說明：",
+        "usage_1": "需要先登錄，支持Google，微信",
+        "usage_2": "導入需要取得Wordpress的API，需要在設置裡登記",
+        "usage_3": "支持單個或者多個產品導入，每次批量鏈接需要同一個平台的產品鏈接",
+        "usage_4": "新註冊用戶贈送 30 個導入點數，可購買更多的導入點數",
+        "usage_5": "感謝支持！"
+      }
+    },
+    "listing": {
+      "btn_import_selected": "導入選中 ({{count}})",
+      "btn_stop": "結束",
+      "btn_select_all": "全選",
+      "btn_deselect_all": "取消全選",
+      "btn_clear_all": "清空全部"
+    },
+    "url_input": {
+      "label": "商品鏈接地址（支持多個，逗號/空格/換行分隔）",
+      "placeholder": "https://www.example.com/product/a, https://www.example.com/product/b\n或每行一個鏈接"
+    },
+    "site_input": {
+      "label": "網站地址",
+      "placeholder": "https://www.example.com/",
+      "btn_loading": "抓取中...",
+      "btn_discover": "抓取全站商品"
+    },
+    "status": {
+      "started": "任務開始",
+      "completed": "任務結束",
+      "stopping": "正在停止...",
+      "stopped": "任務已停止",
+      "error": "任務異常",
+      "idle": "任務未開始",
+      "fetched": "已獲取",
+      "success": "成功",
+      "queue": "隊列",
+      "errors": "錯誤"
+    },
+    "stats": {
+      "text": "已導入: {{imported}} / 隊列中: {{queue}} / 錯誤: {{errors}}"
+    },
+    "options": {
+      "default_category": "默認分類",
+      "uncategorized": "未分類",
+      "threads": "導入線程數",
+      "auto_pagination": "自動分頁"
+    },
+    "item": {
+      "attributes": "屬性: {{count}}",
+      "reviews": "評價: {{count}}",
+      "gallery": "圖片: {{count}}",
+      "in_stock": "有庫存",
+      "out_of_stock": "缺貨",
+      "btn_importing": "導入中...",
+      "btn_import": "導入商品"
+    }
+  },
+  "footer": {
+    "copyright": "© {{year}} 搞跨境的可樂哥",
+    "cloud_store": "雲店+B2B出海營銷服務",
+    "help": "幫助",
+    "contact": "聯繫我們"
+  },
+  "auth": {
+    "login": {
+      "title": "用戶登錄",
+      "google": "使用 Google 登錄",
+      "wechat": "使用微信登錄",
+      "btn_login": "登錄"
+    },
+    "error": {
+      "env_missing": "未配置 Supabase 環境變量",
+      "login_failed": "登錄失敗，請稍後重試"
+    }
+  },
+  "settings": {
+    "title": "系統設置",
+    "user": {
+      "current_user": "當前用戶",
+      "credits": "剩餘積分: {{credits}}",
+      "logout": "退出登錄"
+    },
+    "tab": {
+      "wordpress": "WordPress 設置",
+      "language": "語言",
+      "history": "積分流水",
+      "notifications": "通知設置",
+      "help": "幫助"
+    },
+    "wp": {
+      "url_label": "WordPress 站點網址",
+      "key_label": "消費者密鑰 (Consumer Key)",
+      "secret_label": "消費者密鑰 (Consumer Secret)",
+      "save_loading": "保存中…",
+      "save": "保存配置",
+      "save_failed": "保存失敗"
+    },
+    "lang": {
+      "label": "選擇界面語言",
+      "save": "保存並切換語言"
+    },
+    "history": {
+      "loading": "加載中...",
+      "empty": "暫無交易記錄",
+      "balance": "餘額:",
+      "prev": "上一頁",
+      "page": "第 {{page}} 頁",
+      "next": "下一頁"
+    },
+    "sub": {
+      "title": "郵件通知",
+      "label": "訂閱郵件",
+      "save_btn": "保存設置",
+      "saved": "設置已保存！",
+      "error": "保存失敗",
+      "status": {
+        "subscribed": "已訂閱",
+        "unsubscribed": "未訂閱"
+      },
+      "pref": {
+        "orders": "訂單更新通知 (創建、支付)",
+        "marketing": "營銷與新聞",
+        "freq": "通知頻率",
+        "immediate": "即時",
+        "daily": "每日摘要",
+        "weekly": "每週摘要"
+      }
+    }
+  },
+  "contact": {
+    "default_category": "功能建議",
+    "title": "聯繫我們",
+    "success": {
+      "title": "提交成功",
+      "msg": "感謝您的反饋，我們會盡快處理。"
+    },
+    "form": {
+      "category": "問題分類",
+      "category_placeholder": "請選擇分類",
+      "categories": {
+        "feature": "✨ 功能建議",
+        "bug": "🐛 Bug反饋",
+        "account": "👤 賬號問題",
+        "payment": "💰 充值問題",
+        "business": "🤝 商務合作",
+        "other": "📝 其他"
+      },
+      "contact": "聯繫方式",
+      "contact_placeholder": "郵箱或手機號",
+      "desc": "詳細描述",
+      "desc_placeholder": "請詳細描述您的需求或遇到的問題...",
+      "submit": "提交",
+      "submitting": "提交中...",
+      "error": "提交失敗，請稍後重試"
+    }
   }
 }

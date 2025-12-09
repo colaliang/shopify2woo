@@ -146,6 +146,7 @@ export default function SettingsModal() {
     { code: 'zh-TW', name: '中文（繁体）' },
     { code: 'ja', name: '日本語' },
     { code: 'ko', name: '한국어' },
+    { code: 'ar', name: 'العربية' },
   ];
 
   const [selectedLang, setSelectedLang] = useState(i18n.resolvedLanguage);
