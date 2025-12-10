@@ -36,6 +36,9 @@
     - src/sanity/schemaTypes/index.ts ：用于定义数据模型（Schema）
     - next/image 进行图片优化
     - 优化Sanity数据模型（Schema）以满足Google和百度SEO最佳实践要求
+    - 集成专业的 Rich Text Editor Tiptap
+
+    - 接入Deepseek AI，根据要求生成Blog
     
    
 8. **增加WordPress插件版**

@@ -15,6 +15,13 @@ export const siteSettings = defineType({
       title: 'Site Description',
       type: 'text',
     }),
+    defineField({
+      name: 'keywords',
+      title: 'Site Keywords',
+      type: 'array',
+      of: [{ type: 'string' }],
+      description: 'Global keywords for the site (meta keywords)',
+    }),
     
     // Global SEO
     defineField({

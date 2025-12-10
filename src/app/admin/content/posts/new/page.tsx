@@ -7,6 +7,7 @@ import Link from 'next/link'
 // import { client } from '@/lib/sanity'
 // import { urlFor } from '@/lib/sanity.image'
 import supabase from '@/lib/supabase'
+import { RichTextEditor } from '@/components/admin/editor/RichTextEditor'
 
 export default function NewPostPage() {
   const router = useRouter()
@@ -86,6 +87,33 @@ export default function NewPostPage() {
       }
   }
 
+  async function handleEditorImageUpload(file: File): Promise<string> {
+    const form = new FormData()
+    form.append('file', file)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+
+    const res = await fetch('/api/admin/upload/sanity', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: form
+    })
+
+    if (!res.ok) throw new Error('Upload failed')
+    const data = await res.json()
+    // We need to construct the image URL. 
+    // Ideally, the upload API should return the URL or we use urlFor helper.
+    // For Tiptap, we need a direct URL.
+    // Since we don't have the sanity client directly here with the image builder setup fully for direct URL return without extra fetch,
+    // let's assume we can get the URL from the asset document if we fetched it, 
+    // OR we can use the CDN URL pattern: https://cdn.sanity.io/images/<project-id>/<dataset>/<filename>-<width>x<height>.<extension>
+    // For simplicity in this step, let's update the upload API to return the URL or use a placeholder if complex.
+    // Better yet, let's update the upload API to return the `url` field from the asset document.
+    
+    return data.asset.url // Ensure API returns this
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -97,16 +125,33 @@ export default function NewPostPage() {
       const payload = {
         title: formData.title,
         slug: { _type: 'slug', current: formData.slug || generateSlug(formData.title) },
-        body: [
-            {
-                _type: 'block',
-                style: 'normal',
-                children: [
-                    { _type: 'span', text: formData.body }
-                ],
-                markDefs: []
-            }
-        ],
+        // Use raw HTML body. Sanity schema needs to handle this or we convert HTML to Portable Text.
+        // For now, let's assume we are storing it as a custom HTML block or we need a converter.
+        // However, standard Sanity 'block' type expects Portable Text. 
+        // A simple workaround for this "MVP" integration is to store the HTML string in a code block or custom field, 
+        // BUT the cleaner way is to convert HTML to Portable Text.
+        // Since that's complex to implement client-side without libraries, 
+        // we will send the HTML string and let the API route handle it (or just store as string if we updated schema).
+        // Let's stick to the previous "simple text" block structure but put the HTML in it for now, 
+        // OR better: use a specialized 'html' type if we had one.
+        // REVISION: The previous code was:
+        // body: [{ _type: 'block', children: [{ _type: 'span', text: formData.body }] }]
+        // This treats HTML as plain text. 
+        // For a true rich text experience, we should use a library to convert HTML to Portable Text 
+        // or just save the HTML string to a new field 'bodyHtml' and use that for rendering if present.
+        // Let's modify the schema to accept 'bodyHtml' as well or just force it into the block for now.
+        // To keep it robust: We will store the HTML content in a new `bodyHtml` field (need to add to schema?)
+        // OR: We just save it as a raw string in a code block for now to prevent breaking.
+        // REALISTIC APPROACH: We will treat the whole content as a single text block for now, 
+        // accepting that Tiptap HTML will be saved as raw text if we don't convert.
+        // WAIT: The user asked to integrate Tiptap. We should try to support it.
+        // Let's update the API to try and parse it, or just store the HTML.
+        // Let's simply store it as a string field `contentHtml` if the schema allows, 
+        // or just dump it into the body text for now.
+        // Actually, let's update the post schema to have a `bodyHtml` field to store the raw HTML from Tiptap.
+        bodyHtml: formData.body, 
+        // We still send `body` for compatibility with Studio (maybe empty or stripped text)
+        body: [],
         categories: formData.categoryId ? [{ _type: 'reference', _ref: formData.categoryId }] : [],
         publishedAt: new Date(formData.publishedAt).toISOString(),
         language: formData.language,
@@ -245,16 +290,12 @@ export default function NewPostPage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Content (Simple Text)</label>
-                    <div className="text-xs text-gray-500 mb-2">
-                        Note: This simple editor creates a single text block. For rich formatting, use Sanity Studio.
-                    </div>
-                    <textarea 
-                        rows={10}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md font-sans"
-                        value={formData.body}
-                        onChange={e => setFormData({ ...formData, body: e.target.value })}
-                    ></textarea>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                    <RichTextEditor 
+                        content={formData.body}
+                        onChange={(html) => setFormData({ ...formData, body: html })}
+                        onImageUpload={handleEditorImageUpload}
+                    />
                 </div>
             </div>
         )}

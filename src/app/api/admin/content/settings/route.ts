@@ -10,7 +10,15 @@ export async function GET() {
   if (error) return NextResponse.json({ error }, { status });
 
   try {
-    const settings = await client.fetch(`*[_id == $id][0]`, { id: SETTINGS_ID });
+    // Try to find the document by ID first
+    let settings = await client.fetch(`*[_id == $id][0]`, { id: SETTINGS_ID });
+    
+    // If not found by explicit ID, try to find any document of type siteSettings
+    // This handles cases where the document might have been created with a random ID in Studio
+    if (!settings) {
+        settings = await client.fetch(`*[_type == "siteSettings"][0]`);
+    }
+
     return NextResponse.json({ settings: settings || {} });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

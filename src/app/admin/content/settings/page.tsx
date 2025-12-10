@@ -12,11 +12,14 @@ export default function SiteSettingsPage() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    keywords: '', // We'll manage this as a comma-separated string for simplicity in UI
     defaultSeo: {
         metaTitle: '',
         metaDescription: ''
     },
     baiduVerification: '',
+    enableBaiduPush: false,
+    baiduPushToken: '',
     googleVerification: '',
     googleAnalyticsId: ''
   })
@@ -35,11 +38,14 @@ export default function SiteSettingsPage() {
                 setFormData({
                     title: data.settings.title || '',
                     description: data.settings.description || '',
+                    keywords: data.settings.keywords?.join(', ') || '',
                     defaultSeo: {
                         metaTitle: data.settings.defaultSeo?.metaTitle || '',
                         metaDescription: data.settings.defaultSeo?.metaDescription || ''
                     },
                     baiduVerification: data.settings.baiduVerification || '',
+                    enableBaiduPush: data.settings.enableBaiduPush || false,
+                    baiduPushToken: data.settings.baiduPushToken || '',
                     googleVerification: data.settings.googleVerification || '',
                     googleAnalyticsId: data.settings.googleAnalyticsId || ''
                 })
@@ -58,6 +64,17 @@ export default function SiteSettingsPage() {
     setLoading(true)
 
     try {
+      // Convert keywords string back to array
+      const keywordsArray = formData.keywords
+        .split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+
+      const payload = {
+          ...formData,
+          keywords: keywordsArray
+      };
+
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
 
@@ -67,7 +84,7 @@ export default function SiteSettingsPage() {
             'Content-Type': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       })
 
       if (!res.ok) throw new Error('Failed to save settings')
@@ -113,6 +130,17 @@ export default function SiteSettingsPage() {
                         value={formData.description}
                         onChange={e => setFormData({ ...formData, description: e.target.value })}
                     ></textarea>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Site Keywords</label>
+                    <textarea 
+                        rows={2}
+                        placeholder="e.g. ecommerce, shopify, tools (comma separated)"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        value={formData.keywords}
+                        onChange={e => setFormData({ ...formData, keywords: e.target.value })}
+                    ></textarea>
+                    <p className="text-xs text-gray-500 mt-1">Separate keywords with commas.</p>
                 </div>
             </div>
         </div>
@@ -180,6 +208,29 @@ export default function SiteSettingsPage() {
                         onChange={e => setFormData({ ...formData, baiduVerification: e.target.value })}
                     />
                 </div>
+                <div className="flex items-center mt-2">
+                    <input 
+                        type="checkbox" 
+                        id="enableBaiduPush"
+                        className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                        checked={formData.enableBaiduPush}
+                        onChange={e => setFormData({ ...formData, enableBaiduPush: e.target.checked })}
+                    />
+                    <label htmlFor="enableBaiduPush" className="ml-2 block text-sm text-gray-900">
+                        Enable Baidu Link Push
+                    </label>
+                </div>
+                {formData.enableBaiduPush && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Baidu Push Token</label>
+                        <input 
+                            type="text" 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
+                            value={formData.baiduPushToken}
+                            onChange={e => setFormData({ ...formData, baiduPushToken: e.target.value })}
+                        />
+                    </div>
+                )}
             </div>
         </div>
 

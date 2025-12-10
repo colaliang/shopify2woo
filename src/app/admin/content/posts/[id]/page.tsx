@@ -28,7 +28,7 @@ export default function EditPostPage() {
         try {
             const { data: { session } } = await supabase.auth.getSession()
             const token = session?.access_token
-            const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+            const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {}
 
             const [catData, postData] = await Promise.all([
                 fetch('/api/admin/content/categories', { headers }).then(r => r.json()),

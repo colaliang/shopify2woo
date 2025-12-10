@@ -54,6 +54,13 @@ export const post = defineType({
       ],
     }),
     defineField({
+      name: 'bodyHtml',
+      title: 'Body (HTML)',
+      type: 'text',
+      group: 'content',
+      description: 'Raw HTML content from external editors (e.g. Tiptap)',
+    }),
+    defineField({
       name: 'body',
       title: 'Body',
       type: 'array',
