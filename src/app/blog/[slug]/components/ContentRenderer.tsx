@@ -44,6 +44,10 @@ export default function ContentRenderer({ html }: ContentRendererProps) {
         prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
         prose-img:rounded-xl prose-img:shadow-md
         prose-li:text-gray-700
+        prose-table:border-collapse prose-table:w-full prose-table:my-8
+        prose-th:bg-gray-100 prose-th:p-4 prose-th:text-left prose-th:font-semibold prose-th:border prose-th:border-gray-200
+        prose-td:p-4 prose-td:border prose-td:border-gray-200 prose-td:align-top
+        prose-tr:even:bg-gray-50
       "
       dangerouslySetInnerHTML={{ __html: html }} 
     />

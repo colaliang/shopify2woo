@@ -34,10 +34,10 @@ export async function POST(req: Request) {
     - Structure: Use H1 for main title, H2/H3 for subsections. Use bullet points and lists where appropriate.
     - SEO: Naturally integrate keywords (density 3-5%). Include a meta description at the very beginning (labeled as [Meta Description]).
     - Layout & Beautification:
-      - Use responsive HTML tables where appropriate for comparisons (add width="100%" to tables).
-      - Use proper spacing (br/p) and clear formatting.
-      - Ensure the output looks professional on both PC and Mobile (clean semantic HTML).
-    - Format: Return valid HTML (e.g., <h1>, <p>, <ul>, <li>, <table>) suitable for a WYSIWYG editor. DO NOT wrap in markdown code blocks like \`\`\`html. Just return the raw HTML string.
+      - Use responsive Markdown tables where appropriate for comparisons.
+      - Use proper spacing and clear formatting.
+      - Ensure the output looks professional.
+    - Format: Return valid Markdown (e.g., #, ##, -, *, | table |) suitable for a Markdown editor. DO NOT wrap in markdown code blocks like \`\`\`markdown. Just return the raw Markdown string.
     `;
 
     const userPrompt = `

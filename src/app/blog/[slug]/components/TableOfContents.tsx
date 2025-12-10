@@ -36,6 +36,7 @@ export default function TableOfContents({ content }: TableOfContentsProps) {
     // Actually, setting state in useEffect IS the correct way to update state based on props/external data.
     // The linter warning might be false positive or due to strict config. 
     // However, let's keep it simple.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeadings(items)
   }, [content])
 

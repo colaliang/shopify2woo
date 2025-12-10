@@ -1,9 +1,10 @@
 import { client, urlFor } from '@/lib/sanity'
 import Link from 'next/link'
-import { Search, Calendar, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
 import { Metadata } from 'next'
 
 // Simplified type definition to avoid import errors
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SanityImageSource = any
 
 export const metadata: Metadata = {

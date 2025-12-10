@@ -2,6 +2,7 @@ import { createClient } from 'next-sanity'
 import imageUrlBuilder from '@sanity/image-url'
 
 // Simplified type definition to avoid import errors
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SanityImageSource = any
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID

@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation'
 import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2, Sparkles, Copy, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import supabase from '@/lib/supabase'
-import { RichTextEditor } from '@/components/admin/editor/RichTextEditor'
+import MarkdownEditor from '@/components/admin/editor/MarkdownEditor'
+import MarkdownIt from 'markdown-it'
+
+const mdParser = new MarkdownIt()
 
 export default function NewPostPage() {
   const router = useRouter()
@@ -235,11 +238,12 @@ export default function NewPostPage() {
               ...submitData,
               title: title,
               slug: formData.slug || generateSlug(title),
-              body: aiOutput, // Use AI output as body
+              body: aiOutput, // Use AI output as body (Markdown)
               seo: {
                   ...submitData.seo,
                   metaTitle: title,
-                  metaDescription: aiOutput.replace(/<[^>]*>/g, '').slice(0, 150) + '...'
+                  // Strip markdown syntax for meta description roughly
+                  metaDescription: aiOutput.replace(/[#*`_\[\]]/g, '').slice(0, 150) + '...'
               }
           };
       }
@@ -250,31 +254,8 @@ export default function NewPostPage() {
       const payload = {
         title: submitData.title,
         slug: { _type: 'slug', current: submitData.slug || generateSlug(submitData.title) },
-        // Use raw HTML body. Sanity schema needs to handle this or we convert HTML to Portable Text.
-        // For now, let's assume we are storing it as a custom HTML block or we need a converter.
-        // However, standard Sanity 'block' type expects Portable Text. 
-        // A simple workaround for this "MVP" integration is to store the HTML string in a code block or custom field, 
-        // BUT the cleaner way is to convert HTML to Portable Text.
-        // Since that's complex to implement client-side without libraries, 
-        // we will send the HTML string and let the API route handle it (or just store as string if we updated schema).
-        // Let's stick to the previous "simple text" block structure but put the HTML in it for now, 
-        // OR better: use a specialized 'html' type if we had one.
-        // REVISION: The previous code was:
-        // body: [{ _type: 'block', children: [{ _type: 'span', text: formData.body }] }]
-        // This treats HTML as plain text. 
-        // For a true rich text experience, we should use a library to convert HTML to Portable Text 
-        // or just save the HTML string to a new field 'bodyHtml' and use that for rendering if present.
-        // Let's modify the schema to accept 'bodyHtml' as well or just force it into the block for now.
-        // To keep it robust: We will store the HTML content in a new `bodyHtml` field (need to add to schema?)
-        // OR: We just save it as a raw string in a code block for now to prevent breaking.
-        // REALISTIC APPROACH: We will treat the whole content as a single text block for now, 
-        // accepting that Tiptap HTML will be saved as raw text if we don't convert.
-        // WAIT: The user asked to integrate Tiptap. We should try to support it.
-        // Let's update the API to try and parse it, or just store the HTML.
-        // Let's simply store it as a string field `contentHtml` if the schema allows, 
-        // or just dump it into the body text for now.
-        // Actually, let's update the post schema to have a `bodyHtml` field to store the raw HTML from Tiptap.
-        bodyHtml: submitData.body, 
+        bodyMarkdown: submitData.body, // Save to new markdown field
+        bodyHtml: '', // Clear HTML field
         // We still send `body` for compatibility with Studio (maybe empty or stripped text)
         body: [],
         categories: submitData.categoryId ? [{ _type: 'reference', _ref: submitData.categoryId }] : [],
@@ -417,10 +398,10 @@ export default function NewPostPage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
-                    <RichTextEditor 
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Content (Markdown)</label>
+                    <MarkdownEditor 
                         content={formData.body}
-                        onChange={(html) => setFormData({ ...formData, body: html })}
+                        onChange={(md) => setFormData({ ...formData, body: md })}
                         onImageUpload={handleEditorImageUpload}
                     />
                 </div>
@@ -599,7 +580,7 @@ export default function NewPostPage() {
                             // Use the same RichTextEditor in read-only mode (or interactive but disconnected from form) for preview
                             // Actually, let's just render it as HTML but styled like the editor
                             <div className="h-full overflow-y-auto p-4 prose prose-sm sm:prose lg:prose-lg max-w-none">
-                                <div dangerouslySetInnerHTML={{ __html: aiOutput }} />
+                                <div dangerouslySetInnerHTML={{ __html: mdParser.render(aiOutput) }} />
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-gray-400 p-4">

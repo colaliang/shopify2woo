@@ -6,20 +6,25 @@ import { Save, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import supabase from '@/lib/supabase'
 
-import { RichTextEditor } from '@/components/admin/editor/RichTextEditor'
+import CoverImageUploader from '@/components/admin/post/CoverImageUploader'
+
+import MarkdownEditor from '@/components/admin/editor/MarkdownEditor'
+import TurndownService from 'turndown'
 
 export default function EditPostPage() {
   const router = useRouter()
   const params = useParams()
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [categories, setCategories] = useState<{ _id: string, title: string }[]>([]) // Removed unused state warning if categories were used
+  const [categories, setCategories] = useState<{ _id: string, title: string }[]>([])
+  const [coverImageUrl, setCoverImageUrl] = useState<string>('')
   
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
-    body: '',
+    body: '', // This will now store Markdown
     categoryId: '',
+    mainImageAssetId: '',
   })
 
   useEffect(() => {
@@ -41,22 +46,47 @@ export default function EditPostPage() {
             
             if (postData.post) {
                 const p = postData.post
-                let bodyText = ''
+                let bodyMarkdown = ''
                 
-                // Prioritize bodyHtml (from Tiptap/AI)
-                if (p.bodyHtml) {
-                    bodyText = p.bodyHtml
+                if (p.bodyMarkdown) {
+                    bodyMarkdown = p.bodyMarkdown
+                } else if (p.bodyHtml) {
+                    // Convert old HTML to Markdown
+                    const turndownService = new TurndownService()
+                    bodyMarkdown = turndownService.turndown(p.bodyHtml)
                 } else if (Array.isArray(p.body)) {
-                    // Fallback to extracting text from portable text blocks
+                    // Very rough fallback for portable text
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    bodyText = p.body.map((b: any) => b.children?.map((c: any) => c.text).join('')).join('\n\n')
+                    bodyMarkdown = p.body.map((b: any) => b.children?.map((c: any) => c.text).join('')).join('\n\n')
                 }
 
+                // Get cover image URL if exists
+                // Note: The API currently returns mainImage object, we might need to resolve it or it's already expanded?
+                // Standard fetch expands references if configured, but let's check. 
+                // We'll assume we can get a URL from it or we need to construct it.
+                // Actually, let's use the asset ID for now.
+                let initialCoverUrl = ''
+                if (p.mainImage?.asset) {
+                    // We can construct a URL or fetch it. For simplicity in edit page, 
+                    // we can use a helper or just assume the asset object has url if we expanded it in GROQ.
+                    // Let's rely on our upload handler to give us a URL for preview, 
+                    // and for initial load, we might need to use the Sanity CDN pattern.
+                    const ref = p.mainImage.asset._ref || p.mainImage.asset._id
+                    if (ref) {
+                         const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
+                         const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
+                         const [,,id, ext] = ref.split('-')
+                         initialCoverUrl = `https://cdn.sanity.io/images/${projectId}/${dataset}/${id}-${ext}.${ext}`
+                    }
+                }
+
+                setCoverImageUrl(initialCoverUrl)
                 setFormData({
                     title: p.title,
                     slug: p.slug?.current || '',
-                    body: bodyText,
-                    categoryId: p.categories?.[0]?._ref || '' // Simplified for single category
+                    body: bodyMarkdown,
+                    categoryId: p.categories?.[0]?._ref || '',
+                    mainImageAssetId: p.mainImage?.asset?._ref || ''
                 })
             }
         } catch (error) {
@@ -67,6 +97,29 @@ export default function EditPostPage() {
     }
     init()
   }, [params?.id])
+
+  async function handleCoverImageSave(file: File) {
+      // Reuse the existing upload logic but tailored for cover image
+      // We upload to Sanity and get an asset ID back
+      const form = new FormData()
+      form.append('file', file)
+
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const res = await fetch('/api/admin/upload/sanity', {
+          method: 'POST',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          body: form
+      })
+
+      if (!res.ok) throw new Error('Upload failed')
+      const data = await res.json()
+      
+      // Update state
+      setCoverImageUrl(data.asset.url)
+      setFormData(prev => ({ ...prev, mainImageAssetId: data.asset._id }))
+  }
 
   async function handleEditorImageUpload(file: File): Promise<string> {
     const form = new FormData()
@@ -94,10 +147,19 @@ export default function EditPostPage() {
       const payload = {
         title: formData.title,
         slug: { _type: 'slug', current: formData.slug },
-        bodyHtml: formData.body, // Save HTML content
-        body: [], // Clear standard body to avoid conflicts
+        bodyMarkdown: formData.body, // Save to new markdown field
+        bodyHtml: '', // Clear HTML field to avoid confusion
+        body: [], // Clear standard body
         // Only update category if selected
-        ...(formData.categoryId ? { categories: [{ _type: 'reference', _ref: formData.categoryId }] } : {})
+        ...(formData.categoryId ? { categories: [{ _type: 'reference', _ref: formData.categoryId }] } : {}),
+        // Update main image if changed
+        ...(formData.mainImageAssetId ? {
+            mainImage: {
+                _type: 'image',
+                asset: { _type: 'reference', _ref: formData.mainImageAssetId },
+                alt: formData.title
+            }
+        } : {})
       }
 
       const { data: { session } } = await supabase.auth.getSession()
@@ -136,6 +198,14 @@ export default function EditPostPage() {
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow border border-gray-200 p-6 space-y-6">
         <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cover Image</label>
+            <CoverImageUploader 
+                currentImage={coverImageUrl}
+                onSave={handleCoverImageSave}
+            />
+        </div>
+
+        <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
             <input 
                 type="text" 
@@ -172,10 +242,10 @@ export default function EditPostPage() {
         </div>
 
         <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
-            <RichTextEditor 
+            <label className="block text-sm font-medium text-gray-700 mb-1">Content (Markdown)</label>
+            <MarkdownEditor 
                 content={formData.body}
-                onChange={(html) => setFormData({ ...formData, body: html })}
+                onChange={(md) => setFormData({ ...formData, body: md })}
                 onImageUpload={handleEditorImageUpload}
             />
         </div>

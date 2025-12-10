@@ -54,11 +54,19 @@ export const post = defineType({
       ],
     }),
     defineField({
+      name: 'bodyMarkdown',
+      title: 'Body (Markdown)',
+      type: 'markdown',
+      group: 'content',
+      description: 'Markdown content. This is the primary storage format for blog posts.',
+    }),
+    defineField({
       name: 'bodyHtml',
       title: 'Body (HTML)',
       type: 'text',
       group: 'content',
-      description: 'Raw HTML content from external editors (e.g. Tiptap). This field stores AI-generated content.',
+      description: 'DEPRECATED: Raw HTML content from old editor. Will be converted to Markdown.',
+      hidden: true,
     }),
     defineField({
       name: 'body',

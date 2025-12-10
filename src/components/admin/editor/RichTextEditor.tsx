@@ -9,7 +9,10 @@ import { Table } from '@tiptap/extension-table'
 import { TableRow } from '@tiptap/extension-table-row'
 import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
-import { Bold, Italic, List, ListOrdered, Image as ImageIcon, Link as LinkIcon, Quote, Heading1, Heading2, Code, Table as TableIcon } from 'lucide-react'
+import TextAlign from '@tiptap/extension-text-align'
+import { TextStyle } from '@tiptap/extension-text-style'
+import { Color } from '@tiptap/extension-color'
+import { Bold, Italic, List, ListOrdered, Image as ImageIcon, Link as LinkIcon, Quote, Heading1, Heading2, Code, Table as TableIcon, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
 import { useCallback } from 'react'
 
 interface RichTextEditorProps {
@@ -36,6 +39,11 @@ export function RichTextEditor({ content, onChange, onImageUpload }: RichTextEdi
       TableRow,
       TableHeader,
       TableCell,
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
+      TextStyle,
+      Color,
     ],
     content,
     onUpdate: ({ editor }) => {
@@ -126,6 +134,27 @@ export function RichTextEditor({ content, onChange, onImageUpload }: RichTextEdi
             title="Heading 2"
         />
         
+        <div className="w-px h-6 bg-gray-300 mx-1 self-center" />
+        
+        <ToolbarButton 
+            onClick={() => editor.chain().focus().setTextAlign('left').run()}
+            isActive={editor.isActive({ textAlign: 'left' })}
+            icon={<AlignLeft className="w-4 h-4" />}
+            title="Align Left"
+        />
+        <ToolbarButton 
+            onClick={() => editor.chain().focus().setTextAlign('center').run()}
+            isActive={editor.isActive({ textAlign: 'center' })}
+            icon={<AlignCenter className="w-4 h-4" />}
+            title="Align Center"
+        />
+        <ToolbarButton 
+            onClick={() => editor.chain().focus().setTextAlign('right').run()}
+            isActive={editor.isActive({ textAlign: 'right' })}
+            icon={<AlignRight className="w-4 h-4" />}
+            title="Align Right"
+        />
+
         <div className="w-px h-6 bg-gray-300 mx-1 self-center" />
 
         <ToolbarButton 
