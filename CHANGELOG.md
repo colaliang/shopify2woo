@@ -29,7 +29,14 @@
    - 增加对多个Wordpress站点的支持，用户可以在一个账号下导入到可选的多个Wordpress站点。
 
 7. **增加BLOG功能**
-    - 增加blog页，可以更方便做SEO优化
+    - 增加sanity blog页，可以更方便做SEO优化
+    - 集成到Admin管理后台，用户可以在Admin中管理blog文章。
+    - 检查状态 http://localhost:3000/debug/sanity
+    - /studio 路径来使用 Sanity 内容管理界面
+    - src/sanity/schemaTypes/index.ts ：用于定义数据模型（Schema）
+    - next/image 进行图片优化
+    - 优化Sanity数据模型（Schema）以满足Google和百度SEO最佳实践要求
+    
    
 8. **增加WordPress插件版**
    - 增加WordPress插件版，用户可以在WordPress后台直接安装使用，无须配置Woo API。
