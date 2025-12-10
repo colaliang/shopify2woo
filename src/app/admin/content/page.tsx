@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, Tag, FileText, Settings, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
+import supabase from '@/lib/supabase'
 
 interface Post {
   _id: string
@@ -23,7 +24,12 @@ export default function ContentDashboard() {
 
   async function fetchPosts() {
     try {
-      const res = await fetch('/api/admin/content/posts')
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const res = await fetch('/api/admin/content/posts', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       if (!res.ok) throw new Error('Failed to fetch posts')
       const data = await res.json()
       setPosts(data.posts || [])
@@ -38,7 +44,13 @@ export default function ContentDashboard() {
     if (!confirm('Are you sure you want to delete this post?')) return
     
     try {
-      const res = await fetch(`/api/admin/content/posts/${id}`, { method: 'DELETE' })
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const res = await fetch(`/api/admin/content/posts/${id}`, { 
+        method: 'DELETE',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       if (!res.ok) throw new Error('Failed to delete')
       fetchPosts()
     } catch (e) {

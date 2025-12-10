@@ -6,6 +6,7 @@ import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2 } from 'lucide-rea
 import Link from 'next/link'
 // import { client } from '@/lib/sanity'
 // import { urlFor } from '@/lib/sanity.image'
+import supabase from '@/lib/supabase'
 
 export default function NewPostPage() {
   const router = useRouter()
@@ -33,10 +34,21 @@ export default function NewPostPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/admin/content/categories')
-      .then(res => res.json())
-      .then(data => setCategories(data.categories || []))
-      .catch(console.error)
+    async function init() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+
+        const res = await fetch('/api/admin/content/categories', {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
+        const data = await res.json()
+        setCategories(data.categories || [])
+      } catch (error) {
+        console.error(error)
+      }
+    }
+    init()
   }, [])
 
   function generateSlug(title: string) {
@@ -57,8 +69,12 @@ export default function NewPostPage() {
       form.append('file', file)
 
       try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const token = session?.access_token
+
           const res = await fetch('/api/admin/upload/sanity', {
               method: 'POST',
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {},
               body: form
           })
           if (!res.ok) throw new Error('Upload failed')
@@ -74,7 +90,10 @@ export default function NewPostPage() {
     e.preventDefault()
     setLoading(true)
 
-    try {
+      try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
       const payload = {
         title: formData.title,
         slug: { _type: 'slug', current: formData.slug || generateSlug(formData.title) },
@@ -112,7 +131,10 @@ export default function NewPostPage() {
 
       const res = await fetch('/api/admin/content/posts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(payload)
       })
 

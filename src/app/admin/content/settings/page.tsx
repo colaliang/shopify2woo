@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Save, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import supabase from '@/lib/supabase'
 
 export default function SiteSettingsPage() {
   const [loading, setLoading] = useState(false)
@@ -21,25 +22,35 @@ export default function SiteSettingsPage() {
   })
 
   useEffect(() => {
-    fetch('/api/admin/content/settings')
-      .then(res => res.json())
-      .then(data => {
-        if (data.settings) {
-            setFormData({
-                title: data.settings.title || '',
-                description: data.settings.description || '',
-                defaultSeo: {
-                    metaTitle: data.settings.defaultSeo?.metaTitle || '',
-                    metaDescription: data.settings.defaultSeo?.metaDescription || ''
-                },
-                baiduVerification: data.settings.baiduVerification || '',
-                googleVerification: data.settings.googleVerification || '',
-                googleAnalyticsId: data.settings.googleAnalyticsId || ''
+    async function init() {
+        try {
+            const { data: { session } } = await supabase.auth.getSession()
+            const token = session?.access_token
+
+            const res = await fetch('/api/admin/content/settings', {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             })
+            const data = await res.json()
+            if (data.settings) {
+                setFormData({
+                    title: data.settings.title || '',
+                    description: data.settings.description || '',
+                    defaultSeo: {
+                        metaTitle: data.settings.defaultSeo?.metaTitle || '',
+                        metaDescription: data.settings.defaultSeo?.metaDescription || ''
+                    },
+                    baiduVerification: data.settings.baiduVerification || '',
+                    googleVerification: data.settings.googleVerification || '',
+                    googleAnalyticsId: data.settings.googleAnalyticsId || ''
+                })
+            }
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setFetching(false)
         }
-      })
-      .catch(console.error)
-      .finally(() => setFetching(false))
+    }
+    init()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -47,9 +58,15 @@ export default function SiteSettingsPage() {
     setLoading(true)
 
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
       const res = await fetch('/api/admin/content/settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(formData)
       })
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Save, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import supabase from '@/lib/supabase'
 
 export default function EditPostPage() {
   const router = useRouter()
@@ -23,30 +24,42 @@ export default function EditPostPage() {
     const id = params?.id
     if (!id) return
 
-    Promise.all([
-        fetch('/api/admin/content/categories').then(r => r.json()),
-        fetch(`/api/admin/content/posts/${id}`).then(r => r.json())
-    ]).then(([catData, postData]) => {
-        setCategories(catData.categories || [])
-        
-        if (postData.post) {
-            const p = postData.post
-            // Extract text from portable text blocks roughly
-            let bodyText = ''
-            if (Array.isArray(p.body)) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                bodyText = p.body.map((b: any) => b.children?.map((c: any) => c.text).join('')).join('\n\n')
-            }
+    async function init() {
+        try {
+            const { data: { session } } = await supabase.auth.getSession()
+            const token = session?.access_token
+            const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
 
-            setFormData({
-                title: p.title,
-                slug: p.slug?.current || '',
-                body: bodyText,
-                categoryId: p.categories?.[0]?._ref || '' // Simplified for single category
-            })
+            const [catData, postData] = await Promise.all([
+                fetch('/api/admin/content/categories', { headers }).then(r => r.json()),
+                fetch(`/api/admin/content/posts/${id}`, { headers }).then(r => r.json())
+            ])
+
+            setCategories(catData.categories || [])
+            
+            if (postData.post) {
+                const p = postData.post
+                // Extract text from portable text blocks roughly
+                let bodyText = ''
+                if (Array.isArray(p.body)) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    bodyText = p.body.map((b: any) => b.children?.map((c: any) => c.text).join('')).join('\n\n')
+                }
+
+                setFormData({
+                    title: p.title,
+                    slug: p.slug?.current || '',
+                    body: bodyText,
+                    categoryId: p.categories?.[0]?._ref || '' // Simplified for single category
+                })
+            }
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setFetching(false)
         }
-    }).catch(console.error)
-    .finally(() => setFetching(false))
+    }
+    init()
   }, [params?.id])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -70,9 +83,15 @@ export default function EditPostPage() {
         ...(formData.categoryId ? { categories: [{ _type: 'reference', _ref: formData.categoryId }] } : {})
       }
 
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
       const res = await fetch(`/api/admin/content/posts/${params?.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(payload)
       })
 

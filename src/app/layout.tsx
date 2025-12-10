@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://www.ydplus.net"),
   // Default metadata if page doesn't override it
   title: {
-    default: "Shopify/Wix/WP to WooCommerce Importer | Yundian+",
+    default: "Yundian+ WooCommerce Importer",
     template: "%s | Yundian+ WooCommerce Importer"
   },
   description: "Professional cross-border e-commerce product migration tool. Import from WordPress, Shopify, Wix to WooCommerce/WordPress.",
