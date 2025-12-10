@@ -313,6 +313,7 @@ export default function NewPostPage() {
         throw new Error(err.error || 'Failed to create post')
       }
 
+      router.refresh()
       router.push('/admin/content')
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e))

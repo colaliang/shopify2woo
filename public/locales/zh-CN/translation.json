@@ -105,7 +105,8 @@
   "footer": {
     "copyright": "© {{year}} 搞跨境的可乐哥",
     "cloud_store": "云店+B2B出海营销服务",
-    "help": "帮助",
+    "help": "帮助文档",
+    "blog": "博客",
     "contact": "联系我们"
   },
   "auth": {

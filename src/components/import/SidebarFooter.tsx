@@ -1,6 +1,7 @@
 import React from 'react';
 import { useUserStore } from '@/stores/userStore';
 import { useTranslation } from 'react-i18next';
+import Link from 'next/link';
 
 export default function SidebarFooter() {
   const { t } = useTranslation();
@@ -29,6 +30,14 @@ export default function SidebarFooter() {
              >
                {t('footer.help')}
              </a>
+
+            <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
+             <Link 
+               href="/blog"
+               className="hover:text-primary-600 hover:underline"
+             >
+               {t('footer.blog')}
+             </Link>
 
             <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
             <button

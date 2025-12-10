@@ -1,4 +1,8 @@
 import { createClient } from 'next-sanity'
+import imageUrlBuilder from '@sanity/image-url'
+
+// Simplified type definition to avoid import errors
+type SanityImageSource = any
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
 const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
@@ -14,6 +18,12 @@ export const client = createClient({
   apiVersion,
   useCdn: process.env.NODE_ENV === 'production',
 })
+
+const builder = imageUrlBuilder(client)
+
+export function urlFor(source: SanityImageSource) {
+  return builder.image(source)
+}
 
 export const writeClient = createClient({
   projectId,

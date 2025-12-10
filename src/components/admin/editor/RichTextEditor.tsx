@@ -5,7 +5,11 @@ import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
-import { Bold, Italic, List, ListOrdered, Image as ImageIcon, Link as LinkIcon, Quote, Heading1, Heading2, Code } from 'lucide-react'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableCell } from '@tiptap/extension-table-cell'
+import { TableHeader } from '@tiptap/extension-table-header'
+import { Bold, Italic, List, ListOrdered, Image as ImageIcon, Link as LinkIcon, Quote, Heading1, Heading2, Code, Table as TableIcon } from 'lucide-react'
 import { useCallback } from 'react'
 
 interface RichTextEditorProps {
@@ -26,6 +30,12 @@ export function RichTextEditor({ content, onChange, onImageUpload }: RichTextEdi
       Placeholder.configure({
         placeholder: 'Write something amazing...',
       }),
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content,
     onUpdate: ({ editor }) => {
@@ -141,6 +151,15 @@ export function RichTextEditor({ content, onChange, onImageUpload }: RichTextEdi
             isActive={editor.isActive('codeBlock')}
             icon={<Code className="w-4 h-4" />}
             title="Code Block"
+        />
+
+        <div className="w-px h-6 bg-gray-300 mx-1 self-center" />
+
+        <ToolbarButton 
+            onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+            isActive={editor.isActive('table')}
+            icon={<TableIcon className="w-4 h-4" />}
+            title="Insert Table"
         />
 
         <div className="w-px h-6 bg-gray-300 mx-1 self-center" />

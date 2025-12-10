@@ -15,7 +15,7 @@ export async function GET() {
       publishedAt,
       "categories": categories[]->title,
       mainImage
-    }`);
+    }`, {}, { useCdn: false });
     return NextResponse.json({ posts });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

@@ -28,7 +28,8 @@ export default function ContentDashboard() {
       const token = session?.access_token
 
       const res = await fetch('/api/admin/content/posts', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        cache: 'no-store'
       })
       if (!res.ok) throw new Error('Failed to fetch posts')
       const data = await res.json()
@@ -41,7 +42,7 @@ export default function ContentDashboard() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this post?')) return
+    if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) return
     
     try {
       const { data: { session } } = await supabase.auth.getSession()

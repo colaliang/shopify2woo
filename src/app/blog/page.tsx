@@ -1,0 +1,314 @@
+import { client, urlFor } from '@/lib/sanity'
+import Link from 'next/link'
+import { Search, Calendar, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
+import { Metadata } from 'next'
+
+// Simplified type definition to avoid import errors
+type SanityImageSource = any
+
+export const metadata: Metadata = {
+  title: 'Blog - Insights & Updates',
+  description: 'Latest news, tutorials, and insights about e-commerce and dropshipping.',
+}
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
+interface Post {
+  _id: string
+  title: string
+  slug: { current: string }
+  mainImage: SanityImageSource
+  publishedAt: string
+  excerpt: string
+  categories: { title: string; slug: { current: string } }[]
+}
+
+interface Category {
+  _id: string
+  title: string
+  slug: { current: string }
+}
+
+// -----------------------------------------------------------------------------
+// Data Fetching
+// -----------------------------------------------------------------------------
+async function getPosts(search?: string, category?: string, page = 1, limit = 9) {
+  const start = (page - 1) * limit
+  const end = start + limit
+
+  let filter = `*[_type == "post" && defined(slug.current)]`
+  const params: Record<string, string | number> = {}
+
+  if (search) {
+    filter += ` && (title match $search || pt::text(body) match $search)`
+    params.search = `*${search}*`
+  }
+
+  if (category) {
+    filter += ` && $category in categories[]->slug.current`
+    params.category = category
+  }
+
+  // Count total for pagination
+  const countQuery = `count(${filter})`
+  const total = await client.fetch(countQuery, params)
+
+  // Fetch posts
+  const query = `${filter} | order(publishedAt desc) [${start}...${end}] {
+    _id,
+    title,
+    slug,
+    publishedAt,
+    excerpt,
+    mainImage,
+    "categories": categories[]->{title, slug}
+  }`
+  
+  const posts = await client.fetch(query, params)
+  
+  return { posts, total }
+}
+
+async function getRecentPosts() {
+  return await client.fetch(`*[_type == "post" && defined(slug.current)] | order(publishedAt desc) [0...5] {
+    _id,
+    title,
+    slug,
+    publishedAt,
+    mainImage
+  }`)
+}
+
+async function getCategories() {
+  return await client.fetch(`*[_type == "category"] | order(title asc) {
+    _id,
+    title,
+    slug
+  }`)
+}
+
+// -----------------------------------------------------------------------------
+// Component
+// -----------------------------------------------------------------------------
+export default async function BlogPage(props: { searchParams: Promise<{ q?: string; category?: string; page?: string }> }) {
+  const searchParams = await props.searchParams
+  const page = Number(searchParams.page) || 1
+  const search = searchParams.q || ''
+  const categorySlug = searchParams.category || ''
+
+  const [{ posts, total }, categories, recentPosts] = await Promise.all([
+    getPosts(search, categorySlug, page),
+    getCategories(),
+    getRecentPosts()
+  ])
+
+  const totalPages = Math.ceil(total / 9)
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20 text-center">
+          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl tracking-tight">
+            Blog & Insights
+          </h1>
+          <p className="mt-4 text-xl text-gray-500 max-w-2xl mx-auto">
+            Discover the latest strategies, tutorials, and updates to supercharge your e-commerce business.
+          </p>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex flex-col lg:flex-row gap-12">
+          
+          {/* Posts List (Left Column) */}
+          <div className="lg:w-2/3 xl:w-3/4">
+            {posts.length > 0 ? (
+              <div className="space-y-12">
+                {posts.map((post: Post) => {
+                  const date = new Date(post.publishedAt)
+                  const day = date.getDate().toString().padStart(2, '0')
+                  const month = date.toLocaleString('default', { month: 'short' })
+                  
+                  return (
+                  <div key={post._id} className="group bg-white rounded-none sm:rounded-xl overflow-hidden">
+                    {/* Image */}
+                    <Link href={`/blog/${post.slug.current}`} className="block relative aspect-[16/9] sm:aspect-[2/1] bg-gray-100 overflow-hidden rounded-lg">
+                      {post.mainImage ? (
+                        <div className="absolute inset-0">
+                             {/* eslint-disable-next-line @next/next/no-img-element */}
+                             <img 
+                                src={urlFor(post.mainImage).width(1200).height(600).url()}
+                                alt={post.title}
+                                className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                             />
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400">
+                          <ImageIcon className="w-12 h-12" />
+                        </div>
+                      )}
+                      
+                      {/* Date Badge */}
+                      <div className="absolute top-6 left-6 bg-white shadow-sm rounded-sm p-3 text-center min-w-[60px] flex flex-col items-center justify-center">
+                        <span className="text-2xl font-bold text-gray-900 leading-none">{day}</span>
+                        <span className="text-xs font-semibold text-gray-500 uppercase mt-1">{month}</span>
+                      </div>
+                    </Link>
+
+                    {/* Content */}
+                    <div className="pt-6">
+                      <Link href={`/blog/${post.slug.current}`}>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 hover:text-blue-600 transition-colors">
+                            {post.title}
+                        </h2>
+                      </Link>
+                      
+                      <p className="text-gray-600 text-base leading-relaxed mb-6 line-clamp-3">
+                        {post.excerpt || 'Click to read more...'}
+                      </p>
+                      
+                      <div className="flex items-center justify-between border-t border-gray-100 pt-6">
+                        <Link href={`/blog/${post.slug.current}`} className="inline-flex items-center text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors uppercase tracking-wide">
+                          Read More <ChevronRight className="w-4 h-4 ml-1" />
+                        </Link>
+                        
+                        <div className="flex items-center text-gray-400 text-sm font-medium">
+                            <span className="flex items-center">
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                No Comments
+                            </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )})}
+              </div>
+            ) : (
+              <div className="text-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Search className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900">No posts found</h3>
+                <p className="text-gray-500 mt-2">Try adjusting your search or filter.</p>
+                <Link href="/blog" className="inline-block mt-4 text-blue-600 hover:underline">
+                    Clear all filters
+                </Link>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-16 flex justify-center gap-2">
+                <Link
+                  href={`/blog?page=${Math.max(1, page - 1)}${search ? `&q=${search}` : ''}${categorySlug ? `&category=${categorySlug}` : ''}`}
+                  className={`p-2 rounded-lg border border-gray-200 transition-colors ${
+                    page <= 1 ? 'text-gray-300 pointer-events-none' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+                  }`}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Link>
+                <div className="flex items-center gap-1 px-4 font-medium text-gray-600">
+                    Page {page} of {totalPages}
+                </div>
+                <Link
+                  href={`/blog?page=${Math.min(totalPages, page + 1)}${search ? `&q=${search}` : ''}${categorySlug ? `&category=${categorySlug}` : ''}`}
+                  className={`p-2 rounded-lg border border-gray-200 transition-colors ${
+                    page >= totalPages ? 'text-gray-300 pointer-events-none' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+                  }`}
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar (Right Column) */}
+          <aside className="lg:w-1/3 xl:w-1/4 space-y-12">
+            
+            {/* Search */}
+            <div>
+                <form action="/blog" className="relative">
+                    <input 
+                        name="q"
+                        defaultValue={search}
+                        placeholder="Search" 
+                        className="w-full pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-blue-500 transition-colors text-sm"
+                    />
+                    <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600">
+                        <Search className="w-4 h-4" />
+                    </button>
+                    {categorySlug && <input type="hidden" name="category" value={categorySlug} />}
+                </form>
+            </div>
+
+            {/* Recent Posts */}
+            <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-6 pb-2 border-b border-gray-100">Recent Posts</h3>
+                <div className="space-y-6">
+                    {recentPosts.map((post: Post) => (
+                        <Link key={post._id} href={`/blog/${post.slug.current}`} className="flex gap-4 group">
+                            <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
+                                {post.mainImage ? (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                    <img 
+                                        src={urlFor(post.mainImage).width(160).height(160).url()}
+                                        alt={post.title}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        <ImageIcon className="w-6 h-6" />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">
+                                    {post.title}
+                                </h4>
+                                <div className="text-xs text-gray-500">
+                                    {new Date(post.publishedAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            </div>
+
+            {/* Categories */}
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-6 pb-2 border-b border-gray-100">Categories</h3>
+              <div className="flex flex-col space-y-3">
+                <Link 
+                  href="/blog"
+                  className={`text-sm transition-colors ${
+                    !categorySlug 
+                      ? 'text-blue-600 font-medium' 
+                      : 'text-gray-600 hover:text-blue-600'
+                  }`}
+                >
+                  All Posts
+                </Link>
+                {categories.map((cat: Category) => (
+                  <Link 
+                    key={cat._id}
+                    href={`/blog?category=${cat.slug.current}${search ? `&q=${search}` : ''}`}
+                    className={`text-sm transition-colors ${
+                      categorySlug === cat.slug.current
+                        ? 'text-blue-600 font-medium' 
+                        : 'text-gray-600 hover:text-blue-600'
+                    }`}
+                  >
+                    {cat.title}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  )
+}
