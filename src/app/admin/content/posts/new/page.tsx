@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2, Sparkles, Copy, RefreshCw } from 'lucide-react'
+import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import supabase from '@/lib/supabase'
 import MarkdownEditor from '@/components/admin/editor/MarkdownEditor'
-import MarkdownIt from 'markdown-it'
-
-const mdParser = new MarkdownIt()
+import AiContentPreview from '@/components/admin/ai/AiContentPreview'
 
 export default function NewPostPage() {
   const router = useRouter()
@@ -550,45 +548,13 @@ export default function NewPostPage() {
                 </div>
 
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <h3 className="font-medium text-gray-700">Generated Content Preview</h3>
-                        {aiOutput && (
-                            <div className="flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => handleAiGenerate()}
-                                    disabled={aiGenerating}
-                                    className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                                    title="Regenerate"
-                                >
-                                    <RefreshCw className="w-4 h-4" />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={applyAiContent}
-                                    className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                                >
-                                    <Copy className="w-3 h-3 mr-1.5" />
-                                    Use This Content
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="border border-gray-200 rounded-lg h-[600px] overflow-hidden bg-white">
-                        {aiOutput ? (
-                            // Use the same RichTextEditor in read-only mode (or interactive but disconnected from form) for preview
-                            // Actually, let's just render it as HTML but styled like the editor
-                            <div className="h-full overflow-y-auto p-4 prose prose-sm sm:prose lg:prose-lg max-w-none">
-                                <div dangerouslySetInnerHTML={{ __html: mdParser.render(aiOutput) }} />
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-gray-400 p-4">
-                                <Sparkles className="w-12 h-12 mb-3 text-gray-300" />
-                                <p>AI generated content will appear here.</p>
-                            </div>
-                        )}
-                    </div>
+                    <h3 className="font-medium text-gray-700">Generated Content Preview</h3>
+                    <AiContentPreview 
+                        content={aiOutput}
+                        onRegenerate={handleAiGenerate}
+                        onUseContent={applyAiContent}
+                        isGenerating={aiGenerating}
+                    />
                 </div>
             </div>
         )}

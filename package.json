@@ -27,6 +27,7 @@
     "@types/markdown-it": "^14.1.2",
     "@types/turndown": "^5.0.6",
     "dotenv": "^17.2.3",
+    "easymde": "^2.20.0",
     "i18next": "^25.7.2",
     "i18next-browser-languagedetector": "^8.2.0",
     "i18next-http-backend": "^3.0.2",
@@ -42,11 +43,19 @@
     "recharts": "^3.5.1",
     "resend": "^6.5.2",
     "sanity": "^4.21.0",
+    "sanity-plugin-markdown": "^7.0.3",
     "stripe": "^20.0.0",
+    "styled-components": "^6.1.19",
     "turndown": "^7.2.2",
     "undici": "^5.28.4",
     "vercel": "^49.1.0",
     "zustand": "^4.5.2"
+  },
+  "overrides": {
+    "react-markdown-editor-lite": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   },
   "devDependencies": {
     "@types/node": "^20",

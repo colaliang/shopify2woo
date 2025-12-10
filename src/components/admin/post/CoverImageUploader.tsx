@@ -70,7 +70,7 @@ export default function CoverImageUploader({ currentImage, onSave }: CoverImageU
   return (
     <div className="space-y-4">
       {/* Current Image or Placeholder */}
-      <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 hover:border-blue-500 transition-colors group">
+      <div className="relative w-full max-w-md aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 hover:border-blue-500 transition-colors group">
         {currentImage ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img 

@@ -75,8 +75,8 @@ export default function EditPostPage() {
                     if (ref) {
                          const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
                          const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
-                         const [,,id, ext] = ref.split('-')
-                         initialCoverUrl = `https://cdn.sanity.io/images/${projectId}/${dataset}/${id}-${ext}.${ext}`
+                         const [, assetId, dimensions, extension] = ref.split('-')
+                         initialCoverUrl = `https://cdn.sanity.io/images/${projectId}/${dataset}/${assetId}-${dimensions}.${extension}`
                     }
                 }
 

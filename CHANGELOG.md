@@ -18,9 +18,9 @@
    - 按每次提交任务分收缩展示，避免一次性展示过多信息。
    - 可导出每次任务的结果
 
-
 4. **接入Deepseek AI优化标题/描述**
    - 利用Deepseek AI模型，根据现有标题，优化生成更符合SEO规范的标题和描述。
+   - 成本非常低，可以应用在导入后产品编辑
 
 5. **完善Resend的邮件通知**
    - 在管理后台，管理通知模板，可自定义编辑邮件通知的内容。
@@ -28,7 +28,31 @@
 6. **多目标Wordpress站点支持**
    - 增加对多个Wordpress站点的支持，用户可以在一个账号下导入到可选的多个Wordpress站点。
 
-7. **增加BLOG功能**
+7. **生成一个首页用于项目介绍**
+   - 增加一个首页，用于项目介绍和功能展示。
+   - 首页包含项目的基本信息，功能介绍，使用方法，联系作者等。
+   - 进入项目后，用户可以直接点击首页的按钮，进入项目的管理后台。
+   
+8. **增加WordPress插件版**
+   - 增加WordPress插件版，用户可以在WordPress后台直接安装使用，无须配置Woo API。
+   - 可以跟Web版打通，实现数据同步。
+
+9. **分享和好评，赠送积分活动**
+   - 增加了分享和好评的功能，用户可以分享商品到社交媒体，获得积分奖励。
+
+10. **BLOG优化**
+   - UI样式优化
+   - 按语言显示
+   - 每日更新
+
+
+---
+
+## [Latest] - 2025-12-10
+
+### ✨ 新增功能 (Features)
+
+1. **增加BLOG功能**
     - 增加sanity blog页，可以更方便做SEO优化
     - 集成到Admin管理后台，用户可以在Admin中管理blog文章。
     - 检查状态 http://localhost:3000/debug/sanity
@@ -56,25 +80,13 @@
       Woo Import Export,
       Importify WooCommerce
     
-      1. In a comparison of multiple tools, Yundian+ WooCommerce Importer stands out for its advantages: no source website API required, image support, batch import capability, and significantly improved efficiency.
+      1. Yundian+ WooCommerce Importer stands out for its advantages: no source website API required, image support, batch import capability, and significantly improved efficiency.
       2. New registrations receive 30 free import points.
       3. Supports Shopify, WordPress, and Wix.
       4. Purchase credits as needed; no subscription required.
-      5. Content Structure:
-      Introduction, Evaluation Criteria, Detailed Explanation of Sub-tools, Comparison and Summary Table, Final Recommendation
+      5. Content Structure:Introduction, Evaluation Criteria, Detailed Explanation of Sub-tools, Comparison and Summary Table, Final Recommendation
 
 
-
-   
-8. **增加WordPress插件版**
-   - 增加WordPress插件版，用户可以在WordPress后台直接安装使用，无须配置Woo API。
-   - 可以跟Web版打通，实现数据同步。
-
-9. **分享和好评，赠送积分活动**
-   - 增加了分享和好评的功能，用户可以分享商品到社交媒体，获得积分奖励。
-
-
----
 
 ## [Latest] - 2025-12-09
 
