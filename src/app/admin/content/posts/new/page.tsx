@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2 } from 'lucide-react'
+import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2, Sparkles, Copy, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
-// import { client } from '@/lib/sanity'
-// import { urlFor } from '@/lib/sanity.image'
 import supabase from '@/lib/supabase'
 import { RichTextEditor } from '@/components/admin/editor/RichTextEditor'
 
@@ -13,7 +11,7 @@ export default function NewPostPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [categories, setCategories] = useState<{ _id: string, title: string }[]>([])
-  const [activeTab, setActiveTab] = useState<'content' | 'seo' | 'settings'>('content')
+  const [activeTab, setActiveTab] = useState<'content' | 'seo' | 'settings' | 'ai'>('content')
   
   const [formData, setFormData] = useState({
     title: '',
@@ -30,6 +28,16 @@ export default function NewPostPage() {
     publishedAt: new Date().toISOString().slice(0, 16), // Format for datetime-local
     language: 'en'
   })
+
+  // AI Generation State
+  const [aiConfig, setAiConfig] = useState({
+      title: '',
+      keywords: '',
+      requirements: ''
+  })
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiOutput, setAiOutput] = useState('')
+  const [aiError, setAiError] = useState('')
 
   // For image preview
   const [previewImage, setPreviewImage] = useState<string | null>(null)
@@ -57,6 +65,79 @@ export default function NewPostPage() {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '')
+  }
+
+  async function handleAiGenerate() {
+      if (!aiConfig.title) {
+          setAiError('Title is required')
+          return
+      }
+      
+      setAiGenerating(true)
+      setAiOutput('')
+      setAiError('')
+
+      try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const token = session?.access_token
+
+          const response = await fetch('/api/admin/ai/generate', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({
+                  title: aiConfig.title,
+                  keywords: aiConfig.keywords.split(',').map(k => k.trim()),
+                  requirements: aiConfig.requirements,
+                  language: formData.language
+              })
+          })
+
+          if (!response.ok) {
+              const err = await response.json()
+              throw new Error(err.error || 'Failed to generate content')
+          }
+
+          if (!response.body) return;
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+
+          while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const text = decoder.decode(value);
+              setAiOutput(prev => prev + text);
+          }
+
+      } catch (e) {
+          setAiError(e instanceof Error ? e.message : String(e))
+      } finally {
+          setAiGenerating(false)
+      }
+  }
+
+  function applyAiContent() {
+      if (!aiOutput) return;
+      
+      // Update form data with AI content
+      setFormData(prev => ({
+          ...prev,
+          title: aiConfig.title || prev.title, // Use AI title input if set
+          slug: generateSlug(aiConfig.title || prev.title),
+          body: aiOutput,
+          seo: {
+              ...prev.seo,
+              metaTitle: aiConfig.title || prev.title,
+              // Try to extract a meta description from the first paragraph or generic
+              metaDescription: aiOutput.replace(/<[^>]*>/g, '').slice(0, 150) + '...'
+          }
+      }))
+      
+      // Switch to content tab
+      setActiveTab('content')
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -207,18 +288,19 @@ export default function NewPostPage() {
       </div>
 
       <div className="flex gap-4 mb-6 border-b border-gray-200">
-          {['content', 'seo', 'settings'].map((tab) => (
+          {['content', 'seo', 'settings', 'ai'].map((tab) => (
               <button
                   key={tab}
                   type="button"
-                  onClick={() => setActiveTab(tab as 'content' | 'seo' | 'settings')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  onClick={() => setActiveTab(tab as 'content' | 'seo' | 'settings' | 'ai')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
                       activeTab === tab 
                       ? 'border-blue-500 text-blue-600' 
                       : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
               >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {tab === 'ai' && <Sparkles className="w-4 h-4" />}
+                  {tab === 'ai' ? 'AI Generator' : tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
           ))}
       </div>
@@ -370,6 +452,113 @@ export default function NewPostPage() {
                         <option value="zh-CN">Chinese (Simplified)</option>
                         <option value="zh-TW">Chinese (Traditional)</option>
                     </select>
+                </div>
+            </div>
+        )}
+
+        {/* AI TAB */}
+        {activeTab === 'ai' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Topic / Title (Required)</label>
+                        <input 
+                            type="text" 
+                            maxLength={100}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="e.g. Top 10 Shopify Apps for Dropshipping in 2025"
+                            value={aiConfig.title}
+                            onChange={e => setAiConfig({ ...aiConfig, title: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1 text-right">{aiConfig.title.length}/100</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Keywords (5-10 recommended)</label>
+                        <textarea 
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            placeholder="e.g. shopify apps, dropshipping tools, ecommerce automation"
+                            value={aiConfig.keywords}
+                            onChange={e => setAiConfig({ ...aiConfig, keywords: e.target.value })}
+                        ></textarea>
+                        <p className="text-xs text-gray-500 mt-1">Separate keywords with commas.</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Requirements</label>
+                        <textarea 
+                            rows={5}
+                            maxLength={500}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            placeholder="Specific instructions for the AI (e.g. Focus on free tools, include a comparison table, tone should be professional but friendly...)"
+                            value={aiConfig.requirements}
+                            onChange={e => setAiConfig({ ...aiConfig, requirements: e.target.value })}
+                        ></textarea>
+                        <p className="text-xs text-gray-500 mt-1 text-right">{aiConfig.requirements.length}/500</p>
+                    </div>
+
+                    <div className="pt-2">
+                        <button 
+                            type="button" 
+                            onClick={handleAiGenerate}
+                            disabled={aiGenerating || !aiConfig.title}
+                            className="w-full flex items-center justify-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-all shadow-sm"
+                        >
+                            {aiGenerating ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                                    Generating content...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="w-5 h-5 mr-2" />
+                                    Generate Blog Post
+                                </>
+                            )}
+                        </button>
+                        {aiError && (
+                            <p className="text-red-600 text-sm mt-2 text-center">{aiError}</p>
+                        )}
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <h3 className="font-medium text-gray-700">Generated Content Preview</h3>
+                        {aiOutput && (
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handleAiGenerate()}
+                                    disabled={aiGenerating}
+                                    className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                                    title="Regenerate"
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={applyAiContent}
+                                    className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                                >
+                                    <Copy className="w-3 h-3 mr-1.5" />
+                                    Use This Content
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="border border-gray-200 rounded-lg p-4 h-[600px] overflow-y-auto bg-gray-50 prose prose-sm max-w-none">
+                        {aiOutput ? (
+                            <div dangerouslySetInnerHTML={{ __html: aiOutput }} />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                                <Sparkles className="w-12 h-12 mb-3 text-gray-300" />
+                                <p>AI generated content will appear here.</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         )}
