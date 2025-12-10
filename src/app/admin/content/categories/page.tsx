@@ -66,9 +66,16 @@ export default function CategoriesPage() {
       })
 
       if (!res.ok) throw new Error('Failed to create category')
+      const data = await res.json()
       
       setNewCategory({ title: '', description: '' })
-      fetchCategories()
+      // Optimistically update the list with the returned category
+      if (data.category) {
+          setCategories(prev => [...prev, data.category].sort((a, b) => a.title.localeCompare(b.title)))
+      } else {
+          // Fallback if no category returned (though API should return it)
+          fetchCategories()
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e))
     } finally {
@@ -95,7 +102,7 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 w-full max-w-full">
       <div className="mb-6 flex items-center justify-between">
         <Link href="/admin/content" className="flex items-center text-gray-500 hover:text-gray-900">
             <ArrowLeft className="w-4 h-4 mr-2" />

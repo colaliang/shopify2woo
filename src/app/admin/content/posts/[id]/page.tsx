@@ -6,6 +6,8 @@ import { Save, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import supabase from '@/lib/supabase'
 
+import { RichTextEditor } from '@/components/admin/editor/RichTextEditor'
+
 export default function EditPostPage() {
   const router = useRouter()
   const params = useParams()
@@ -39,9 +41,13 @@ export default function EditPostPage() {
             
             if (postData.post) {
                 const p = postData.post
-                // Extract text from portable text blocks roughly
                 let bodyText = ''
-                if (Array.isArray(p.body)) {
+                
+                // Prioritize bodyHtml (from Tiptap/AI)
+                if (p.bodyHtml) {
+                    bodyText = p.bodyHtml
+                } else if (Array.isArray(p.body)) {
+                    // Fallback to extracting text from portable text blocks
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     bodyText = p.body.map((b: any) => b.children?.map((c: any) => c.text).join('')).join('\n\n')
                 }
@@ -62,23 +68,34 @@ export default function EditPostPage() {
     init()
   }, [params?.id])
 
+  async function handleEditorImageUpload(file: File): Promise<string> {
+    const form = new FormData()
+    form.append('file', file)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+
+    const res = await fetch('/api/admin/upload/sanity', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: form
+    })
+
+    if (!res.ok) throw new Error('Upload failed')
+    const data = await res.json()
+    return data.asset.url
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
 
     try {
-      // Reconstruct simplified portable text
-      const blocks = formData.body.split('\n\n').map(para => ({
-        _type: 'block',
-        style: 'normal',
-        children: [{ _type: 'span', text: para }],
-        markDefs: []
-      }))
-
       const payload = {
         title: formData.title,
         slug: { _type: 'slug', current: formData.slug },
-        body: blocks,
+        bodyHtml: formData.body, // Save HTML content
+        body: [], // Clear standard body to avoid conflicts
         // Only update category if selected
         ...(formData.categoryId ? { categories: [{ _type: 'reference', _ref: formData.categoryId }] } : {})
       }
@@ -108,7 +125,7 @@ export default function EditPostPage() {
   if (fetching) return <div className="p-8 text-center">Loading...</div>
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 w-full max-w-full">
       <div className="mb-6 flex items-center justify-between">
         <Link href="/admin/content" className="flex items-center text-gray-500 hover:text-gray-900">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -156,12 +173,11 @@ export default function EditPostPage() {
 
         <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
-            <textarea 
-                rows={10}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md font-sans"
-                value={formData.body}
-                onChange={e => setFormData({ ...formData, body: e.target.value })}
-            ></textarea>
+            <RichTextEditor 
+                content={formData.body}
+                onChange={(html) => setFormData({ ...formData, body: html })}
+                onImageUpload={handleEditorImageUpload}
+            />
         </div>
 
         <div className="flex justify-end pt-4 border-t">

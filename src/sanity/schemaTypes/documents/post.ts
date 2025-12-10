@@ -58,7 +58,7 @@ export const post = defineType({
       title: 'Body (HTML)',
       type: 'text',
       group: 'content',
-      description: 'Raw HTML content from external editors (e.g. Tiptap)',
+      description: 'Raw HTML content from external editors (e.g. Tiptap). This field stores AI-generated content.',
     }),
     defineField({
       name: 'body',

@@ -224,13 +224,32 @@ export default function NewPostPage() {
     e.preventDefault()
     setLoading(true)
 
-      try {
+    try {
+      // Logic to handle AI content if user publishes directly from AI tab
+      let submitData = { ...formData };
+      
+      if (activeTab === 'ai' && aiOutput) {
+          // If we are on AI tab and have output, use it for submission
+          const title = aiConfig.title || formData.title;
+          submitData = {
+              ...submitData,
+              title: title,
+              slug: formData.slug || generateSlug(title),
+              body: aiOutput, // Use AI output as body
+              seo: {
+                  ...submitData.seo,
+                  metaTitle: title,
+                  metaDescription: aiOutput.replace(/<[^>]*>/g, '').slice(0, 150) + '...'
+              }
+          };
+      }
+
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
 
       const payload = {
-        title: formData.title,
-        slug: { _type: 'slug', current: formData.slug || generateSlug(formData.title) },
+        title: submitData.title,
+        slug: { _type: 'slug', current: submitData.slug || generateSlug(submitData.title) },
         // Use raw HTML body. Sanity schema needs to handle this or we convert HTML to Portable Text.
         // For now, let's assume we are storing it as a custom HTML block or we need a converter.
         // However, standard Sanity 'block' type expects Portable Text. 
@@ -255,28 +274,28 @@ export default function NewPostPage() {
         // Let's simply store it as a string field `contentHtml` if the schema allows, 
         // or just dump it into the body text for now.
         // Actually, let's update the post schema to have a `bodyHtml` field to store the raw HTML from Tiptap.
-        bodyHtml: formData.body, 
+        bodyHtml: submitData.body, 
         // We still send `body` for compatibility with Studio (maybe empty or stripped text)
         body: [],
-        categories: formData.categoryId ? [{ _type: 'reference', _ref: formData.categoryId }] : [],
-        publishedAt: new Date(formData.publishedAt).toISOString(),
-        language: formData.language,
+        categories: submitData.categoryId ? [{ _type: 'reference', _ref: submitData.categoryId }] : [],
+        publishedAt: new Date(submitData.publishedAt).toISOString(),
+        language: submitData.language,
         
         // Image
-        ...(formData.mainImageAssetId ? {
+        ...(submitData.mainImageAssetId ? {
             mainImage: {
                 _type: 'image',
-                asset: { _type: 'reference', _ref: formData.mainImageAssetId },
-                alt: formData.title // Default alt to title
+                asset: { _type: 'reference', _ref: submitData.mainImageAssetId },
+                alt: submitData.title // Default alt to title
             }
         } : {}),
 
         // SEO
         seo: {
             _type: 'seo',
-            metaTitle: formData.seo.metaTitle || formData.title,
-            metaDescription: formData.seo.metaDescription,
-            noIndex: formData.seo.noIndex
+            metaTitle: submitData.seo.metaTitle || submitData.title,
+            metaDescription: submitData.seo.metaDescription,
+            noIndex: submitData.seo.noIndex
         }
       }
 
