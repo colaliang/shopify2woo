@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Tag, FileText } from 'lucide-react'
+import { Plus, Edit, Trash2, Tag, FileText, Settings, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 
 interface Post {
@@ -54,6 +54,22 @@ export default function ContentDashboard() {
             <p className="text-gray-500 text-sm mt-1">Manage blog posts, categories and site settings.</p>
         </div>
         <div className="flex gap-2">
+            <Link 
+                href="/studio"
+                target="_blank"
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
+                title="Open full Sanity Studio for advanced editing"
+            >
+                <ExternalLink className="w-4 h-4" />
+                Open Studio
+            </Link>
+            <Link 
+                href="/admin/content/settings"
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+                <Settings className="w-4 h-4" />
+                Site Settings
+            </Link>
             <Link 
                 href="/admin/content/categories"
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
