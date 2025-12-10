@@ -1,4 +1,4 @@
-# 更新日志 (Changelog)
+# 云店+WooCommerce产品导入助手 Yundian+ WooCommerce Importer更新日志 (Changelog)
 
 本项目 `shopify2woo-web` 的更新记录将在此文件中记录。
 
@@ -38,8 +38,33 @@
     - 优化Sanity数据模型（Schema）以满足Google和百度SEO最佳实践要求
     - 集成专业的 Rich Text Editor Tiptap
 
-    - 接入Deepseek AI，根据要求生成Blog
+    - 接入Deepseek AI，根据要求生成Blog, 测试生成：
+      Comparison of Woo product import tools
+
+      WooCommerce product import tools, 
+      Best WooCommerce import plugins,
+      How to import products to WooCommerce,
+      WooCommerce CSV import,
+      WooCommerce product import plugin comparison,
+      WooCommerce import tool reviews,
+      CSV import for WooCommerce products,
+      Automate WooCommerce product import,
+      Import products from Shopify/Aliexpress to WooCommerce,
+      WooCommerce import tool pricing,
+      Product Import Export for WooCommerce,
+      WP All Import,
+      Woo Import Export,
+      Importify WooCommerce
     
+      1. In a comparison of multiple tools, Yundian+ WooCommerce Importer stands out for its advantages: no source website API required, image support, batch import capability, and significantly improved efficiency.
+      2. New registrations receive 30 free import points.
+      3. Supports Shopify, WordPress, and Wix.
+      4. Purchase credits as needed; no subscription required.
+      5. Content Structure:
+      Introduction, Evaluation Criteria, Detailed Explanation of Sub-tools, Comparison and Summary Table, Final Recommendation
+
+
+
    
 8. **增加WordPress插件版**
    - 增加WordPress插件版，用户可以在WordPress后台直接安装使用，无须配置Woo API。

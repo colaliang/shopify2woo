@@ -67,6 +67,27 @@ export default function NewPostPage() {
       .replace(/(^-|-$)+/g, '')
   }
 
+  // Load cached AI content on mount
+  useEffect(() => {
+      const cached = localStorage.getItem('admin_ai_generated_content')
+      if (cached) {
+          try {
+              const parsed = JSON.parse(cached)
+              // Optional: Check if cache is too old (e.g., > 24 hours)
+              // For now, we just load it
+              setAiOutput(parsed.content || '')
+              setAiConfig(prev => ({
+                  ...prev,
+                  title: parsed.title || prev.title,
+                  keywords: parsed.keywords || prev.keywords,
+                  requirements: parsed.requirements || prev.requirements
+              }))
+          } catch (e) {
+              console.error('Failed to parse cached AI content', e)
+          }
+      }
+  }, [])
+
   async function handleAiGenerate() {
       if (!aiConfig.title) {
           setAiError('Title is required')
@@ -100,17 +121,18 @@ export default function NewPostPage() {
               throw new Error(err.error || 'Failed to generate content')
           }
 
-          if (!response.body) return;
-
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-
-          while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              const text = decoder.decode(value);
-              setAiOutput(prev => prev + text);
-          }
+          const data = await response.json()
+          const content = data.content || ''
+          setAiOutput(content)
+          
+          // Cache the result
+          localStorage.setItem('admin_ai_generated_content', JSON.stringify({
+              title: aiConfig.title,
+              keywords: aiConfig.keywords,
+              requirements: aiConfig.requirements,
+              content: content,
+              timestamp: Date.now()
+          }))
 
       } catch (e) {
           setAiError(e instanceof Error ? e.message : String(e))
@@ -135,6 +157,9 @@ export default function NewPostPage() {
               metaDescription: aiOutput.replace(/<[^>]*>/g, '').slice(0, 150) + '...'
           }
       }))
+      
+      // Clear cache after applying
+      localStorage.removeItem('admin_ai_generated_content')
       
       // Switch to content tab
       setActiveTab('content')
@@ -278,7 +303,7 @@ export default function NewPostPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 w-full max-w-full">
       <div className="mb-6 flex items-center justify-between">
         <Link href="/admin/content" className="flex items-center text-gray-500 hover:text-gray-900">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -549,11 +574,15 @@ export default function NewPostPage() {
                         )}
                     </div>
                     
-                    <div className="border border-gray-200 rounded-lg p-4 h-[600px] overflow-y-auto bg-gray-50 prose prose-sm max-w-none">
+                    <div className="border border-gray-200 rounded-lg h-[600px] overflow-hidden bg-white">
                         {aiOutput ? (
-                            <div dangerouslySetInnerHTML={{ __html: aiOutput }} />
+                            // Use the same RichTextEditor in read-only mode (or interactive but disconnected from form) for preview
+                            // Actually, let's just render it as HTML but styled like the editor
+                            <div className="h-full overflow-y-auto p-4 prose prose-sm sm:prose lg:prose-lg max-w-none">
+                                <div dangerouslySetInnerHTML={{ __html: aiOutput }} />
+                            </div>
                         ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                            <div className="flex flex-col items-center justify-center h-full text-gray-400 p-4">
                                 <Sparkles className="w-12 h-12 mb-3 text-gray-300" />
                                 <p>AI generated content will appear here.</p>
                             </div>

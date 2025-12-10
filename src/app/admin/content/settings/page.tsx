@@ -99,7 +99,7 @@ export default function SiteSettingsPage() {
   if (fetching) return <div className="p-8 text-center">Loading settings...</div>
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 w-full max-w-full">
       <div className="mb-6 flex items-center justify-between">
         <Link href="/admin/content" className="flex items-center text-gray-500 hover:text-gray-900">
             <ArrowLeft className="w-4 h-4 mr-2" />
