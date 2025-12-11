@@ -139,6 +139,30 @@ export const post = defineType({
       },
       initialValue: 'BlogPosting',
     }),
+    defineField({
+      name: 'faq',
+      title: 'FAQ Schema',
+      type: 'array',
+      group: 'seo',
+      description: 'Frequently Asked Questions for Schema.org markup',
+      of: [
+        {
+          type: 'object',
+          fields: [
+            { name: 'question', type: 'string', title: 'Question' },
+            { name: 'answer', type: 'text', title: 'Answer' }
+          ]
+        }
+      ]
+    }),
+    defineField({
+      name: 'keyTakeaways',
+      title: 'Key Takeaways (TL;DR)',
+      type: 'array',
+      group: 'content',
+      description: 'Summary points for the top of the article',
+      of: [{ type: 'string' }]
+    }),
 
     // Internal Linking / Quality
     defineField({

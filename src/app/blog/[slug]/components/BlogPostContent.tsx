@@ -21,6 +21,13 @@ interface Post {
   body?: unknown[];
   excerpt?: string;
   categories: { title: string; slug: { current: string } }[];
+  keyTakeaways?: string[];
+  faq?: { question: string; answer: string }[];
+  seo?: {
+      metaTitle?: string
+      metaDescription?: string
+      schemaType?: string
+  }
 }
 
 interface BlogPostContentProps {
@@ -36,8 +43,38 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
   const day = date.getDate().toString().padStart(2, "0");
   const month = date.toLocaleString(i18n.language, { month: "short" });
 
+  // Generate Structured Data (JSON-LD)
+  const schemaData = {
+    "@context": "https://schema.org",
+    "@type": post.seo?.schemaType || "BlogPosting",
+    "headline": post.seo?.metaTitle || post.title,
+    "description": post.seo?.metaDescription || post.excerpt,
+    "image": post.mainImage ? urlFor(post.mainImage).width(1200).height(630).url() : undefined,
+    "datePublished": post.publishedAt,
+    "dateModified": post.publishedAt, // Should be updated date if available
+    "author": {
+      "@type": "Person",
+      "name": "Admin" // Default author or fetch from post.author
+    },
+    ...(post.faq && post.faq.length > 0 ? {
+        "mainEntity": post.faq.map(item => ({
+            "@type": "Question",
+            "name": item.question,
+            "acceptedAnswer": {
+                "@type": "Answer",
+                "text": item.answer
+            }
+        }))
+    } : {})
+  };
+
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-12">
+        <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
+        />
+
       <div className="flex flex-col lg:flex-row gap-12 justify-center max-w-[1920px] mx-auto">
         {/* Main Content (Left) */}
         <article className="lg:w-2/3 xl:w-3/5">
@@ -71,6 +108,23 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
                 {post.title}
               </h1>
 
+              {/* Key Takeaways */}
+              {post.keyTakeaways && post.keyTakeaways.length > 0 && (
+                  <div className="mb-10 p-6 bg-blue-50 rounded-xl border border-blue-100">
+                      <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center">
+                          <span className="mr-2">✨</span> Key Takeaways (TL;DR)
+                      </h3>
+                      <ul className="space-y-2">
+                          {post.keyTakeaways.map((point, idx) => (
+                              <li key={idx} className="flex items-start text-blue-800">
+                                  <span className="mr-2 text-blue-500">•</span>
+                                  <span>{point}</span>
+                              </li>
+                          ))}
+                      </ul>
+                  </div>
+              )}
+
               {/* Content */}
               {post.bodyMarkdown ? (
                 <ContentRenderer markdown={post.bodyMarkdown} />
@@ -80,6 +134,21 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
                 <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 text-yellow-800">
                   {t("blog.no_content")}
                 </div>
+              )}
+
+              {/* FAQ Section */}
+              {post.faq && post.faq.length > 0 && (
+                  <div className="mt-12 pt-8 border-t border-gray-100">
+                      <h2 className="text-2xl font-bold text-gray-900 mb-6">Frequently Asked Questions</h2>
+                      <div className="space-y-6">
+                          {post.faq.map((item, idx) => (
+                              <div key={idx} className="bg-gray-50 rounded-lg p-6">
+                                  <h3 className="text-lg font-bold text-gray-900 mb-2">{item.question}</h3>
+                                  <p className="text-gray-700">{item.answer}</p>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
               )}
 
               {/* Footer / Tags */}

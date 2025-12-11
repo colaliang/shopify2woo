@@ -14,6 +14,8 @@ interface AiResult {
   body?: string
   excerpt?: string
   tags?: string[]
+  keyTakeaways?: string[]
+  faq?: { question: string; answer: string }[]
   seo?: {
     metaTitle?: string
     metaDescription?: string
@@ -43,6 +45,8 @@ export default function NewPostPage() {
     // New fields
     mainImageAssetId: '',
     tags: [] as string[],
+    keyTakeaways: [] as string[],
+    faq: [] as { question: string; answer: string }[],
     schemaType: 'BlogPosting',
     seo: {
         metaTitle: '',
@@ -204,6 +208,8 @@ export default function NewPostPage() {
           body: body,
           excerpt: content.excerpt || prev.excerpt,
           tags: content.tags || prev.tags,
+          keyTakeaways: content.keyTakeaways || prev.keyTakeaways,
+          faq: content.faq || prev.faq,
           schemaType: content.seo?.schemaType || prev.schemaType,
           seo: {
               ...prev.seo,
@@ -306,6 +312,8 @@ export default function NewPostPage() {
               body: body, // Use AI output as body (Markdown)
               excerpt: content.excerpt || submitData.excerpt,
               tags: content.tags || submitData.tags,
+              keyTakeaways: content.keyTakeaways || submitData.keyTakeaways,
+              faq: content.faq || submitData.faq,
               schemaType: content.seo?.schemaType || submitData.schemaType,
               seo: {
                   ...submitData.seo,
@@ -338,6 +346,12 @@ export default function NewPostPage() {
         excerpt: submitData.excerpt,
         categories: submitData.categoryId ? [{ _type: 'reference', _ref: submitData.categoryId, _key: Math.random().toString(36).substring(7) }] : [],
         tags: submitData.tags,
+        keyTakeaways: submitData.keyTakeaways,
+        faq: submitData.faq?.map(f => ({
+            _key: Math.random().toString(36).substring(7),
+            question: f.question,
+            answer: f.answer
+        })),
         publishedAt: new Date(submitData.publishedAt).toISOString(),
         language: submitData.language,
         schemaType: submitData.schemaType,

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { checkAdmin } from '@/lib/adminAuth';
 
-export const runtime = 'nodejs'; // Switch back to nodejs as we don't need edge streaming anymore
+export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   // 1. Check Auth
@@ -18,15 +18,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { title, keywords, requirements, language = 'en' } = await req.json();
+    const { title, body, keywords, requirements, language = 'en' } = await req.json();
 
-    if (!title) {
-        return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+    if (!title && !body) {
+        return NextResponse.json({ error: 'Title or Body is required for optimization' }, { status: 400 });
     }
 
     // 3. Construct Prompt
-    const systemPrompt = `You are an SEO marketing expert and GEO optimization expert, specializing in writing software tool recommendation content.
-    Your goal is to write a high-quality blog post that is optimized for search engines (Google, Bing, Baidu) and meets mainstream AI content indexing standards (E-E-A-T).
+    const systemPrompt = `You are an SEO marketing expert and content editor.
+    Your goal is to OPTIMIZE an existing blog post to be high-quality, SEO-friendly, and meet E-E-A-T standards.
     
     Requirements:
     - Language: ${language === 'zh-CN' ? 'Simplified Chinese' : language === 'zh-TW' ? 'Traditional Chinese' : 'English'}
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     {
       "title": "Optimized Blog Title (max 60 chars)",
       "slug": "url-friendly-slug-based-on-title",
-      "body": "The full blog post content in Markdown format. Use H2/H3, bullet points, tables. Structure content clearly with 'Problem-Solution' flow.",
+      "body": "The full OPTIMIZED blog post content in Markdown format. Improve grammar, structure, and readability. Ensure 'Problem-Solution' flow.",
       "excerpt": "A short summary (max 160 chars) for list views.",
       "keyTakeaways": ["Point 1", "Point 2", "Point 3"],
       "faq": [
@@ -52,27 +52,40 @@ export async function POST(req: Request) {
         "title": "Social sharing title",
         "description": "Social sharing description"
       },
-      "tags": ["tag1", "tag2", "tag3"]
+      "tags": ["tag1", "tag2", "tag3"],
+      "suggestedExternalLinks": [
+         { "anchor": "anchor text in body", "url": "https://example.com/relevant-resource", "reason": "Reason for inclusion" }
+      ],
+      "suggestedInternalLinks": [
+         { "anchor": "anchor text in body", "slug": "slug-of-internal-post", "reason": "Reason for inclusion" }
+      ]
     }
 
-    Content Guidelines:
-    - Length: 800-1500 words for the 'body' field.
-    - SEO: Naturally integrate keywords (density 3-5%).
-    - E-E-A-T: Include expert insights, pros/cons for products, and practical use cases.
-    - Structure: Use clear H2/H3 headings. Use "Key Takeaways" at the start (in JSON field). Use "FAQ" at the end (in JSON field).
-    - Tables: Use responsive Markdown tables where appropriate.
-    - Tone: Professional, helpful, authoritative yet accessible.
+    Optimization Guidelines:
+    1. **Content Enhancement**: Fix grammar, improve flow, and ensure professional tone. Keep original meaning but make it better.
+    2. **Field Completion**: Fill ALL missing fields in the JSON schema based on the content.
+    3. **SEO & E-E-A-T**:
+       - Integrate keywords naturally (density 3-5%).
+       - Add "Key Takeaways" and "FAQ" if missing.
+       - Ensure meta tags are perfect.
+    4. **Linking Strategy**:
+       - Suggest 2-3 high-quality EXTERNAL links (authoritative sources like Wikipedia, industry reports, official docs) relevant to the content.
+       - Suggest 2-3 INTERNAL links (conceptual) - since you don't know the full site map, suggest topics/slugs that *might* exist or general pages like '/contact', '/pricing'.
+    5. **Multimedia**:
+       - The 'body' markdown should include existing images.
+       - If existing images lack ALT text, please suggest improved ALT text in the markdown (e.g. ![Optimized Alt Text](url)).
     `;
 
     const userPrompt = `
-    Blog Title: ${title}
+    Original Title: ${title}
+    Original Body: ${body}
     Target Keywords: ${Array.isArray(keywords) ? keywords.join(', ') : keywords}
     Specific Requirements: ${requirements || 'None'}
     
-    Please write the article now and return ONLY the JSON object.
+    Please OPTIMIZE this article now and return ONLY the JSON object.
     `;
 
-    // 4. Call Deepseek API (Non-streaming)
+    // 4. Call Deepseek API
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
@@ -85,10 +98,10 @@ export async function POST(req: Request) {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        stream: false, // Disable streaming
-        temperature: 0.7,
-        max_tokens: 4000, // Increased token limit for JSON overhead
-        response_format: { type: 'json_object' } // Force JSON output if supported (Deepseek might not support this explicit flag yet, but prompt engineering works)
+        stream: false,
+        temperature: 0.5, // Lower temperature for optimization/editing
+        max_tokens: 4000,
+        response_format: { type: 'json_object' }
       }),
     });
 
@@ -104,7 +117,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ content });
 
   } catch (e) {
-    console.error('AI Generation Error:', e);
+    console.error('AI Optimization Error:', e);
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }

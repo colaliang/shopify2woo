@@ -24,10 +24,13 @@ type SanityImageSource = any
   body?: unknown[]
   excerpt?: string
   categories: { title: string; slug: { current: string } }[]
+  keyTakeaways?: string[]
+  faq?: { question: string; answer: string }[]
   seo?: {
       metaTitle?: string
       metaDescription?: string
       noIndex?: boolean
+      schemaType?: string
   }
 }
 
@@ -46,8 +49,11 @@ async function getPost(slug: string): Promise<Post | null> {
     bodyMarkdown,
     body,
     excerpt,
+    keyTakeaways,
+    faq,
     "categories": categories[]->{title, slug},
-    seo
+    seo,
+    schemaType
   }`
   
   return await client.fetch(query, { slug })
