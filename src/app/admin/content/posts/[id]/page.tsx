@@ -272,9 +272,9 @@ export default function EditPostPage() {
         </div>
 
         <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt (Markdown supported)</label>
             <textarea 
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm font-mono"
                 rows={3}
                 value={formData.excerpt}
                 onChange={e => setFormData({ ...formData, excerpt: e.target.value })}

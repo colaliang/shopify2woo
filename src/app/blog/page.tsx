@@ -3,6 +3,9 @@ import Link from 'next/link'
 import BlogHeader from './components/BlogHeader'
 import { Search, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
 import { Metadata } from 'next'
+import MarkdownIt from 'markdown-it'
+
+const md = new MarkdownIt({ html: true, breaks: true })
 
 // Simplified type definition to avoid import errors
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,6 +176,9 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                   const day = date.getDate().toString().padStart(2, '0')
                   const month = date.toLocaleString(dateLocale, { month: 'short' })
                   
+                  // Render excerpt as markdown if present
+                  const excerptHtml = post.excerpt ? md.render(post.excerpt) : ''
+
                   return (
                   <div key={post._id} className="group rounded-none sm:rounded-xl overflow-hidden">
                     {/* Image */}
@@ -207,9 +213,10 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                         </h2>
                       </Link>
                       
-                      <p className="text-gray-600 text-base leading-relaxed mb-6 line-clamp-3">
-                        {post.excerpt}
-                      </p>
+                      <div 
+                        className="text-gray-600 text-base leading-relaxed mb-6 line-clamp-3 prose prose-sm max-w-none"
+                        dangerouslySetInnerHTML={{ __html: excerptHtml }}
+                      />
                       
                       <div className="flex items-center justify-between border-t border-gray-100 pt-6">
                         <Link href={`/blog/${post.slug.current}`} className="inline-flex items-center text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors uppercase tracking-wide">
