@@ -233,6 +233,21 @@
       "submit": "提交",
       "submitting": "提交中...",
       "error": "提交失败，请稍后重试"
-    }
+  },
+  "blog": {
+    "share_article": "分享文章：",
+    "read_more": "阅读更多",
+    "recent_posts": "最新文章",
+    "categories": "分类",
+    "all_posts": "所有文章",
+    "search": "搜索",
+    "no_posts": "暂无文章",
+    "try_adjusting": "尝试调整搜索或过滤条件。",
+    "clear_filters": "清除所有过滤",
+    "no_content": "该文章暂无内容。",
+    "back_to_blog": "返回博客",
+    "table_of_contents": "目录",
+    "show": "显示",
+    "hide": "隐藏"
   }
 }

@@ -234,5 +234,21 @@
       "submitting": "Submitting...",
       "error": "Submission failed, please try again later"
     }
+  },
+  "blog": {
+    "share_article": "Share this article:",
+    "read_more": "Read More",
+    "recent_posts": "Recent Posts",
+    "categories": "Categories",
+    "all_posts": "All Posts",
+    "search": "Search",
+    "no_posts": "No posts found",
+    "try_adjusting": "Try adjusting your search or filter.",
+    "clear_filters": "Clear all filters",
+    "no_content": "This post does not have content available.",
+    "back_to_blog": "Back to Blog",
+    "table_of_contents": "Table of Contents",
+    "show": "show",
+    "hide": "hide"
   }
 }
