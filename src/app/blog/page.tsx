@@ -39,19 +39,23 @@ interface Category {
 // Data Fetching
 // -----------------------------------------------------------------------------
 async function getPosts(search?: string, category?: string, language?: string, page = 1, limit = 9) {
+  // Diagnostic fetch to check what is actually in the database
+  const allPostsRaw = await client.fetch(`*[_type == "post"] { _id, title, language, slug }`, {}, { next: { revalidate: 0 } })
+  console.log('[Blog Debug] RAW DATA DUMP:', allPostsRaw)
+
   const start = (page - 1) * limit
   const end = start + limit
 
-  let filter = `*[_type == "post" && defined(slug.current)]`
+  let conditions = `_type == "post" && defined(slug.current)`
   const params: Record<string, string | number> = {}
 
   if (search) {
-    filter += ` && (title match $search || pt::text(body) match $search)`
+    conditions += ` && (title match $search || pt::text(body) match $search)`
     params.search = `*${search}*`
   }
 
   if (category) {
-    filter += ` && $category in categories[]->slug.current`
+    conditions += ` && $category in categories[]->slug.current`
     params.category = category
   }
 
@@ -62,12 +66,14 @@ async function getPosts(search?: string, category?: string, language?: string, p
       // 2. Undefined (legacy posts)
       // 3. Empty string
       // 4. Case insensitive match (just in case)
-      filter += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
+      conditions += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
     } else {
-      filter += ` && language == $language`
+      conditions += ` && language == $language`
     }
     params.language = language
   }
+
+  const filter = `*[${conditions}]`
 
   console.log('[Blog Debug] Filter:', filter)
   console.log('[Blog Debug] Params:', params)
@@ -97,19 +103,19 @@ async function getPosts(search?: string, category?: string, language?: string, p
 }
 
 async function getRecentPosts(language?: string) {
-  let filter = `*[_type == "post" && defined(slug.current)]`
+  let conditions = `_type == "post" && defined(slug.current)`
   const params: Record<string, string> = {}
 
   if (language) {
     if (language === 'en') {
-      filter += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
+      conditions += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
     } else {
-      filter += ` && language == $language`
+      conditions += ` && language == $language`
     }
     params.language = language
   }
 
-  const posts = await client.fetch(`${filter} | order(publishedAt desc) [0...5] {
+  const posts = await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {
     _id,
     title,
     slug,
