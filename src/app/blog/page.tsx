@@ -1,6 +1,5 @@
 import { client, urlFor } from '@/lib/sanity'
 import Link from 'next/link'
-import BlogHeader from './components/BlogHeader'
 import { Search, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
 import { Metadata } from 'next'
 
@@ -121,8 +120,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <BlogHeader />
-
+      
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex flex-col lg:flex-row gap-12">
@@ -254,25 +252,25 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                 <div className="space-y-6">
                     {recentPosts.map((post: Post) => (
                         <Link key={post._id} href={`/blog/${post.slug.current}`} className="flex gap-4 group">
-                            <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
+                            <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
                                 {post.mainImage ? (
                                     /* eslint-disable-next-line @next/next/no-img-element */
                                     <img 
-                                        src={urlFor(post.mainImage).width(160).height(160).url()}
+                                        src={urlFor(post.mainImage).width(200).height(200).url()}
                                         alt={post.title}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        <ImageIcon className="w-6 h-6" />
+                                        <ImageIcon className="w-8 h-8" />
                                     </div>
                                 )}
                             </div>
-                            <div className="flex-1">
-                                <h4 className="text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">
+                            <div className="flex-1 flex flex-col justify-between py-1 h-24">
+                                <h4 className="text-base font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors leading-snug">
                                     {post.title}
                                 </h4>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 font-medium">
                                     {new Date(post.publishedAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
                                 </div>
                             </div>
