@@ -137,11 +137,11 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
       <BlogHeader />
       
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex flex-col lg:flex-row gap-12">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex flex-col lg:flex-row gap-12 justify-center max-w-[1920px] mx-auto">
           
           {/* Posts List (Left Column) */}
-          <div className="lg:w-2/3 xl:w-3/4">
+          <div className="lg:w-2/3 xl:w-3/5">
             {posts.length > 0 ? (
               <div className="space-y-12">
                 {posts.map((post: Post) => {
@@ -243,7 +243,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
           </div>
 
           {/* Sidebar (Right Column) */}
-          <aside className="lg:w-1/3 xl:w-1/4 space-y-12">
+          <aside className="lg:w-1/3 xl:w-1/5 space-y-12 sticky top-8 self-start">
             
             {/* Search */}
             <div>
