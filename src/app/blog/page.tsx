@@ -8,6 +8,9 @@ import { Metadata } from 'next'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SanityImageSource = any
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export const metadata: Metadata = {
   title: 'Blog - Insights & Updates',
   description: 'Latest news, tutorials, and insights about e-commerce and dropshipping.',
@@ -64,7 +67,7 @@ async function getPosts(search?: string, category?: string, language?: string, p
 
   // Count total for pagination
   const countQuery = `count(${filter})`
-  const total = await client.fetch(countQuery, params)
+  const total = await client.fetch(countQuery, params, { next: { revalidate: 0 } })
 
   // Fetch posts
   const query = `${filter} | order(publishedAt desc) [${start}...${end}] {
@@ -77,7 +80,7 @@ async function getPosts(search?: string, category?: string, language?: string, p
     "categories": categories[]->{title, slug}
   }`
   
-  const posts = await client.fetch(query, params)
+  const posts = await client.fetch(query, params, { next: { revalidate: 0 } })
   
   return { posts: posts || [], total: total || 0 }
 }
@@ -101,7 +104,7 @@ async function getRecentPosts(language?: string) {
     slug,
     publishedAt,
     mainImage
-  }`, params)
+  }`, params, { next: { revalidate: 0 } })
   return posts || []
 }
 

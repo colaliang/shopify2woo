@@ -120,19 +120,6 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
       {/* Navigation Bar */}
       <div className="sticky top-0 bg-white/90 backdrop-blur-md z-40 shadow-sm">
         <BlogHeader />
-        <div className="border-b border-gray-100">
-            <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between text-sm">
-                <Link href="/blog" className="flex items-center text-gray-600 hover:text-blue-600 transition-colors font-medium">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Blog
-                </Link>
-                <div className="flex items-center gap-4">
-                    <button className="text-gray-400 hover:text-gray-600 transition-colors" title="Share">
-                        <Share2 className="w-4 h-4" />
-                    </button>
-                </div>
-            </div>
-        </div>
       </div>
 
       <BlogPostContent post={post} recentPosts={recentPosts} categories={categories} />
