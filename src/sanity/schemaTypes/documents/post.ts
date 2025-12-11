@@ -182,9 +182,17 @@ export const post = defineType({
         options: {
             list: [
                 { title: 'English', value: 'en' },
+                { title: 'French', value: 'fr' },
+                { title: 'German', value: 'de' },
+                { title: 'Spanish', value: 'es' },
+                { title: 'Italian', value: 'it' },
+                { title: 'Russian', value: 'ru' },
+                { title: 'Portuguese', value: 'pt' },
                 { title: 'Chinese (Simplified)', value: 'zh-CN' },
                 { title: 'Chinese (Traditional)', value: 'zh-TW' },
-                // Add more as needed
+                { title: 'Japanese', value: 'ja' },
+                { title: 'Korean', value: 'ko' },
+                { title: 'Arabic', value: 'ar' },
             ]
         },
         initialValue: 'en',
