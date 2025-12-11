@@ -22,29 +22,39 @@ export default function TableOfContents({ content, markdown }: TableOfContentsPr
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   useEffect(() => {
-    let htmlContent = content || ''
-    if (markdown) {
-      htmlContent = md.render(markdown)
-    }
-
-    if (!htmlContent) return
-
-    // Parse HTML content to extract headings
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(htmlContent, 'text/html')
-    const elements = Array.from(doc.querySelectorAll('h2, h3'))
-    
-    const items = elements.map((el, index) => {
-      const id = el.id || `heading-${index}`
-      return {
-        id,
-        text: el.textContent || '',
-        level: parseInt(el.tagName[1])
+    // Wait for content to be rendered in the DOM
+    const timer = setTimeout(() => {
+      let htmlContent = content || ''
+      if (markdown) {
+        htmlContent = md.render(markdown)
       }
-    })
-    
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHeadings(items)
+
+      if (!htmlContent) return
+
+      // We need to query the actual DOM to find the headings that were rendered by ContentRenderer
+      // The previous approach parsed a string which didn't match the actual DOM elements if IDs were generated dynamically
+      const articleContent = document.querySelector('.prose')
+      if (!articleContent) return
+
+      const elements = Array.from(articleContent.querySelectorAll('h2, h3'))
+      
+      const items = elements.map((el, index) => {
+        // Ensure element has an ID
+        if (!el.id) {
+          el.id = `heading-${index}`
+        }
+        
+        return {
+          id: el.id,
+          text: el.textContent || '',
+          level: parseInt(el.tagName[1])
+        }
+      })
+      
+      setHeadings(items)
+    }, 100) // Small delay to ensure DOM is ready
+
+    return () => clearTimeout(timer)
   }, [content, markdown])
 
   useEffect(() => {

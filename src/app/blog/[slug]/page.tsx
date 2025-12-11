@@ -20,6 +20,7 @@ type SanityImageSource = any
   slug: { current: string }
   mainImage: SanityImageSource
   publishedAt: string
+  language?: string
   bodyHtml?: string
   bodyMarkdown?: string
   body?: unknown[]
@@ -41,6 +42,7 @@ async function getPost(slug: string): Promise<Post | null> {
     title,
     slug,
     publishedAt,
+    language,
     mainImage,
     bodyHtml,
     bodyMarkdown,
@@ -53,14 +55,26 @@ async function getPost(slug: string): Promise<Post | null> {
   return await client.fetch(query, { slug })
 }
 
-async function getRecentPosts() {
-  return await client.fetch(`*[_type == "post" && defined(slug.current)] | order(publishedAt desc) [0...5] {
+async function getRecentPosts(language?: string) {
+  let conditions = `_type == "post" && defined(slug.current)`
+  const params: Record<string, string> = {}
+
+  if (language) {
+    if (language === 'en') {
+      conditions += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
+    } else {
+      conditions += ` && language == $language`
+    }
+    params.language = language
+  }
+
+  return await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {
     _id,
     title,
     slug,
     publishedAt,
     mainImage
-  }`)
+  }`, params)
 }
 
 async function getCategories() {
@@ -103,15 +117,19 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
 // -----------------------------------------------------------------------------
 export default async function BlogPostPage(props: { params: Promise<{ slug: string }> }) {
   const params = await props.params
-  const [post, recentPosts, categories] = await Promise.all([
-    getPost(params.slug),
-    getRecentPosts(),
-    getCategories()
-  ])
+  const post = await getPost(params.slug)
 
   if (!post) {
     notFound()
   }
+
+  // Determine language from post data
+  const language = (post.language as string) || 'en'
+
+  const [recentPosts, categories] = await Promise.all([
+    getRecentPosts(language),
+    getCategories()
+  ])
 
   return (
     <div className="min-h-screen bg-gray-50">
