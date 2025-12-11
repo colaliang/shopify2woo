@@ -69,9 +69,13 @@ async function getPosts(search?: string, category?: string, language?: string, p
     params.language = language
   }
 
+  console.log('[Blog Debug] Filter:', filter)
+  console.log('[Blog Debug] Params:', params)
+
   // Count total for pagination
   const countQuery = `count(${filter})`
   const total = await client.fetch(countQuery, params, { next: { revalidate: 0 } })
+  console.log('[Blog Debug] Total count:', total)
 
   // Fetch posts
   const query = `${filter} | order(publishedAt desc) [${start}...${end}] {
@@ -79,12 +83,15 @@ async function getPosts(search?: string, category?: string, language?: string, p
     title,
     slug,
     publishedAt,
+    language,
     "excerpt": coalesce(excerpt, pt::text(body)[0...200] + "..."),
     mainImage,
     "categories": categories[]->{title, slug}
   }`
   
   const posts = await client.fetch(query, params, { next: { revalidate: 0 } })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  console.log('[Blog Debug] Fetched posts:', posts.length, posts.map((p: any) => ({ title: p.title, lang: p.language })))
   
   return { posts: posts || [], total: total || 0 }
 }
