@@ -79,6 +79,31 @@ export default function EditPostPage() {
   const [aiOutput, setAiOutput] = useState('')
   const [aiError, setAiError] = useState('')
 
+  // Load cached AI result on mount
+  useEffect(() => {
+    const id = params?.id
+    if (!id) return
+
+    const cached = localStorage.getItem(`admin_ai_optimize_${id}`)
+    if (cached) {
+        try {
+            const parsed = JSON.parse(cached)
+            // Optional: Check timestamp validity (e.g., 24h expiration)
+            // if (Date.now() - parsed.timestamp > 86400000) return 
+
+            if (parsed.result) {
+                setAiResult(parsed.result)
+                setAiOutput(parsed.result.body || '')
+            }
+            if (parsed.requirements) {
+                setAiConfig(prev => ({ ...prev, requirements: parsed.requirements }))
+            }
+        } catch (e) {
+            console.error('Failed to parse cached AI result', e)
+        }
+    }
+  }, [params?.id])
+
   useEffect(() => {
     const id = params?.id
     if (!id) return
@@ -248,6 +273,15 @@ export default function EditPostPage() {
           setAiOutput(bodyContent)
           setAiResult(parsedContent)
 
+          // Cache the result
+          if (params?.id) {
+            localStorage.setItem(`admin_ai_optimize_${params.id}`, JSON.stringify({
+                result: parsedContent,
+                requirements: aiConfig.requirements,
+                timestamp: Date.now()
+            }))
+          }
+
       } catch (e) {
           setAiError(e instanceof Error ? e.message : String(e))
       } finally {
@@ -286,6 +320,11 @@ export default function EditPostPage() {
               description: content.openGraph?.description || prev.openGraph.description
           }
       }))
+      
+      // Clear cache after applying
+      if (params?.id) {
+        localStorage.removeItem(`admin_ai_optimize_${params.id}`)
+      }
       
       setActiveTab('content')
   }
