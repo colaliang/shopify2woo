@@ -160,8 +160,9 @@ export default function EditPostPage() {
         publishedAt: new Date(formData.publishedAt).toISOString(),
         language: formData.language,
         // Only update category if selected
-        ...(formData.categoryId ? { categories: [{ _type: 'reference', _ref: formData.categoryId }] } : {}),
-        // Update main image if changed
+        ...(formData.categoryId ? { categories: [{ _type: 'reference', _ref: formData.categoryId, _key: Math.random().toString(36).substring(7) }] } : {}),
+        
+        // Image
         ...(formData.mainImageAssetId ? {
             mainImage: {
                 _type: 'image',

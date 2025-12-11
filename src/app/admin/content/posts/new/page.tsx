@@ -258,7 +258,7 @@ export default function NewPostPage() {
         // We still send `body` for compatibility with Studio (maybe empty or stripped text)
         body: [],
         excerpt: submitData.excerpt,
-        categories: submitData.categoryId ? [{ _type: 'reference', _ref: submitData.categoryId }] : [],
+        categories: submitData.categoryId ? [{ _type: 'reference', _ref: submitData.categoryId, _key: Math.random().toString(36).substring(7) }] : [],
         publishedAt: new Date(submitData.publishedAt).toISOString(),
         language: submitData.language,
         
