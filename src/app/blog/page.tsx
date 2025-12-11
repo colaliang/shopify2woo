@@ -1,5 +1,6 @@
 import { client, urlFor } from '@/lib/sanity'
 import Link from 'next/link'
+import BlogHeader from './components/BlogHeader'
 import { Search, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
 import { Metadata } from 'next'
 
@@ -120,6 +121,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <BlogHeader />
       
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
