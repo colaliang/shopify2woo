@@ -8,6 +8,27 @@ import supabase from '@/lib/supabase'
 import MarkdownEditor from '@/components/admin/editor/MarkdownEditor'
 import AiContentPreview from '@/components/admin/ai/AiContentPreview'
 
+interface AiResult {
+  title?: string
+  slug?: string
+  body?: string
+  excerpt?: string
+  tags?: string[]
+  seo?: {
+    metaTitle?: string
+    metaDescription?: string
+    focusKeyword?: string
+    keywords?: string[]
+    schemaType?: string
+    noIndex?: boolean
+    noFollow?: boolean
+  }
+  openGraph?: {
+    title?: string
+    description?: string
+  }
+}
+
 export default function NewPostPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -21,10 +42,19 @@ export default function NewPostPage() {
     categoryId: '',
     // New fields
     mainImageAssetId: '',
+    tags: [] as string[],
+    schemaType: 'BlogPosting',
     seo: {
         metaTitle: '',
         metaDescription: '',
-        noIndex: false
+        focusKeyword: '',
+        keywords: [] as string[],
+        noIndex: false,
+        noFollow: false
+    },
+    openGraph: {
+        title: '',
+        description: ''
     },
     publishedAt: new Date().toISOString().slice(0, 16), // Format for datetime-local
     language: 'en',
@@ -37,8 +67,9 @@ export default function NewPostPage() {
       keywords: '',
       requirements: ''
   })
+  const [aiResult, setAiResult] = useState<AiResult | null>(null) // Store full AI response object
   const [aiGenerating, setAiGenerating] = useState(false)
-  const [aiOutput, setAiOutput] = useState('')
+  const [aiOutput, setAiOutput] = useState('') // Keep for preview (body content)
   const [aiError, setAiError] = useState('')
 
   // For image preview
@@ -98,6 +129,7 @@ export default function NewPostPage() {
       
       setAiGenerating(true)
       setAiOutput('')
+      setAiResult(null)
       setAiError('')
 
       try {
@@ -124,15 +156,30 @@ export default function NewPostPage() {
           }
 
           const data = await response.json()
-          const content = data.content || ''
-          setAiOutput(content)
+          
+          let parsedContent: AiResult = {};
+          let bodyContent = '';
+
+          try {
+            // Attempt to parse JSON content
+            parsedContent = JSON.parse(data.content);
+            bodyContent = parsedContent.body || '';
+          } catch (e) {
+            // Fallback if not valid JSON (legacy or error)
+            console.warn('AI output is not valid JSON, using raw string', e);
+            bodyContent = data.content || '';
+            parsedContent = { body: bodyContent };
+          }
+
+          setAiOutput(bodyContent)
+          setAiResult(parsedContent)
           
           // Cache the result
           localStorage.setItem('admin_ai_generated_content', JSON.stringify({
               title: aiConfig.title,
               keywords: aiConfig.keywords,
               requirements: aiConfig.requirements,
-              content: content,
+              result: parsedContent,
               timestamp: Date.now()
           }))
 
@@ -144,19 +191,35 @@ export default function NewPostPage() {
   }
 
   function applyAiContent() {
-      if (!aiOutput) return;
+      if (!aiResult && !aiOutput) return;
       
+      const content = aiResult || { body: aiOutput };
+      const body = content.body || aiOutput;
+
       // Update form data with AI content
       setFormData(prev => ({
           ...prev,
-          title: aiConfig.title || prev.title, // Use AI title input if set
-          slug: generateSlug(aiConfig.title || prev.title),
-          body: aiOutput,
+          title: content.title || aiConfig.title || prev.title,
+          slug: content.slug || generateSlug(content.title || aiConfig.title || prev.title),
+          body: body,
+          excerpt: content.excerpt || prev.excerpt,
+          tags: content.tags || prev.tags,
+          schemaType: content.seo?.schemaType || prev.schemaType,
           seo: {
               ...prev.seo,
-              metaTitle: aiConfig.title || prev.title,
-              // Try to extract a meta description from the first paragraph or generic
-              metaDescription: aiOutput.replace(/<[^>]*>/g, '').slice(0, 150) + '...'
+              metaTitle: content.seo?.metaTitle || content.title || aiConfig.title || prev.title,
+              metaDescription: content.seo?.metaDescription || body.replace(/<[^>]*>/g, '').slice(0, 150) + '...',
+              focusKeyword: content.seo?.focusKeyword || prev.seo.focusKeyword,
+              keywords: content.seo?.keywords || prev.seo.keywords,
+              // Keep existing noIndex/noFollow unless explicitly set? Usually AI doesn't set these, but let's see.
+              // If AI provides them, use them, else keep default/prev.
+              noIndex: content.seo?.noIndex !== undefined ? content.seo.noIndex : prev.seo.noIndex,
+              noFollow: content.seo?.noFollow !== undefined ? content.seo.noFollow : prev.seo.noFollow,
+          },
+          openGraph: {
+              ...prev.openGraph,
+              title: content.openGraph?.title || content.seo?.metaTitle || content.title || prev.openGraph.title,
+              description: content.openGraph?.description || content.seo?.metaDescription || prev.openGraph.description
           }
       }))
       
@@ -230,19 +293,34 @@ export default function NewPostPage() {
       // Logic to handle AI content if user publishes directly from AI tab
       let submitData = { ...formData };
       
-      if (activeTab === 'ai' && aiOutput) {
+      if (activeTab === 'ai' && (aiOutput || aiResult)) {
           // If we are on AI tab and have output, use it for submission
-          const title = aiConfig.title || formData.title;
+          const content = aiResult || { body: aiOutput };
+          const body = content.body || aiOutput;
+          const title = content.title || aiConfig.title || formData.title;
+
           submitData = {
               ...submitData,
               title: title,
-              slug: formData.slug || generateSlug(title),
-              body: aiOutput, // Use AI output as body (Markdown)
+              slug: content.slug || formData.slug || generateSlug(title),
+              body: body, // Use AI output as body (Markdown)
+              excerpt: content.excerpt || submitData.excerpt,
+              tags: content.tags || submitData.tags,
+              schemaType: content.seo?.schemaType || submitData.schemaType,
               seo: {
                   ...submitData.seo,
-                  metaTitle: title,
+                  metaTitle: content.seo?.metaTitle || title,
                   // Strip markdown syntax for meta description roughly
-                  metaDescription: aiOutput.replace(/[#*`_\[\]]/g, '').slice(0, 150) + '...'
+                  metaDescription: content.seo?.metaDescription || body.replace(/[#*`_\[\]]/g, '').slice(0, 150) + '...',
+                  focusKeyword: content.seo?.focusKeyword || submitData.seo.focusKeyword,
+                  keywords: content.seo?.keywords || submitData.seo.keywords,
+                  noIndex: content.seo?.noIndex !== undefined ? content.seo.noIndex : submitData.seo.noIndex,
+                  noFollow: content.seo?.noFollow !== undefined ? content.seo.noFollow : submitData.seo.noFollow
+              },
+              openGraph: {
+                  ...submitData.openGraph,
+                  title: content.openGraph?.title || content.seo?.metaTitle || title,
+                  description: content.openGraph?.description || content.seo?.metaDescription || submitData.openGraph.description
               }
           };
       }
@@ -259,8 +337,10 @@ export default function NewPostPage() {
         body: [],
         excerpt: submitData.excerpt,
         categories: submitData.categoryId ? [{ _type: 'reference', _ref: submitData.categoryId, _key: Math.random().toString(36).substring(7) }] : [],
+        tags: submitData.tags,
         publishedAt: new Date(submitData.publishedAt).toISOString(),
         language: submitData.language,
+        schemaType: submitData.schemaType,
         
         // Image
         ...(submitData.mainImageAssetId ? {
@@ -276,7 +356,20 @@ export default function NewPostPage() {
             _type: 'seo',
             metaTitle: submitData.seo.metaTitle || submitData.title,
             metaDescription: submitData.seo.metaDescription,
-            noIndex: submitData.seo.noIndex
+            focusKeyword: submitData.seo.focusKeyword,
+            keywords: submitData.seo.keywords,
+            noIndex: submitData.seo.noIndex,
+            noFollow: submitData.seo.noFollow
+        },
+
+        // OpenGraph
+        openGraph: {
+            _type: 'openGraph',
+            title: submitData.openGraph.title || submitData.seo.metaTitle || submitData.title,
+            description: submitData.openGraph.description || submitData.seo.metaDescription,
+            // image: handled by mainImage if not explicitly set, but schema defines separate OG image. 
+            // For now, let's assume if mainImage is set, we might want to use it or leave it blank to fallback in frontend/meta generation.
+            // The schema has `image` field in `openGraph` object.
         }
       }
 

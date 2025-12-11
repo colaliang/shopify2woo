@@ -30,14 +30,32 @@ export async function POST(req: Request) {
     
     Requirements:
     - Language: ${language === 'zh-CN' ? 'Simplified Chinese' : language === 'zh-TW' ? 'Traditional Chinese' : 'English'}
-    - Length: 800-1500 words
-    - Structure: Use H1 for main title, H2/H3 for subsections. Use bullet points and lists where appropriate.
-    - SEO: Naturally integrate keywords (density 3-5%). Include a meta description at the very beginning (labeled as [Meta Description]).
-    - Layout & Beautification:
-      - Use responsive Markdown tables where appropriate for comparisons.
-      - Use proper spacing and clear formatting.
-      - Ensure the output looks professional.
-    - Format: Return valid Markdown (e.g., #, ##, -, *, | table |) suitable for a Markdown editor. DO NOT wrap in markdown code blocks like \`\`\`markdown. Just return the raw Markdown string.
+    - Output Format: PURE JSON OBJECT. Do NOT wrap in markdown code blocks. The JSON must follow this schema:
+    {
+      "title": "Optimized Blog Title (max 60 chars)",
+      "slug": "url-friendly-slug-based-on-title",
+      "body": "The full blog post content in Markdown format. Use H2/H3, bullet points, tables.",
+      "excerpt": "A short summary (max 160 chars) for list views.",
+      "seo": {
+        "metaTitle": "SEO optimized title (max 60 chars)",
+        "metaDescription": "SEO optimized description (max 160 chars)",
+        "keywords": ["keyword1", "keyword2", "keyword3"],
+        "focusKeyword": "The main keyword",
+        "schemaType": "Article"
+      },
+      "openGraph": {
+        "title": "Social sharing title",
+        "description": "Social sharing description"
+      },
+      "tags": ["tag1", "tag2", "tag3"]
+    }
+
+    Content Guidelines:
+    - Length: 800-1500 words for the 'body' field.
+    - SEO: Naturally integrate keywords (density 3-5%).
+    - Structure: Use H2/H3 for subsections.
+    - Tables: Use responsive Markdown tables where appropriate.
+    - Tone: Professional, helpful, and engaging.
     `;
 
     const userPrompt = `
@@ -45,7 +63,7 @@ export async function POST(req: Request) {
     Target Keywords: ${Array.isArray(keywords) ? keywords.join(', ') : keywords}
     Specific Requirements: ${requirements || 'None'}
     
-    Please write the article now.
+    Please write the article now and return ONLY the JSON object.
     `;
 
     // 4. Call Deepseek API (Non-streaming)
@@ -63,7 +81,8 @@ export async function POST(req: Request) {
         ],
         stream: false, // Disable streaming
         temperature: 0.7,
-        max_tokens: 2000,
+        max_tokens: 4000, // Increased token limit for JSON overhead
+        response_format: { type: 'json_object' } // Force JSON output if supported (Deepseek might not support this explicit flag yet, but prompt engineering works)
       }),
     });
 
