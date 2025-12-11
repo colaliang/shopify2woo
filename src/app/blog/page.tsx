@@ -57,8 +57,12 @@ async function getPosts(search?: string, category?: string, language?: string, p
 
   if (language) {
     if (language === 'en') {
-      // For English, include both 'en' AND undefined (legacy posts)
-      filter += ` && (language == $language || !defined(language))`
+      // For English, include:
+      // 1. Exact match 'en'
+      // 2. Undefined (legacy posts)
+      // 3. Empty string
+      // 4. Case insensitive match (just in case)
+      filter += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
     } else {
       filter += ` && language == $language`
     }
@@ -91,7 +95,7 @@ async function getRecentPosts(language?: string) {
 
   if (language) {
     if (language === 'en') {
-      filter += ` && (language == $language || !defined(language))`
+      filter += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
     } else {
       filter += ` && language == $language`
     }
