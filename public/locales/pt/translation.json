@@ -33,12 +33,12 @@
     }
   },
   "auth": {
+    "recharge": "Recharge",
     "login": {
         "title": "Login",
         "google": "Entrar com Google",
         "wechat": "Entrar com WeChat",
-        "btn_login": "Entrar",
-        "recharge": "Recarregar"
+        "btn_login": "Entrar"
     }
   },
   "payment": {

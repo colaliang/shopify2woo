@@ -110,11 +110,11 @@
     "contact": "联系我们"
   },
   "auth": {
+    "recharge": "充值",
     "login": {
       "title": "用户登录",
       "google": "Google 登录",
       "wechat": "微信登录",
-      "recharge": "充值",
       "btn_login": "登录"
     },
     "error": {

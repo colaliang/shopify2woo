@@ -109,11 +109,11 @@
     "contact": "聯繫我們"
   },
   "auth": {
+    "recharge": "充值",
     "login": {
       "title": "用戶登錄",
       "google": "Google 登錄",
       "wechat": "微信登錄",
-      "recharge": "充值",
       "btn_login": "登錄"
     },
     "error": {

@@ -109,12 +109,12 @@
     "contact": "Contáctenos"
   },
   "auth": {
+    "recharge": "Recharge",
     "login": {
       "title": "Inicio de Sesión",
       "google": "Iniciar sesión con Google",
       "wechat": "Iniciar sesión con WeChat",
-      "btn_login": "Iniciar Sesión",
-      "recharge": "Recargar"
+      "btn_login": "Iniciar Sesión"
     },
     "error": {
       "env_missing": "Faltan variables de entorno Supabase",

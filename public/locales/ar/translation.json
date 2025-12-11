@@ -109,11 +109,11 @@
     "contact": "اتصل بنا"
   },
   "auth": {
+    "recharge": "Recharge",
     "login": {
       "title": "تسجيل دخول المستخدم",
       "google": "تسجيل الدخول عبر Google",
       "wechat": "تسجيل الدخول عبر WeChat",
-      "recharge": "شحن الرصيد",
       "btn_login": "تسجيل الدخول"
     },
     "error": {

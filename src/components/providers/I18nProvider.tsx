@@ -66,9 +66,11 @@ function UrlSync({ mounted }: { mounted: boolean }) {
 
     // Priority 1: Sync from URL to i18n
     // If URL has a supported language that differs from current i18n language, update i18n
-    if (urlLng && supportedLanguages.includes(urlLng)) {
-      if (urlLng !== currentLng) {
-        i18n.changeLanguage(urlLng);
+    const supportedLang = supportedLanguages.find(l => l.toLowerCase() === urlLng?.toLowerCase());
+    
+    if (urlLng && supportedLang) {
+      if (supportedLang !== currentLng) {
+        i18n.changeLanguage(supportedLang);
       }
     } 
     // Priority 2: Sync from i18n to URL

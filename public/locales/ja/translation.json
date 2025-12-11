@@ -109,6 +109,7 @@
     "contact": "お問い合わせ"
   },
   "auth": {
+    "recharge": "Recharge",
     "login": {
       "title": "ユーザーログイン",
       "google": "Googleでログイン",
@@ -118,8 +119,7 @@
     "error": {
       "env_missing": "Supabase環境変数がありません",
       "login_failed": "ログインに失敗しました。後でもう一度お試しください"
-    },
-    "recharge": "チャージ"
+    }
   },
   "payment": {
     "title": "クレジットをチャージ",

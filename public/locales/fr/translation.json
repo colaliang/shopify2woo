@@ -109,11 +109,11 @@
     "contact": "Contactez-nous"
   },
   "auth": {
+    "recharge": "Recharge",
     "login": {
       "title": "Connexion utilisateur",
       "google": "Se connecter avec Google",
       "wechat": "Se connecter avec WeChat",
-      "recharge": "Recharger",
       "btn_login": "Se connecter"
     },
     "error": {

@@ -109,11 +109,11 @@
     "contact": "Связаться с нами"
   },
   "auth": {
+    "recharge": "Recharge",
     "login": {
       "title": "Вход пользователя",
       "google": "Войти через Google",
       "wechat": "Войти через WeChat",
-      "recharge": "Пополнить",
       "btn_login": "Войти"
     },
     "error": {

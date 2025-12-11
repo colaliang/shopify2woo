@@ -109,11 +109,11 @@
     "contact": "문의하기"
   },
   "auth": {
+    "recharge": "Recharge",
     "login": {
       "title": "사용자 로그인",
       "google": "Google로 로그인",
       "wechat": "WeChat으로 로그인",
-      "recharge": "충전",
       "btn_login": "로그인"
     },
     "error": {

@@ -110,11 +110,11 @@
     "contact": "Contact Us"
   },
   "auth": {
+    "recharge": "Recharge",
     "login": {
       "title": "User Login",
       "google": "Login with Google",
       "wechat": "Login with WeChat",
-      "recharge": "Recharge",
       "btn_login": "Login"
     },
     "error": {
