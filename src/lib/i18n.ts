@@ -25,7 +25,9 @@ if (!isServer) {
 
 i18nInstance.init({
   supportedLngs: supportedLanguages,
-  // nonExplicitSupportedLngs: true, // REMOVED: This causes strict matching issues with 'zh-CN'
+  // REMOVED: nonExplicitSupportedLngs: true, // This causes strict matching issues with 'zh-CN'
+  // But we might need load: 'currentOnly' to prevent i18next from trying to load 'zh' when 'zh-CN' is requested
+  load: 'currentOnly', 
   fallbackLng: 'en',
   partialBundledLanguages: true, // Allow loading other languages via backend even if resources are provided
   

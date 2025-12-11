@@ -109,7 +109,7 @@
     "contact": "اتصل بنا"
   },
   "auth": {
-    "recharge": "Recharge",
+    "recharge": "شحن الرصيد",
     "login": {
       "title": "تسجيل دخول المستخدم",
       "google": "تسجيل الدخول عبر Google",
@@ -233,5 +233,21 @@
       "submitting": "جارٍ الإرسال...",
       "error": "فشل الإرسال، يرجى المحاولة لاحقًا"
     }
+  },
+  "blog": {
+    "share_article": "شارك هذا المقال:",
+    "read_more": "اقرأ المزيد",
+    "recent_posts": "المشاركات الأخيرة",
+    "categories": "التصنيفات",
+    "all_posts": "كل المشاركات",
+    "search": "بحث",
+    "no_posts": "لم يتم العثور على مشاركات",
+    "try_adjusting": "حاول تعديل البحث أو الفلتر.",
+    "clear_filters": "مسح الفلاتر",
+    "no_content": "هذا المقال ليس به محتوى.",
+    "back_to_blog": "العودة إلى المدونة",
+    "table_of_contents": "جدول المحتويات",
+    "show": "عرض",
+    "hide": "إخفاء"
   }
 }

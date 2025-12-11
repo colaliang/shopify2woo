@@ -109,7 +109,7 @@
     "contact": "Contáctenos"
   },
   "auth": {
-    "recharge": "Recharge",
+    "recharge": "Recargar",
     "login": {
       "title": "Inicio de Sesión",
       "google": "Iniciar sesión con Google",
@@ -198,40 +198,56 @@
         "unsubscribed": "No suscrito"
       },
       "pref": {
-        "orders": "Actualizaciones de Pedidos (Creado, Pagado)",
+        "orders": "Actualizaciones de pedidos (Creados, Pagados)",
         "marketing": "Marketing y Noticias",
         "freq": "Frecuencia",
         "immediate": "Inmediato",
-        "daily": "Resumen Diario",
-        "weekly": "Resumen Semanal"
+        "daily": "Resumen diario",
+        "weekly": "Resumen semanal"
       }
     }
   },
   "contact": {
-    "default_category": "Sugerencia de Función",
+    "default_category": "Sugerencia de función",
     "title": "Contáctenos",
     "success": {
-      "title": "Enviado con Éxito",
+      "title": "Enviado con éxito",
       "msg": "Gracias por sus comentarios, los procesaremos lo antes posible."
     },
     "form": {
       "category": "Categoría",
       "category_placeholder": "Seleccione una categoría",
       "categories": {
-        "feature": "✨ Sugerencia de Función",
-        "bug": "🐛 Informe de Error",
-        "account": "👤 Problema de Cuenta",
-        "payment": "💰 Problema de Pago",
-        "business": "🤝 Consulta Comercial",
+        "feature": "✨ Sugerencia de función",
+        "bug": "🐛 Informe de error",
+        "account": "👤 Problema de cuenta",
+        "payment": "💰 Problema de pago",
+        "business": "🤝 Consulta comercial",
         "other": "📝 Otro"
       },
-      "contact": "Info de Contacto",
-      "contact_placeholder": "Correo o Teléfono",
+      "contact": "Info de contacto",
+      "contact_placeholder": "Correo o teléfono",
       "desc": "Descripción",
-      "desc_placeholder": "Por favor describa su solicitud o problema en detalle...",
+      "desc_placeholder": "Por favor, describa su solicitud o problema en detalle...",
       "submit": "Enviar",
       "submitting": "Enviando...",
       "error": "Error al enviar, inténtelo de nuevo más tarde"
     }
+  },
+  "blog": {
+    "share_article": "Compartir este artículo:",
+    "read_more": "Leer más",
+    "recent_posts": "Entradas recientes",
+    "categories": "Categorías",
+    "all_posts": "Todas las entradas",
+    "search": "Buscar",
+    "no_posts": "No se encontraron entradas",
+    "try_adjusting": "Intenta ajustar tu búsqueda o filtro.",
+    "clear_filters": "Borrar filtros",
+    "no_content": "Esta entrada no tiene contenido.",
+    "back_to_blog": "Volver al blog",
+    "table_of_contents": "Tabla de contenido",
+    "show": "mostrar",
+    "hide": "ocultar"
   }
 }

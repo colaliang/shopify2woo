@@ -233,6 +233,7 @@
       "submit": "提交",
       "submitting": "提交中...",
       "error": "提交失败，请稍后重试"
+    }
   },
   "blog": {
     "share_article": "分享文章：",

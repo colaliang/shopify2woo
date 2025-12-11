@@ -109,7 +109,7 @@
     "contact": "お問い合わせ"
   },
   "auth": {
-    "recharge": "Recharge",
+    "recharge": "チャージ",
     "login": {
       "title": "ユーザーログイン",
       "google": "Googleでログイン",
@@ -233,5 +233,21 @@
       "submitting": "送信中...",
       "error": "送信に失敗しました。後でもう一度お試しください"
     }
+  },
+  "blog": {
+    "share_article": "この記事をシェア:",
+    "read_more": "続きを読む",
+    "recent_posts": "最近の投稿",
+    "categories": "カテゴリー",
+    "all_posts": "すべての投稿",
+    "search": "検索",
+    "no_posts": "投稿が見つかりません",
+    "try_adjusting": "検索条件やフィルターを調整してください。",
+    "clear_filters": "フィルターをクリア",
+    "no_content": "この投稿にはコンテンツがありません。",
+    "back_to_blog": "ブログに戻る",
+    "table_of_contents": "目次",
+    "show": "表示",
+    "hide": "非表示"
   }
 }

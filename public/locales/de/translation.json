@@ -109,7 +109,7 @@
     "contact": "Kontakt"
   },
   "auth": {
-    "recharge": "Recharge",
+    "recharge": "Aufladen",
     "login": {
       "title": "Benutzer-Login",
       "google": "Anmelden mit Google",
@@ -233,5 +233,21 @@
       "submitting": "Senden...",
       "error": "Senden fehlgeschlagen, bitte versuchen Sie es später erneut"
     }
+  },
+  "blog": {
+    "share_article": "Artikel teilen:",
+    "read_more": "Weiterlesen",
+    "recent_posts": "Neueste Beiträge",
+    "categories": "Kategorien",
+    "all_posts": "Alle Beiträge",
+    "search": "Suchen",
+    "no_posts": "Keine Beiträge gefunden",
+    "try_adjusting": "Versuchen Sie, Ihre Suche oder Filter anzupassen.",
+    "clear_filters": "Filter löschen",
+    "no_content": "Dieser Beitrag hat keinen Inhalt.",
+    "back_to_blog": "Zurück zum Blog",
+    "table_of_contents": "Inhaltsverzeichnis",
+    "show": "anzeigen",
+    "hide": "verbergen"
   }
 }

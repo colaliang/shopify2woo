@@ -109,7 +109,7 @@
     "contact": "Contattaci"
   },
   "auth": {
-    "recharge": "Recharge",
+    "recharge": "Ricarica",
     "login": {
       "title": "Accesso Utente",
       "google": "Accedi con Google",
@@ -198,40 +198,56 @@
         "unsubscribed": "Non iscritto"
       },
       "pref": {
-        "orders": "Aggiornamenti Ordini (Creato, Pagato)",
-        "marketing": "Marketing e Notizie",
+        "orders": "Aggiornamenti ordini (Creati, Pagati)",
+        "marketing": "Marketing & Notizie",
         "freq": "Frequenza",
         "immediate": "Immediato",
-        "daily": "Riepilogo Giornaliero",
-        "weekly": "Riepilogo Settimanale"
+        "daily": "Digest giornaliero",
+        "weekly": "Digest settimanale"
       }
     }
   },
   "contact": {
-    "default_category": "Suggerimento Funzionalità",
+    "default_category": "Suggerimento funzionalità",
     "title": "Contattaci",
     "success": {
-      "title": "Inviato con Successo",
+      "title": "Inviato con successo",
       "msg": "Grazie per il tuo feedback, lo elaboreremo il prima possibile."
     },
     "form": {
       "category": "Categoria",
       "category_placeholder": "Seleziona una categoria",
       "categories": {
-        "feature": "✨ Suggerimento Funzionalità",
-        "bug": "🐛 Segnalazione Bug",
-        "account": "👤 Problema Account",
-        "payment": "💰 Problema Pagamento",
-        "business": "🤝 Richiesta Commerciale",
+        "feature": "✨ Suggerimento funzionalità",
+        "bug": "🐛 Segnalazione bug",
+        "account": "👤 Problema account",
+        "payment": "💰 Problema pagamento",
+        "business": "🤝 Richiesta commerciale",
         "other": "📝 Altro"
       },
-      "contact": "Info Contatto",
-      "contact_placeholder": "Email o Telefono",
+      "contact": "Info contatto",
+      "contact_placeholder": "Email o telefono",
       "desc": "Descrizione",
       "desc_placeholder": "Descrivi la tua richiesta o problema in dettaglio...",
       "submit": "Invia",
-      "submitting": "Invio...",
+      "submitting": "Invio in corso...",
       "error": "Invio fallito, riprova più tardi"
     }
+  },
+  "blog": {
+    "share_article": "Condividi questo articolo:",
+    "read_more": "Leggi di più",
+    "recent_posts": "Post recenti",
+    "categories": "Categorie",
+    "all_posts": "Tutti i post",
+    "search": "Cerca",
+    "no_posts": "Nessun post trovato",
+    "try_adjusting": "Prova a modificare la ricerca o il filtro.",
+    "clear_filters": "Cancella filtri",
+    "no_content": "Questo post non ha contenuto.",
+    "back_to_blog": "Torna al blog",
+    "table_of_contents": "Indice",
+    "show": "mostra",
+    "hide": "nascondi"
   }
 }

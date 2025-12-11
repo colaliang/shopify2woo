@@ -233,5 +233,21 @@
       "submitting": "提交中...",
       "error": "提交失敗，請稍後重試"
     }
+  },
+  "blog": {
+    "share_article": "分享文章：",
+    "read_more": "閱讀更多",
+    "recent_posts": "最新文章",
+    "categories": "分類",
+    "all_posts": "所有文章",
+    "search": "搜索",
+    "no_posts": "暫無文章",
+    "try_adjusting": "嘗試調整搜索或過濾條件。",
+    "clear_filters": "清除所有過濾",
+    "no_content": "該文章暫無內容。",
+    "back_to_blog": "返回博客",
+    "table_of_contents": "目錄",
+    "show": "顯示",
+    "hide": "隱藏"
   }
 }

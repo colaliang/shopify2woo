@@ -109,7 +109,7 @@
     "contact": "Contactez-nous"
   },
   "auth": {
-    "recharge": "Recharge",
+    "recharge": "Recharger",
     "login": {
       "title": "Connexion utilisateur",
       "google": "Se connecter avec Google",
@@ -199,7 +199,7 @@
       },
       "pref": {
         "orders": "Mises à jour des commandes (Créées, Payées)",
-        "marketing": "Marketing et actualités",
+        "marketing": "Marketing & Actualités",
         "freq": "Fréquence",
         "immediate": "Immédiat",
         "daily": "Résumé quotidien",
@@ -230,8 +230,24 @@
       "desc": "Description",
       "desc_placeholder": "Veuillez décrire votre demande ou problème en détail...",
       "submit": "Soumettre",
-      "submitting": "Envoi...",
+      "submitting": "Envoi en cours...",
       "error": "Échec de l'envoi, veuillez réessayer plus tard"
     }
+  },
+  "blog": {
+    "share_article": "Partager cet article :",
+    "read_more": "Lire la suite",
+    "recent_posts": "Articles récents",
+    "categories": "Catégories",
+    "all_posts": "Tous les articles",
+    "search": "Rechercher",
+    "no_posts": "Aucun article trouvé",
+    "try_adjusting": "Essayez d'ajuster votre recherche ou filtre.",
+    "clear_filters": "Effacer les filtres",
+    "no_content": "Cet article n'a pas de contenu.",
+    "back_to_blog": "Retour au blog",
+    "table_of_contents": "Table des matières",
+    "show": "afficher",
+    "hide": "masquer"
   }
 }

@@ -33,7 +33,7 @@
     }
   },
   "auth": {
-    "recharge": "Recharge",
+    "recharge": "Recarregar",
     "login": {
         "title": "Login",
         "google": "Entrar com Google",
@@ -82,5 +82,21 @@
       "notifications": "Notificações",
       "help": "Ajuda"
     }
+  },
+  "blog": {
+    "share_article": "Compartilhar este artigo:",
+    "read_more": "Leia mais",
+    "recent_posts": "Postagens recentes",
+    "categories": "Categorias",
+    "all_posts": "Todas as postagens",
+    "search": "Pesquisar",
+    "no_posts": "Nenhuma postagem encontrada",
+    "try_adjusting": "Tente ajustar sua pesquisa ou filtro.",
+    "clear_filters": "Limpar filtros",
+    "no_content": "Esta postagem não tem conteúdo.",
+    "back_to_blog": "Voltar ao blog",
+    "table_of_contents": "Índice",
+    "show": "mostrar",
+    "hide": "ocultar"
   }
 }
