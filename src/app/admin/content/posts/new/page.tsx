@@ -619,13 +619,13 @@ export default function NewPostPage() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">Requirements</label>
                         <textarea 
                             rows={5}
-                            maxLength={500}
+                            maxLength={1000}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md"
                             placeholder="Specific instructions for the AI (e.g. Focus on free tools, include a comparison table, tone should be professional but friendly...)"
                             value={aiConfig.requirements}
                             onChange={e => setAiConfig({ ...aiConfig, requirements: e.target.value })}
                         ></textarea>
-                        <p className="text-xs text-gray-500 mt-1 text-right">{aiConfig.requirements.length}/500</p>
+                        <p className="text-xs text-gray-500 mt-1 text-right">{aiConfig.requirements.length}/1000</p>
                     </div>
 
                     <div className="pt-2">

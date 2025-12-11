@@ -182,12 +182,12 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                   return (
                   <div key={post._id} className="group rounded-none sm:rounded-xl overflow-hidden">
                     {/* Image */}
-                    <Link href={`/blog/${post.slug.current}`} className="block relative aspect-[16/9] sm:aspect-[2/1] bg-gray-100 overflow-hidden rounded-lg">
+                    <Link href={`/blog/${post.slug.current}`} className="block relative aspect-[16/9] bg-gray-100 overflow-hidden rounded-lg">
                       {post.mainImage ? (
                         <div className="absolute inset-0">
                              {/* eslint-disable-next-line @next/next/no-img-element */}
                              <img 
-                                src={urlFor(post.mainImage).width(1200).height(600).url()}
+                                src={urlFor(post.mainImage).width(1200).height(675).url()}
                                 alt={post.title}
                                 className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                              />
