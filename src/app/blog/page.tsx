@@ -108,7 +108,7 @@ async function getPosts(search?: string, category?: string, language?: string, p
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categories: p.categories?.map((c: any) => ({
       ...c,
-      title: c.title?.[language || 'en'] || c.title?.en || 'Untitled'
+      title: c.title?.[(language || 'en').replace(/-/g, '_')] || c.title?.en || 'Untitled'
     }))
   }))
 
@@ -147,11 +147,11 @@ async function getRecentPosts(language?: string) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categories: p.categories?.map((c: any) => ({
       ...c,
-      title: c.title?.[language || 'en'] || c.title?.en || 'Untitled'
+      title: c.title?.[(language || 'en').replace(/-/g, '_')] || c.title?.en || 'Untitled'
     }))
-  }))
-
-  return posts || []
+  })) || []
+  
+  return posts
 }
 
 async function getCategories(language: string) {
@@ -165,7 +165,7 @@ async function getCategories(language: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return categories?.map((c: any) => ({
     ...c,
-    title: c.title?.[language] || c.title?.en || 'Untitled'
+    title: c.title?.[language.replace(/-/g, '_')] || c.title?.en || 'Untitled'
   })) || []
 }
 
@@ -327,7 +327,8 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
             <div>
                 <h3 className="text-lg font-medium text-gray-900 mb-6 pb-2 border-b border-gray-100">Recent Posts</h3>
                 <div className="space-y-6">
-                    {recentPosts.map((post: Post) => (
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {recentPosts.map((post: any) => (
                         <Link key={post._id} href={`/blog/${post.slug.current}`} className="flex gap-4 group">
                             <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
                                 {post.mainImage ? (

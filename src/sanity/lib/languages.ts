@@ -14,3 +14,7 @@ export const languages = [
 ]
 
 export const baseLanguage = languages[0]
+
+export function getSanityField(langId: string) {
+  return langId.replace(/-/g, '_')
+}

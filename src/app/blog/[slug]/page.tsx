@@ -68,7 +68,7 @@ async function getPost(slug: string): Promise<Post | null> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       categories: postData.categories?.map((c: any) => ({
           ...c,
-          title: c.title?.[language] || c.title?.en || 'Untitled'
+          title: c.title?.[language.replace(/-/g, '_')] || c.title?.en || 'Untitled'
       })),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       relatedPosts: postData.relatedPosts?.map((rp: any) => ({
@@ -76,7 +76,7 @@ async function getPost(slug: string): Promise<Post | null> {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           categories: rp.categories?.map((c: any) => ({
               ...c,
-              title: c.title?.[language] || c.title?.en || 'Untitled'
+              title: c.title?.[language.replace(/-/g, '_')] || c.title?.en || 'Untitled'
           }))
       }))
   }

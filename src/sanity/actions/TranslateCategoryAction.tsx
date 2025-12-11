@@ -1,5 +1,6 @@
 import { DocumentActionComponent, useDocumentOperation } from 'sanity'
-import { languages } from '../lib/languages'
+import { languages, getSanityField } from '../lib/languages'
+import React from 'react'
 
 export const TranslateCategoryAction: DocumentActionComponent = (props) => {
   const { patch } = useDocumentOperation(props.id, props.type)
@@ -44,7 +45,7 @@ export const TranslateCategoryAction: DocumentActionComponent = (props) => {
         const titlePatch = {}
         Object.entries(translations).forEach(([lang, text]) => {
             // @ts-expect-error - Dynamically assigning properties to patch object
-            titlePatch[`title.${lang}`] = text
+            titlePatch[`title.${getSanityField(lang)}`] = text
         })
 
         patch.execute([
@@ -62,5 +63,3 @@ export const TranslateCategoryAction: DocumentActionComponent = (props) => {
     }
   }
 }
-
-import React from 'react'

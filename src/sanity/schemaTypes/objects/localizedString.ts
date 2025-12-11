@@ -1,5 +1,5 @@
 import { defineType, defineField } from 'sanity'
-import { languages } from '../../lib/languages'
+import { languages, getSanityField } from '../../lib/languages'
 
 export const localizedString = defineType({
   name: 'localizedString',
@@ -14,7 +14,7 @@ export const localizedString = defineType({
   ],
   fields: languages.map((lang) => 
     defineField({
-      name: lang.id,
+      name: getSanityField(lang.id),
       title: lang.title,
       type: 'string',
       fieldset: lang.id === 'en' ? undefined : 'translations',
