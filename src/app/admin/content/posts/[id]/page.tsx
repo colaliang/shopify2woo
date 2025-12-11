@@ -26,7 +26,8 @@ export default function EditPostPage() {
     categoryId: '',
     mainImageAssetId: '',
     publishedAt: '',
-    language: 'en'
+    language: 'en',
+    excerpt: ''
   })
 
   useEffect(() => {
@@ -90,7 +91,8 @@ export default function EditPostPage() {
                     categoryId: p.categories?.[0]?._ref || '',
                     mainImageAssetId: p.mainImage?.asset?._ref || '',
                     publishedAt: p.publishedAt ? p.publishedAt.slice(0, 16) : new Date().toISOString().slice(0, 16),
-                    language: p.language || 'en'
+                    language: p.language || 'en',
+                    excerpt: p.excerpt || ''
                 })
             }
         } catch (error) {
@@ -154,6 +156,7 @@ export default function EditPostPage() {
         bodyMarkdown: formData.body, // Save to new markdown field
         bodyHtml: '', // Clear HTML field to avoid confusion
         body: [], // Clear standard body
+        excerpt: formData.excerpt,
         publishedAt: new Date(formData.publishedAt).toISOString(),
         language: formData.language,
         // Only update category if selected
@@ -266,6 +269,17 @@ export default function EditPostPage() {
                     <option value="ar">Arabic</option>
                 </select>
             </div>
+        </div>
+
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
+            <textarea 
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm"
+                rows={3}
+                value={formData.excerpt}
+                onChange={e => setFormData({ ...formData, excerpt: e.target.value })}
+                placeholder="Short summary for list views and SEO."
+            />
         </div>
 
         <div>

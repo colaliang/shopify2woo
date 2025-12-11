@@ -27,7 +27,8 @@ export default function NewPostPage() {
         noIndex: false
     },
     publishedAt: new Date().toISOString().slice(0, 16), // Format for datetime-local
-    language: 'en'
+    language: 'en',
+    excerpt: ''
   })
 
   // AI Generation State
@@ -256,6 +257,7 @@ export default function NewPostPage() {
         bodyHtml: '', // Clear HTML field
         // We still send `body` for compatibility with Studio (maybe empty or stripped text)
         body: [],
+        excerpt: submitData.excerpt,
         categories: submitData.categoryId ? [{ _type: 'reference', _ref: submitData.categoryId }] : [],
         publishedAt: new Date(submitData.publishedAt).toISOString(),
         language: submitData.language,
@@ -382,7 +384,18 @@ export default function NewPostPage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
+            <textarea 
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm"
+                rows={3}
+                value={formData.excerpt}
+                onChange={e => setFormData({ ...formData, excerpt: e.target.value })}
+                placeholder="Short summary for list views and SEO."
+            />
+        </div>
+
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                     <select 
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         value={formData.categoryId}
