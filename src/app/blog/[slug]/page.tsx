@@ -1,5 +1,6 @@
 import { client, urlFor } from '@/lib/sanity'
 import Link from 'next/link'
+import BlogHeader from '../components/BlogHeader'
 import { ArrowLeft, Share2, Image as ImageIcon, Search } from 'lucide-react'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -14,13 +15,14 @@ type SanityImageSource = any
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
-interface Post {
+  interface Post {
   _id: string
   title: string
   slug: { current: string }
   mainImage: SanityImageSource
   publishedAt: string
   bodyHtml?: string
+  bodyMarkdown?: string
   body?: unknown[]
   excerpt?: string
   categories: { title: string; slug: { current: string } }[]
@@ -42,6 +44,7 @@ async function getPost(slug: string): Promise<Post | null> {
     publishedAt,
     mainImage,
     bodyHtml,
+    bodyMarkdown,
     body,
     excerpt,
     "categories": categories[]->{title, slug},
@@ -120,18 +123,21 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
       <ReadingProgress />
       
       {/* Navigation Bar */}
-      <div className="border-b border-gray-100 sticky top-0 bg-white/90 backdrop-blur-md z-40 shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-              <Link href="/blog" className="flex items-center text-gray-600 hover:text-blue-600 transition-colors font-medium">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Blog
-              </Link>
-              <div className="flex items-center gap-4">
-                  <button className="text-gray-400 hover:text-gray-600 transition-colors" title="Share">
-                      <Share2 className="w-5 h-5" />
-                  </button>
-              </div>
-          </div>
+      <div className="sticky top-0 bg-white/90 backdrop-blur-md z-40 shadow-sm">
+        <BlogHeader />
+        <div className="border-b border-gray-100">
+            <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between text-sm">
+                <Link href="/blog" className="flex items-center text-gray-600 hover:text-blue-600 transition-colors font-medium">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to Blog
+                </Link>
+                <div className="flex items-center gap-4">
+                    <button className="text-gray-400 hover:text-gray-600 transition-colors" title="Share">
+                        <Share2 className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -168,11 +174,13 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
                         </h1>
 
                         {/* Content */}
-                        {post.bodyHtml ? (
+                        {post.bodyMarkdown ? (
+                            <ContentRenderer markdown={post.bodyMarkdown} />
+                        ) : post.bodyHtml ? (
                             <ContentRenderer html={post.bodyHtml} />
                         ) : (
                             <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 text-yellow-800">
-                                This post does not have HTML content available.
+                                This post does not have content available.
                             </div>
                         )}
                         

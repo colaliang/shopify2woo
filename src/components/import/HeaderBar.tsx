@@ -10,8 +10,8 @@ import DebugPanel from "@/components/auth/DebugPanel";
 import ContactModal from "@/components/contact/ContactModal";
 
 interface HeaderBarProps {
-  activeTab: "listing" | "product";
-  onTabChange: (tab: "listing" | "product") => void;
+  activeTab?: string;
+  onTabChange?: (tab: "listing" | "product") => void;
 }
 
 export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
@@ -58,7 +58,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
         <nav className="flex gap-2">
 
           <button
-            onClick={() => onTabChange("product")}
+            onClick={() => onTabChange?.("product")}
             className={`px-3 py-1 text-sm font-medium border-b-2 ${
               activeTab === "product"
                 ? "text-primary-600 border-primary-600"

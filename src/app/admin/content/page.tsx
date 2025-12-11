@@ -11,6 +11,7 @@ interface Post {
   slug: { current: string }
   publishedAt: string
   categories: string[]
+  language?: string
 }
 
 export default function ContentDashboard() {
@@ -119,6 +120,7 @@ export default function ContentDashboard() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Published</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Language</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -144,6 +146,11 @@ export default function ContentDashboard() {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : 'Draft'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 uppercase">
+                      {post.language || 'en'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {post.categories?.join(', ') || '-'}

@@ -1,5 +1,6 @@
 import { client, urlFor } from '@/lib/sanity'
 import Link from 'next/link'
+import BlogHeader from './components/BlogHeader'
 import { Search, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
 import { Metadata } from 'next'
 
@@ -34,7 +35,7 @@ interface Category {
 // -----------------------------------------------------------------------------
 // Data Fetching
 // -----------------------------------------------------------------------------
-async function getPosts(search?: string, category?: string, page = 1, limit = 9) {
+async function getPosts(search?: string, category?: string, language?: string, page = 1, limit = 9) {
   const start = (page - 1) * limit
   const end = start + limit
 
@@ -51,6 +52,15 @@ async function getPosts(search?: string, category?: string, page = 1, limit = 9)
     params.category = category
   }
 
+  if (language) {
+    if (language === 'en') {
+      filter += ` && (language == $language || !defined(language))`
+    } else {
+      filter += ` && language == $language`
+    }
+    params.language = language
+  }
+
   // Count total for pagination
   const countQuery = `count(${filter})`
   const total = await client.fetch(countQuery, params)
@@ -61,45 +71,48 @@ async function getPosts(search?: string, category?: string, page = 1, limit = 9)
     title,
     slug,
     publishedAt,
-    excerpt,
+    "excerpt": coalesce(excerpt, pt::text(body)[0...200] + "..."),
     mainImage,
     "categories": categories[]->{title, slug}
   }`
   
   const posts = await client.fetch(query, params)
   
-  return { posts, total }
+  return { posts: posts || [], total: total || 0 }
 }
 
 async function getRecentPosts() {
-  return await client.fetch(`*[_type == "post" && defined(slug.current)] | order(publishedAt desc) [0...5] {
+  const posts = await client.fetch(`*[_type == "post" && defined(slug.current)] | order(publishedAt desc) [0...5] {
     _id,
     title,
     slug,
     publishedAt,
     mainImage
   }`)
+  return posts || []
 }
 
 async function getCategories() {
-  return await client.fetch(`*[_type == "category"] | order(title asc) {
+  const categories = await client.fetch(`*[_type == "category"] | order(title asc) {
     _id,
     title,
     slug
   }`)
+  return categories || []
 }
 
 // -----------------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------------
-export default async function BlogPage(props: { searchParams: Promise<{ q?: string; category?: string; page?: string }> }) {
+export default async function BlogPage(props: { searchParams: Promise<{ q?: string; category?: string; page?: string; lng?: string }> }) {
   const searchParams = await props.searchParams
   const page = Number(searchParams.page) || 1
   const search = searchParams.q || ''
   const categorySlug = searchParams.category || ''
+  const lng = searchParams.lng || 'en'
 
   const [{ posts, total }, categories, recentPosts] = await Promise.all([
-    getPosts(search, categorySlug, page),
+    getPosts(search, categorySlug, lng, page),
     getCategories(),
     getRecentPosts()
   ])
@@ -108,17 +121,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20 text-center">
-          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl tracking-tight">
-            Blog & Insights
-          </h1>
-          <p className="mt-4 text-xl text-gray-500 max-w-2xl mx-auto">
-            Discover the latest strategies, tutorials, and updates to supercharge your e-commerce business.
-          </p>
-        </div>
-      </div>
+      <BlogHeader />
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -134,7 +137,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                   const month = date.toLocaleString('default', { month: 'short' })
                   
                   return (
-                  <div key={post._id} className="group bg-white rounded-none sm:rounded-xl overflow-hidden">
+                  <div key={post._id} className="group rounded-none sm:rounded-xl overflow-hidden">
                     {/* Image */}
                     <Link href={`/blog/${post.slug.current}`} className="block relative aspect-[16/9] sm:aspect-[2/1] bg-gray-100 overflow-hidden rounded-lg">
                       {post.mainImage ? (

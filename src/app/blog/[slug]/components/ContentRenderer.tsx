@@ -1,13 +1,23 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import MarkdownIt from 'markdown-it'
+
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true,
+})
 
 interface ContentRendererProps {
-  html: string
+  html?: string
+  markdown?: string
 }
 
-export default function ContentRenderer({ html }: ContentRendererProps) {
+export default function ContentRenderer({ html, markdown }: ContentRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const contentHtml = markdown ? md.render(markdown) : html || ''
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -33,7 +43,7 @@ export default function ContentRenderer({ html }: ContentRendererProps) {
         window.open(img.src, '_blank')
       }
     })
-  }, [html])
+  }, [contentHtml])
 
   return (
     <div 
@@ -49,7 +59,7 @@ export default function ContentRenderer({ html }: ContentRendererProps) {
         prose-td:p-4 prose-td:border prose-td:border-gray-200 prose-td:align-top
         prose-tr:even:bg-gray-50
       "
-      dangerouslySetInnerHTML={{ __html: html }} 
+      dangerouslySetInnerHTML={{ __html: contentHtml }} 
     />
   )
 }

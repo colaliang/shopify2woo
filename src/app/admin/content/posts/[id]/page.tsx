@@ -25,6 +25,8 @@ export default function EditPostPage() {
     body: '', // This will now store Markdown
     categoryId: '',
     mainImageAssetId: '',
+    publishedAt: '',
+    language: 'en'
   })
 
   useEffect(() => {
@@ -86,7 +88,9 @@ export default function EditPostPage() {
                     slug: p.slug?.current || '',
                     body: bodyMarkdown,
                     categoryId: p.categories?.[0]?._ref || '',
-                    mainImageAssetId: p.mainImage?.asset?._ref || ''
+                    mainImageAssetId: p.mainImage?.asset?._ref || '',
+                    publishedAt: p.publishedAt ? p.publishedAt.slice(0, 16) : new Date().toISOString().slice(0, 16),
+                    language: p.language || 'en'
                 })
             }
         } catch (error) {
@@ -150,6 +154,8 @@ export default function EditPostPage() {
         bodyMarkdown: formData.body, // Save to new markdown field
         bodyHtml: '', // Clear HTML field to avoid confusion
         body: [], // Clear standard body
+        publishedAt: new Date(formData.publishedAt).toISOString(),
+        language: formData.language,
         // Only update category if selected
         ...(formData.categoryId ? { categories: [{ _type: 'reference', _ref: formData.categoryId }] } : {}),
         // Update main image if changed
@@ -225,6 +231,41 @@ export default function EditPostPage() {
                 value={formData.slug}
                 onChange={e => setFormData({ ...formData, slug: e.target.value })}
             />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Published Date</label>
+                <input 
+                    type="datetime-local" 
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={formData.publishedAt}
+                    onChange={e => setFormData({ ...formData, publishedAt: e.target.value })}
+                />
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                <select 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={formData.language}
+                    onChange={e => setFormData({ ...formData, language: e.target.value })}
+                >
+                    <option value="en">English</option>
+                    <option value="zh-CN">Chinese (Simplified)</option>
+                    <option value="zh-TW">Chinese (Traditional)</option>
+                    <option value="de">German</option>
+                    <option value="fr">French</option>
+                    <option value="es">Spanish</option>
+                    <option value="it">Italian</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="ru">Russian</option>
+                    <option value="ar">Arabic</option>
+                </select>
+            </div>
         </div>
 
         <div>

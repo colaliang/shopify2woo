@@ -14,7 +14,8 @@ export async function GET() {
       slug,
       publishedAt,
       "categories": categories[]->title,
-      mainImage
+      mainImage,
+      language
     }`, {}, { useCdn: false });
     return NextResponse.json({ posts });
   } catch (e) {
