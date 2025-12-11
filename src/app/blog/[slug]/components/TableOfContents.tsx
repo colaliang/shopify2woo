@@ -94,8 +94,18 @@ export default function TableOfContents({ content, markdown }: TableOfContentsPr
               } ${heading.level === 3 ? 'ml-4' : ''}`}
               onClick={(e) => {
                 e.preventDefault()
-                document.getElementById(heading.id)?.scrollIntoView({ behavior: 'smooth' })
-                setActiveId(heading.id)
+                const element = document.getElementById(heading.id)
+                if (element) {
+                    const headerOffset = 80 // Adjust based on your header height + extra spacing
+                    const elementPosition = element.getBoundingClientRect().top
+                    const offsetPosition = elementPosition + window.pageYOffset - headerOffset
+                  
+                    window.scrollTo({
+                        top: offsetPosition,
+                        behavior: "smooth"
+                    })
+                    setActiveId(heading.id)
+                }
               }}
             >
               {heading.text}

@@ -54,6 +54,7 @@ async function getPosts(search?: string, category?: string, language?: string, p
 
   if (language) {
     if (language === 'en') {
+      // For English, include both 'en' AND undefined (legacy posts)
       filter += ` && (language == $language || !defined(language))`
     } else {
       filter += ` && language == $language`
@@ -81,14 +82,26 @@ async function getPosts(search?: string, category?: string, language?: string, p
   return { posts: posts || [], total: total || 0 }
 }
 
-async function getRecentPosts() {
-  const posts = await client.fetch(`*[_type == "post" && defined(slug.current)] | order(publishedAt desc) [0...5] {
+async function getRecentPosts(language?: string) {
+  let filter = `*[_type == "post" && defined(slug.current)]`
+  const params: Record<string, string> = {}
+
+  if (language) {
+    if (language === 'en') {
+      filter += ` && (language == $language || !defined(language))`
+    } else {
+      filter += ` && language == $language`
+    }
+    params.language = language
+  }
+
+  const posts = await client.fetch(`${filter} | order(publishedAt desc) [0...5] {
     _id,
     title,
     slug,
     publishedAt,
     mainImage
-  }`)
+  }`, params)
   return posts || []
 }
 
@@ -114,7 +127,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
   const [{ posts, total }, categories, recentPosts] = await Promise.all([
     getPosts(search, categorySlug, lng, page),
     getCategories(),
-    getRecentPosts()
+    getRecentPosts(lng)
   ])
 
   const totalPages = Math.ceil(total / 9)
