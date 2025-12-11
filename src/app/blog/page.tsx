@@ -90,6 +90,7 @@ async function getPosts(search?: string, category?: string, language?: string, p
     slug,
     publishedAt,
     language,
+    // Use body text as excerpt fallback if excerpt is missing, limit to 200 chars
     "excerpt": coalesce(excerpt, pt::text(body)[0...200] + "..."),
     mainImage,
     "categories": categories[]->{title, slug}
@@ -144,6 +145,9 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
   const categorySlug = searchParams.category || ''
   const lng = searchParams.lng || 'en'
 
+  // Map 'en' to 'en-US' for date formatting to ensure English month names
+  const dateLocale = lng === 'en' ? 'en-US' : lng;
+
   const [{ posts, total }, categories, recentPosts] = await Promise.all([
     getPosts(search, categorySlug, lng, page),
     getCategories(),
@@ -167,7 +171,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                 {posts.map((post: Post) => {
                   const date = new Date(post.publishedAt)
                   const day = date.getDate().toString().padStart(2, '0')
-                  const month = date.toLocaleString('default', { month: 'short' })
+                  const month = date.toLocaleString(dateLocale, { month: 'short' })
                   
                   return (
                   <div key={post._id} className="group rounded-none sm:rounded-xl overflow-hidden">
@@ -204,7 +208,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                       </Link>
                       
                       <p className="text-gray-600 text-base leading-relaxed mb-6 line-clamp-3">
-                        {post.excerpt || 'Click to read more...'}
+                        {post.excerpt}
                       </p>
                       
                       <div className="flex items-center justify-between border-t border-gray-100 pt-6">
@@ -306,7 +310,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                                     {post.title}
                                 </h4>
                                 <div className="text-xs text-gray-500 font-medium">
-                                    {new Date(post.publishedAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                                    {new Date(post.publishedAt).toLocaleDateString(dateLocale, { month: 'long', day: 'numeric', year: 'numeric' })}
                                 </div>
                             </div>
                         </Link>
