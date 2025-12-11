@@ -1,7 +1,6 @@
 import { client, urlFor } from '@/lib/sanity'
 import Link from 'next/link'
-import BlogHeader from '../components/BlogHeader'
-import { ArrowLeft, Share2, Image as ImageIcon, Search } from 'lucide-react'
+import { ArrowLeft, Share2, Image as ImageIcon, Search, Facebook, Linkedin, Twitter } from 'lucide-react'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import TableOfContents from './components/TableOfContents'
@@ -124,7 +123,6 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
       
       {/* Navigation Bar */}
       <div className="sticky top-0 bg-white/90 backdrop-blur-md z-40 shadow-sm">
-        <BlogHeader />
         <div className="border-b border-gray-100">
             <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between text-sm">
                 <Link href="/blog" className="flex items-center text-gray-600 hover:text-blue-600 transition-colors font-medium">
@@ -185,18 +183,54 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
                         )}
                         
                         {/* Footer / Tags */}
-                        <div className="mt-12 pt-8 border-t border-gray-100 flex flex-wrap gap-3">
-                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                            {post.categories?.map((cat: any) => (
-                                <Link 
-                                    key={cat.slug.current} 
-                                    href={`/blog?category=${cat.slug.current}`}
-                                    className="inline-flex items-center px-4 py-2 rounded-full bg-gray-50 text-gray-700 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                >
-                                    {/* <Tag className="w-3 h-3 mr-2" /> */}
-                                    {cat.title}
-                                </Link>
-                            ))}
+                        <div className="mt-12 pt-8 border-t border-gray-100">
+                            {/* Tags */}
+                            <div className="flex flex-wrap gap-3 mb-8">
+                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                {post.categories?.map((cat: any) => (
+                                    <Link 
+                                        key={cat.slug.current} 
+                                        href={`/blog?category=${cat.slug.current}`}
+                                        className="inline-flex items-center px-4 py-2 rounded-full bg-gray-50 text-gray-700 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                    >
+                                        {cat.title}
+                                    </Link>
+                                ))}
+                            </div>
+
+                            {/* Social Share */}
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-900 font-bold text-lg">Share this article:</span>
+                                <div className="flex gap-4">
+                                    <a 
+                                        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`https://www.ydplus.net/blog/${post.slug.current}`)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                                        aria-label="Share on Facebook"
+                                    >
+                                        <Facebook className="w-5 h-5" />
+                                    </a>
+                                    <a 
+                                        href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`https://www.ydplus.net/blog/${post.slug.current}`)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-10 h-10 flex items-center justify-center rounded-full bg-[#0077b5] text-white hover:opacity-90 transition-opacity"
+                                        aria-label="Share on LinkedIn"
+                                    >
+                                        <Linkedin className="w-5 h-5" />
+                                    </a>
+                                    <a 
+                                        href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(`https://www.ydplus.net/blog/${post.slug.current}`)}&text=${encodeURIComponent(post.title)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-10 h-10 flex items-center justify-center rounded-full bg-black text-white hover:bg-gray-800 transition-colors"
+                                        aria-label="Share on X"
+                                    >
+                                        <Twitter className="w-5 h-5" />
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -220,8 +254,8 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
                 </div>
 
                 {/* Table of Contents */}
-                {post.bodyHtml && (
-                    <TableOfContents content={post.bodyHtml} />
+                {(post.bodyHtml || post.bodyMarkdown) && (
+                    <TableOfContents content={post.bodyHtml} markdown={post.bodyMarkdown} />
                 )}
 
                 {/* Recent Posts */}
@@ -231,22 +265,22 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                         {recentPosts.map((p: any) => (
                             <Link key={p._id} href={`/blog/${p.slug.current}`} className="flex gap-4 group">
-                                <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden shadow-sm">
+                                <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden shadow-sm">
                                     {p.mainImage ? (
                                         /* eslint-disable-next-line @next/next/no-img-element */
                                         <img 
-                                            src={urlFor(p.mainImage).width(160).height(160).url()}
+                                            src={urlFor(p.mainImage).width(200).height(200).url()}
                                             alt={p.title}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                         />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                            <ImageIcon className="w-6 h-6" />
+                                            <ImageIcon className="w-8 h-8" />
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex-1">
-                                    <h4 className="text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1 leading-snug">
+                                <div className="flex-1 flex flex-col justify-between py-1 h-24">
+                                    <h4 className="text-base font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors leading-snug">
                                         {p.title}
                                     </h4>
                                     <div className="text-xs text-gray-500 font-medium">

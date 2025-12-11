@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import MarkdownIt from 'markdown-it'
+
+const md = new MarkdownIt()
 
 interface TocItem {
   id: string
@@ -9,18 +12,26 @@ interface TocItem {
 }
 
 interface TableOfContentsProps {
-  content: string
+  content?: string
+  markdown?: string
 }
 
-export default function TableOfContents({ content }: TableOfContentsProps) {
+export default function TableOfContents({ content, markdown }: TableOfContentsProps) {
   const [headings, setHeadings] = useState<TocItem[]>([])
   const [activeId, setActiveId] = useState<string>('')
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   useEffect(() => {
+    let htmlContent = content || ''
+    if (markdown) {
+      htmlContent = md.render(markdown)
+    }
+
+    if (!htmlContent) return
+
     // Parse HTML content to extract headings
     const parser = new DOMParser()
-    const doc = parser.parseFromString(content, 'text/html')
+    const doc = parser.parseFromString(htmlContent, 'text/html')
     const elements = Array.from(doc.querySelectorAll('h2, h3'))
     
     const items = elements.map((el, index) => {
@@ -32,13 +43,9 @@ export default function TableOfContents({ content }: TableOfContentsProps) {
       }
     })
     
-    // Defer state update to avoid synchronous update in effect (though usually safe here, but to satisfy linter)
-    // Actually, setting state in useEffect IS the correct way to update state based on props/external data.
-    // The linter warning might be false positive or due to strict config. 
-    // However, let's keep it simple.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHeadings(items)
-  }, [content])
+  }, [content, markdown])
 
   useEffect(() => {
     const observer = new IntersectionObserver(
