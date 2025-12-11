@@ -91,7 +91,7 @@ async function getPosts(search?: string, category?: string, language?: string, p
   
   const posts = await client.fetch(query, params, { next: { revalidate: 0 } })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  console.log('[Blog Debug] Fetched posts:', posts.length, posts.map((p: any) => ({ title: p.title, lang: p.language })))
+  console.log('[Blog Debug] Fetched posts:', posts?.length, posts?.map((p: any) => ({ title: p.title, lang: p.language })))
   
   return { posts: posts || [], total: total || 0 }
 }
