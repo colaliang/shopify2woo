@@ -8,6 +8,7 @@ import {visionTool} from '@sanity/vision'
 import {defineConfig} from 'sanity'
 import {structureTool} from 'sanity/structure'
 import {markdownSchema} from 'sanity-plugin-markdown'
+import {TranslateCategoryAction} from './src/sanity/actions/TranslateCategoryAction'
 
 // Go to https://www.sanity.io/docs/api-versioning to learn how API versioning works
 import {schema} from './src/sanity/schemaTypes'
@@ -25,6 +26,13 @@ export default defineConfig({
   dataset,
   // Add and edit the content schema in the './sanity/schema' folder
   schema,
+  document: {
+    actions: (prev, context) => {
+      return context.schemaType === 'category'
+        ? [...prev, TranslateCategoryAction]
+        : prev
+    },
+  },
   plugins: [
     structureTool(),
     markdownSchema(),

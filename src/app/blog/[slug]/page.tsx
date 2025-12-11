@@ -38,25 +38,50 @@ type SanityImageSource = any
 // Data Fetching
 // -----------------------------------------------------------------------------
 async function getPost(slug: string): Promise<Post | null> {
-  const query = `*[_type == "post" && slug.current == $slug][0] {
-    _id,
-    title,
-    slug,
-    publishedAt,
-    language,
-    mainImage,
-    bodyHtml,
-    bodyMarkdown,
-    body,
-    excerpt,
-    keyTakeaways,
-    faq,
-    "categories": categories[]->{title, slug},
-    seo,
-    schemaType
-  }`
-  
-  return await client.fetch(query, { slug })
+  const postData = await client.fetch(`*[_type == "post" && slug.current == $slug][0] {
+    ...,
+    "author": author->name,
+    "categories": categories[]->{
+      title,
+      slug
+    },
+    "relatedPosts": relatedPosts[]->{
+      title,
+      slug,
+      publishedAt,
+      mainImage,
+      "categories": categories[]->{
+        title,
+        slug
+      }
+    }
+  }`, { slug }, { next: { revalidate: 0 } })
+
+  if (!postData) {
+    return null
+  }
+
+  // Localize categories for the main post
+  const language = postData.language || 'en'
+  const localizedPost = {
+      ...postData,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      categories: postData.categories?.map((c: any) => ({
+          ...c,
+          title: c.title?.[language] || c.title?.en || 'Untitled'
+      })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      relatedPosts: postData.relatedPosts?.map((rp: any) => ({
+          ...rp,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          categories: rp.categories?.map((c: any) => ({
+              ...c,
+              title: c.title?.[language] || c.title?.en || 'Untitled'
+          }))
+      }))
+  }
+
+  return localizedPost
 }
 
 async function getRecentPosts(language?: string) {

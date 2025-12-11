@@ -8,7 +8,7 @@ export const category = defineType({
     defineField({
       name: 'title',
       title: 'Title',
-      type: 'string',
+      type: 'localizedString',
       validation: (Rule) => Rule.required(),
     }),
     defineField({
@@ -16,7 +16,7 @@ export const category = defineType({
       title: 'Slug',
       type: 'slug',
       options: {
-        source: 'title',
+        source: 'title.en',
         maxLength: 96,
       },
       validation: (Rule) => Rule.required(),
@@ -24,7 +24,18 @@ export const category = defineType({
     defineField({
       name: 'description',
       title: 'Description',
-      type: 'text',
+      type: 'localizedString',
     }),
   ],
+  preview: {
+    select: {
+      title: 'title.en',
+    },
+    prepare({ title }) {
+        return {
+            title: title || 'Untitled Category',
+            subtitle: 'Multilingual Category'
+        }
+    }
+  },
 })

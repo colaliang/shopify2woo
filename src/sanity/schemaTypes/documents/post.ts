@@ -1,4 +1,5 @@
 import { defineField, defineType } from 'sanity'
+import { languages } from '../../lib/languages'
 
 export const post = defineType({
   name: 'post',
@@ -10,6 +11,13 @@ export const post = defineType({
     { name: 'settings', title: 'Settings' },
   ],
   fields: [
+    defineField({
+      name: 'translationId',
+      title: 'Translation ID',
+      type: 'string',
+      description: 'Used to group translations of the same document',
+      hidden: true, // Hidden because it should be managed by system/plugins usually, or revealed if manual entry needed
+    }),
     defineField({
       name: 'title',
       title: 'Title',
@@ -170,7 +178,14 @@ export const post = defineType({
       title: 'Categories',
       type: 'array',
       group: 'content',
-      of: [{ type: 'reference', to: { type: 'category' } }],
+      description: 'Select categories for this post. Categories are multilingual.',
+      of: [{ 
+        type: 'reference', 
+        to: { type: 'category' },
+        // Since Category is now a single document with multilingual fields, we don't need to filter by language ID.
+        // However, we can display the title in the correct language in the Studio based on some logic if possible,
+        // but standard Sanity reference search searches on the preview title (which is usually English).
+      }],
     }),
     defineField({
       name: 'tags',
@@ -204,20 +219,7 @@ export const post = defineType({
         type: 'string',
         group: 'settings',
         options: {
-            list: [
-                { title: 'English', value: 'en' },
-                { title: 'French', value: 'fr' },
-                { title: 'German', value: 'de' },
-                { title: 'Spanish', value: 'es' },
-                { title: 'Italian', value: 'it' },
-                { title: 'Russian', value: 'ru' },
-                { title: 'Portuguese', value: 'pt' },
-                { title: 'Chinese (Simplified)', value: 'zh-CN' },
-                { title: 'Chinese (Traditional)', value: 'zh-TW' },
-                { title: 'Japanese', value: 'ja' },
-                { title: 'Korean', value: 'ko' },
-                { title: 'Arabic', value: 'ar' },
-            ]
+            list: languages.map((lang) => ({ title: lang.title, value: lang.id })),
         },
         initialValue: 'en',
     })

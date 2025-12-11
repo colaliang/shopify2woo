@@ -99,7 +99,19 @@ async function getPosts(search?: string, category?: string, language?: string, p
     "categories": categories[]->{title, slug}
   }`
   
-  const posts = await client.fetch(query, params, { next: { revalidate: 0 } })
+  const postsData = await client.fetch(query, params, { next: { revalidate: 0 } })
+
+  // Localize categories inside posts
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const posts = postsData?.map((p: any) => ({
+    ...p,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    categories: p.categories?.map((c: any) => ({
+      ...c,
+      title: c.title?.[language || 'en'] || c.title?.en || 'Untitled'
+    }))
+  }))
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   console.log('[Blog Debug] Fetched posts:', posts?.length, posts?.map((p: any) => ({ title: p.title, lang: p.language })))
   
@@ -119,23 +131,42 @@ async function getRecentPosts(language?: string) {
     params.language = language
   }
 
-  const posts = await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {
+  const postsData = await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {
     _id,
     title,
     slug,
     publishedAt,
-    mainImage
+    mainImage,
+    "categories": categories[]->{title, slug}
   }`, params, { next: { revalidate: 0 } })
+
+  // Localize categories inside recent posts
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const posts = postsData?.map((p: any) => ({
+    ...p,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    categories: p.categories?.map((c: any) => ({
+      ...c,
+      title: c.title?.[language || 'en'] || c.title?.en || 'Untitled'
+    }))
+  }))
+
   return posts || []
 }
 
-async function getCategories() {
+async function getCategories(language: string) {
   const categories = await client.fetch(`*[_type == "category"] | order(title asc) {
     _id,
     title,
     slug
   }`)
-  return categories || []
+  
+  // Map category title to current language
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return categories?.map((c: any) => ({
+    ...c,
+    title: c.title?.[language] || c.title?.en || 'Untitled'
+  })) || []
 }
 
 // -----------------------------------------------------------------------------
@@ -153,7 +184,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
 
   const [{ posts, total }, categories, recentPosts] = await Promise.all([
     getPosts(search, categorySlug, lng, page),
-    getCategories(),
+    getCategories(lng),
     getRecentPosts(lng)
   ])
 

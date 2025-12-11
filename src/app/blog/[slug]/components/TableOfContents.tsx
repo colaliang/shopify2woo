@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import MarkdownIt from 'markdown-it'
+import { useTranslation } from 'react-i18next'
 
 const md = new MarkdownIt()
 
@@ -17,6 +18,7 @@ interface TableOfContentsProps {
 }
 
 export default function TableOfContents({ content, markdown }: TableOfContentsProps) {
+  const { t } = useTranslation()
   const [headings, setHeadings] = useState<TocItem[]>([])
   const [activeId, setActiveId] = useState<string>('')
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -85,9 +87,9 @@ export default function TableOfContents({ content, markdown }: TableOfContentsPr
         className="flex items-center justify-between cursor-pointer mb-4"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
-        <h3 className="text-lg font-bold text-gray-900">Table of Contents</h3>
+        <h3 className="text-lg font-bold text-gray-900">{t('blog.table_of_contents')}</h3>
         <span className="text-xs text-gray-500 font-medium">
-            {isCollapsed ? 'show' : 'hide'}
+            {isCollapsed ? t('blog.show') : t('blog.hide')}
         </span>
       </div>
       
