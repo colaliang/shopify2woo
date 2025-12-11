@@ -143,7 +143,7 @@ export default function HeaderBar({ activeTab, onTabChange }: HeaderBarProps) {
                   }}
                   className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 font-medium"
                 >
-                  {t('auth.recharge', '充值 (Recharge)')}
+                  {t('auth.recharge')}
                 </button>
 
                 <button 

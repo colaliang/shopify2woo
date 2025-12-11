@@ -1,9 +1,10 @@
 "use client";
 
-import { I18nextProvider } from 'react-i18next';
+import { I18nextProvider, useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
 import { ReactNode, useEffect, Suspense, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { supportedLanguages } from '@/lib/languages';
 
 export default function I18nProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -51,23 +52,35 @@ export default function I18nProvider({ children }: { children: ReactNode }) {
 }
 
 function UrlSync({ mounted }: { mounted: boolean }) {
+  const { i18n } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   // Sync URL with i18n language on mount and when language changes
   useEffect(() => {
-    if (mounted && i18n.resolvedLanguage) {
-      const currentLng = i18n.resolvedLanguage;
-      const urlLng = searchParams.get('lng');
+    if (!mounted) return;
 
+    const urlLng = searchParams.get('lng');
+    const currentLng = i18n.resolvedLanguage;
+
+    // Priority 1: Sync from URL to i18n
+    // If URL has a supported language that differs from current i18n language, update i18n
+    if (urlLng && supportedLanguages.includes(urlLng)) {
+      if (urlLng !== currentLng) {
+        i18n.changeLanguage(urlLng);
+      }
+    } 
+    // Priority 2: Sync from i18n to URL
+    // If URL is missing language or has unsupported language, update URL to match i18n
+    else if (currentLng) {
       if (urlLng !== currentLng) {
         const newParams = new URLSearchParams(searchParams.toString());
         newParams.set('lng', currentLng);
         router.replace(`${pathname}?${newParams.toString()}`);
       }
     }
-  }, [mounted, pathname, searchParams, router]);
+  }, [mounted, pathname, searchParams, router, i18n, i18n.resolvedLanguage]);
 
   return null;
 }
