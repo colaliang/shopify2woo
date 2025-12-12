@@ -54,6 +54,7 @@ export default function NewPostPage() {
     categoryId: '',
     mainImageAssetId: '',
     mainImage: { en: null } as Record<string, string | null>, // Store asset IDs per language
+    mainImageUrl: { en: null } as Record<string, string | null>, // Store Supabase URLs per language
     alt: { en: '' } as Record<string, string>,
     tags: [] as string[],
     keyTakeaways: { en: [] } as Record<string, string[]>,
@@ -111,6 +112,7 @@ export default function NewPostPage() {
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiOutput, setAiOutput] = useState('') 
   const [aiError, setAiError] = useState('')
+  const [aiSeoGenerating, setAiSeoGenerating] = useState(false)
 
   // For image preview
   const [previewImage, setPreviewImage] = useState<string | null>(null)
@@ -142,6 +144,13 @@ export default function NewPostPage() {
 
   // When changing language, update cover image preview if available
   useEffect(() => {
+      // Priority: Supabase URL > Sanity Asset ID
+      const url = formData.mainImageUrl[contentLang] || formData.mainImageUrl.en
+      if (url) {
+          setPreviewImage(url)
+          return
+      }
+
       const assetId = formData.mainImage[contentLang] || formData.mainImage.en
       if (assetId) {
           // Reconstruct URL (a bit hacky, but avoids fetching asset details again)
@@ -152,7 +161,7 @@ export default function NewPostPage() {
       } else {
           setPreviewImage(null)
       }
-  }, [contentLang, formData.mainImage])
+  }, [contentLang, formData.mainImage, formData.mainImageUrl])
 
   useEffect(() => {
       const cached = localStorage.getItem('admin_ai_generated_content')
@@ -276,10 +285,69 @@ export default function NewPostPage() {
       setActiveTab('content')
   }
 
+  async function handleAiSeo() {
+      if (!formData.body.en) {
+          alert('Please write some content first.')
+          return
+      }
+      
+      setAiSeoGenerating(true)
+      try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const token = session?.access_token
+          
+          const response = await fetch('/api/admin/ai/seo', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({
+                  title: formData.title.en,
+                  body: formData.body.en,
+                  language: 'en'
+              })
+          })
+
+          if (!response.ok) throw new Error('Failed to generate SEO')
+          const data = await response.json()
+          const parsed = JSON.parse(data.content)
+          
+          setFormData(prev => ({
+              ...prev,
+              seo: {
+                  ...prev.seo,
+                  metaTitle: { ...prev.seo.metaTitle, en: parsed.seo?.metaTitle || prev.seo.metaTitle.en },
+                  metaDescription: { ...prev.seo.metaDescription, en: parsed.seo?.metaDescription || prev.seo.metaDescription.en },
+                  focusKeyword: parsed.seo?.focusKeyword || prev.seo.focusKeyword,
+                  keywords: parsed.seo?.keywords ? { ...prev.seo.keywords, en: parsed.seo.keywords } : prev.seo.keywords,
+                  schemaType: parsed.seo?.schemaType || prev.schemaType,
+              },
+              excerpt: { ...prev.excerpt, en: parsed.excerpt || prev.excerpt.en },
+              tags: parsed.tags || prev.tags,
+              keyTakeaways: { ...prev.keyTakeaways, en: parsed.keyTakeaways || prev.keyTakeaways.en },
+              faq: { ...prev.faq, en: parsed.faq || prev.faq.en },
+              openGraph: {
+                  ...prev.openGraph,
+                  title: { ...prev.openGraph.title, en: parsed.openGraph?.title || parsed.seo?.metaTitle || prev.openGraph.title.en },
+                  description: { ...prev.openGraph.description, en: parsed.openGraph?.description || parsed.seo?.metaDescription || prev.openGraph.description.en }
+              }
+          }))
+          
+          alert('SEO fields optimized successfully!')
+          setActiveTab('seo')
+      } catch (e) {
+          alert(e instanceof Error ? e.message : String(e))
+      } finally {
+          setAiSeoGenerating(false)
+      }
+  }
+
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
       const file = e.target.files?.[0]
       if (!file) return
 
+      // Immediate preview
       setPreviewImage(URL.createObjectURL(file))
       
       const form = new FormData()
@@ -289,27 +357,32 @@ export default function NewPostPage() {
           const { data: { session } } = await supabase.auth.getSession()
           const token = session?.access_token
 
-          const res = await fetch('/api/admin/upload/sanity', {
+          // Upload to Supabase (new default)
+          const res = await fetch('/api/admin/upload/supabase', {
               method: 'POST',
               headers: token ? { 'Authorization': `Bearer ${token}` } : {},
               body: form
           })
+          
           if (!res.ok) throw new Error('Upload failed')
           const data = await res.json()
-          // setFormData(prev => ({ ...prev, mainImageAssetId: data.asset._id }))
           
-          // Update localized image map
+          // Update localized image map with URL
           setFormData(prev => ({
               ...prev,
-              mainImageAssetId: contentLang === 'en' ? data.asset._id : prev.mainImageAssetId,
+              mainImageUrl: {
+                  ...prev.mainImageUrl,
+                  [contentLang]: data.url
+              },
+              // Clear Sanity asset ID if we have a Supabase URL for this language
               mainImage: {
                   ...prev.mainImage,
-                  [contentLang]: data.asset._id
+                  [contentLang]: null
               }
           }))
       } catch (e) {
           console.error(e)
-          alert('Failed to upload image')
+          alert('Failed to upload image to Supabase')
       }
   }
 
@@ -320,7 +393,8 @@ export default function NewPostPage() {
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
 
-    const res = await fetch('/api/admin/upload/sanity', {
+    // Use Supabase for editor images too
+    const res = await fetch('/api/admin/upload/supabase', {
         method: 'POST',
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: form
@@ -328,7 +402,7 @@ export default function NewPostPage() {
 
     if (!res.ok) throw new Error('Upload failed')
     const data = await res.json()
-    return data.asset.url
+    return data.url
   }
 
   async function handleTranslate(targetLangs: string[]) {
@@ -462,13 +536,17 @@ export default function NewPostPage() {
         schemaType: finalFormData.schemaType,
         
         // Image
-        ...(finalFormData.mainImageAssetId ? {
-            mainImage: {
-                _type: 'image',
-                asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
-                alt: finalFormData.alt.en || finalFormData.title.en, // Legacy field
-                localizedAlt: localize(finalFormData.alt) // New localized field
-            },
+        ...(finalFormData.mainImageAssetId || Object.values(finalFormData.mainImageUrl).some(Boolean) ? {
+            // Keep existing logic for backward compat or if sanity asset is used
+            ...(finalFormData.mainImageAssetId ? {
+                mainImage: {
+                    _type: 'image',
+                    asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
+                    alt: finalFormData.alt.en || finalFormData.title.en,
+                    localizedAlt: localize(finalFormData.alt)
+                }
+            } : {}),
+
             localizedMainImage: Object.keys(finalFormData.mainImage).reduce((acc, lang) => {
                  const assetId = finalFormData.mainImage[lang]
                  if (assetId) {
@@ -481,6 +559,8 @@ export default function NewPostPage() {
                  return acc
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             }, {} as Record<string, any>),
+
+            localizedMainImageUrl: localize(finalFormData.mainImageUrl),
         } : {}),
 
         // SEO
@@ -918,7 +998,16 @@ export default function NewPostPage() {
                 </div>
             )}
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+                <button 
+                    type="button"
+                    onClick={handleAiSeo}
+                    disabled={aiSeoGenerating}
+                    className="flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 disabled:opacity-50 transition-colors"
+                >
+                    {aiSeoGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                    AI SEO
+                </button>
                 <button 
                     type="submit" 
                     disabled={loading || translating}

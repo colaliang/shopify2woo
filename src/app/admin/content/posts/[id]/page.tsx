@@ -59,6 +59,7 @@ export default function EditPostPage() {
     categoryId: '',
     mainImageAssetId: '',
     mainImage: { en: null } as Record<string, string | null>, // Store asset IDs per language
+    mainImageUrl: { en: null } as Record<string, string | null>, // Store Supabase URLs per language
     alt: { en: '' } as Record<string, string>,
     publishedAt: '',
     excerpt: { en: '' } as Record<string, string>,
@@ -127,11 +128,19 @@ export default function EditPostPage() {
   })
   const [aiResult, setAiResult] = useState<AiResult | null>(null)
   const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiSeoGenerating, setAiSeoGenerating] = useState(false)
   const [aiOutput, setAiOutput] = useState('')
   const [aiError, setAiError] = useState('')
 
   // When changing language, update cover image preview if available
   useEffect(() => {
+      // Priority: Supabase URL > Sanity Asset ID
+      const url = formData.mainImageUrl[contentLang] || formData.mainImageUrl.en
+      if (url) {
+          setCoverImageUrl(url)
+          return
+      }
+
       const assetId = formData.mainImage[contentLang] || formData.mainImage.en
       if (assetId) {
           // Reconstruct URL (a bit hacky, but avoids fetching asset details again)
@@ -142,7 +151,7 @@ export default function EditPostPage() {
       } else {
           setCoverImageUrl('')
       }
-  }, [contentLang, formData.mainImage])
+  }, [contentLang, formData.mainImage, formData.mainImageUrl])
 
   useEffect(() => {
     const id = params?.id
@@ -240,6 +249,7 @@ export default function EditPostPage() {
                 let localizedAlt = { en: '' }
                 // Handle localized mainImage
                 const localizedMainImage: Record<string, string | null> = { en: null }
+                const localizedMainImageUrl: Record<string, string | null> = { en: null }
 
                 if (p.mainImage) {
                     localizedAlt = fromSanity(p.mainImage.localizedAlt)
@@ -260,10 +270,21 @@ export default function EditPostPage() {
                     })
                 }
 
+                if (p.localizedMainImageUrl) {
+                    Object.keys(p.localizedMainImageUrl).forEach(key => {
+                        const langId = key.replace(/_/g, '-')
+                        localizedMainImageUrl[langId] = p.localizedMainImageUrl[key]
+                    })
+                }
+
                 let initialCoverUrl = ''
                 // Determine initial cover URL based on default language (en) or legacy
+                const initialUrl = localizedMainImageUrl.en
                 const initialAssetId = localizedMainImage.en
-                if (initialAssetId) {
+                
+                if (initialUrl) {
+                    initialCoverUrl = initialUrl
+                } else if (initialAssetId) {
                      const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
                      const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
                      const [, assetId, dimensions, extension] = initialAssetId.split('-')
@@ -278,6 +299,7 @@ export default function EditPostPage() {
                     categoryId: p.categories?.[0]?._ref || '',
                     mainImageAssetId: initialAssetId || '',
                     mainImage: localizedMainImage,
+                    mainImageUrl: localizedMainImageUrl,
                     // We store alt in a separate state or just reuse title?
                     // The user wanted localized alt. Let's add it to formData if needed.
                     // But for now, the existing code sets alt = title.en.
@@ -319,7 +341,8 @@ export default function EditPostPage() {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
 
-      const res = await fetch('/api/admin/upload/sanity', {
+      // Use Supabase
+      const res = await fetch('/api/admin/upload/supabase', {
           method: 'POST',
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           body: form
@@ -328,16 +351,19 @@ export default function EditPostPage() {
       if (!res.ok) throw new Error('Upload failed')
       const data = await res.json()
       
-      setCoverImageUrl(data.asset.url)
-      // setFormData(prev => ({ ...prev, mainImageAssetId: data.asset._id }))
+      setCoverImageUrl(data.url)
       
       // Update localized image map
       setFormData(prev => ({
           ...prev,
-          mainImageAssetId: contentLang === 'en' ? data.asset._id : prev.mainImageAssetId,
+          mainImageUrl: {
+              ...prev.mainImageUrl,
+              [contentLang]: data.url
+          },
+          // Clear Sanity asset ID if we have a Supabase URL for this language
           mainImage: {
               ...prev.mainImage,
-              [contentLang]: data.asset._id
+              [contentLang]: null
           }
       }))
   }
@@ -349,7 +375,8 @@ export default function EditPostPage() {
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
 
-    const res = await fetch('/api/admin/upload/sanity', {
+    // Use Supabase
+    const res = await fetch('/api/admin/upload/supabase', {
         method: 'POST',
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: form
@@ -357,7 +384,71 @@ export default function EditPostPage() {
 
     if (!res.ok) throw new Error('Upload failed')
     const data = await res.json()
-    return data.asset.url
+    return data.url
+  }
+
+  async function handleAiSeo() {
+      if (!formData.body.en) {
+          alert('Please write some content first.')
+          return
+      }
+
+      setAiSeoGenerating(true)
+      
+      try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const token = session?.access_token
+
+          const response = await fetch('/api/admin/ai/seo', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({
+                  title: formData.title.en,
+                  body: formData.body.en,
+                  language: 'en'
+              })
+          })
+
+          if (!response.ok) {
+              const err = await response.json()
+              throw new Error(err.error || 'Failed to generate SEO')
+          }
+
+          const data = await response.json()
+          const parsed = JSON.parse(data.content)
+
+          setFormData(prev => ({
+              ...prev,
+              seo: {
+                  ...prev.seo,
+                  metaTitle: { ...prev.seo.metaTitle, en: parsed.seo?.metaTitle || prev.seo.metaTitle.en },
+                  metaDescription: { ...prev.seo.metaDescription, en: parsed.seo?.metaDescription || prev.seo.metaDescription.en },
+                  focusKeyword: parsed.seo?.focusKeyword || prev.seo.focusKeyword,
+                  keywords: parsed.seo?.keywords ? { ...prev.seo.keywords, en: parsed.seo.keywords } : prev.seo.keywords,
+                  schemaType: parsed.seo?.schemaType || prev.schemaType,
+              },
+              excerpt: { ...prev.excerpt, en: parsed.excerpt || prev.excerpt.en },
+              tags: parsed.tags || prev.tags,
+              keyTakeaways: { ...prev.keyTakeaways, en: parsed.keyTakeaways || prev.keyTakeaways.en },
+              faq: { ...prev.faq, en: parsed.faq || prev.faq.en },
+              openGraph: {
+                  ...prev.openGraph,
+                  title: { ...prev.openGraph.title, en: parsed.openGraph?.title || parsed.seo?.metaTitle || prev.openGraph.title.en },
+                  description: { ...prev.openGraph.description, en: parsed.openGraph?.description || parsed.seo?.metaDescription || prev.openGraph.description.en }
+              }
+          }))
+
+          alert('SEO fields optimized successfully!')
+          setActiveTab('seo')
+
+      } catch (e) {
+          alert(e instanceof Error ? e.message : String(e))
+      } finally {
+          setAiSeoGenerating(false)
+      }
   }
 
   async function handleAiOptimize() {
@@ -597,13 +688,17 @@ export default function EditPostPage() {
         
         ...(finalFormData.categoryId ? { categories: [{ _type: 'reference', _ref: finalFormData.categoryId, _key: Math.random().toString(36).substring(7) }] } : {}),
         
-        ...(finalFormData.mainImageAssetId ? {
-            mainImage: {
-                _type: 'image',
-                asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
-                alt: finalFormData.alt.en || finalFormData.title.en, // Legacy field
-                localizedAlt: localize(finalFormData.alt) // New localized field
-            },
+        // Image
+        ...(finalFormData.mainImageAssetId || Object.values(finalFormData.mainImageUrl).some(Boolean) ? {
+            ...(finalFormData.mainImageAssetId ? {
+                mainImage: {
+                    _type: 'image',
+                    asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
+                    alt: finalFormData.alt.en || finalFormData.title.en, // Legacy field
+                    localizedAlt: localize(finalFormData.alt) // New localized field
+                }
+            } : {}),
+
             localizedMainImage: Object.keys(finalFormData.mainImage).reduce((acc, lang) => {
                  const assetId = finalFormData.mainImage[lang]
                  if (assetId) {
@@ -616,6 +711,8 @@ export default function EditPostPage() {
                  return acc
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             }, {} as Record<string, any>),
+
+            localizedMainImageUrl: localize(finalFormData.mainImageUrl),
         } : {}),
 
         seo: {
@@ -1067,7 +1164,16 @@ export default function EditPostPage() {
                 </div>
             )}
             
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+                <button 
+                    type="button"
+                    onClick={handleAiSeo}
+                    disabled={aiSeoGenerating}
+                    className="flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 disabled:opacity-50 transition-colors"
+                >
+                    {aiSeoGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                    AI SEO
+                </button>
                 <button 
                     type="submit" 
                     disabled={loading}

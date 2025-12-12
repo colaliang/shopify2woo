@@ -88,6 +88,20 @@ export const post = defineType({
       )
     }),
     defineField({
+      name: 'localizedMainImageUrl',
+      title: 'Main Image URL (Supabase/External)',
+      type: 'object',
+      group: 'content',
+      description: 'Localized external image URLs (e.g. Supabase). Takes precedence over Sanity assets.',
+      fields: languages.map((lang) => 
+        defineField({
+          name: lang.id.replace(/-/g, '_'),
+          title: lang.title,
+          type: 'string', // Store URL directly
+        })
+      )
+    }),
+    defineField({
       name: 'bodyMarkdown',
       title: 'Body (Markdown Legacy)',
       type: 'markdown',
@@ -309,11 +323,11 @@ export const post = defineType({
       title: 'localizedTitle.en',
       legacyTitle: 'title',
       localizedTitle: 'localizedTitle',
-      // media: 'mainImage', // legacy
       media: 'localizedMainImage.en', // new default
+      mediaUrl: 'localizedMainImageUrl.en',
     },
     prepare(selection) {
-      const { title, legacyTitle, localizedTitle, media } = selection
+      const { title, legacyTitle, localizedTitle, media, mediaUrl } = selection
       const displayTitle = title || legacyTitle || 'Untitled'
       
       // Calculate available languages
@@ -324,7 +338,7 @@ export const post = defineType({
       return { 
         title: displayTitle, 
         subtitle: langs.length > 0 ? `Available in: ${langs.join(', ')}` : 'No translations',
-        media
+        media: mediaUrl ? { asset: { url: mediaUrl } } : media // Try to render URL if available, though Sanity Studio might not support string URL as media directly without plugin
       }
     },
   },

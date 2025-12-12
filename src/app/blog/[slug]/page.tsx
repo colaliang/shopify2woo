@@ -18,6 +18,7 @@ type SanityImageSource = any
   title: string
   slug: { current: string }
   mainImage: SanityImageSource
+  mainImageUrl?: string
   publishedAt: string
   language?: string
   bodyHtml?: string
@@ -88,6 +89,8 @@ async function getPost(slug: string, language: string = 'en'): Promise<Post | nu
       bodyMarkdown: resolve(postData.localizedBodyMarkdown) || postData.bodyMarkdown,
       keyTakeaways: resolveArray(postData.localizedKeyTakeaways) || postData.keyTakeaways,
       faq: resolveArray(postData.localizedFaq) || postData.faq,
+      mainImageUrl: resolve(postData.localizedMainImageUrl),
+      mainImage: resolve(postData.localizedMainImage) || postData.mainImage,
       
       seo: {
           metaTitle: resolve(postData.seo?.metaTitleLocalized) || postData.seo?.metaTitle,
@@ -185,7 +188,7 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
         description: post.seo?.metaDescription || post.excerpt,
         type: 'article',
         publishedTime: post.publishedAt,
-        images: post.mainImage ? [urlFor(post.mainImage).width(1200).height(630).url()] : [],
+        images: post.mainImageUrl ? [post.mainImageUrl] : (post.mainImage ? [urlFor(post.mainImage).width(1200).height(630).url()] : []),
     }
   }
 }

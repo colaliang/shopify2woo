@@ -15,6 +15,7 @@ interface Post {
   title: string;
   slug: { current: string };
   mainImage: SanityImageSource;
+  mainImageUrl?: string;
   publishedAt: string;
   bodyHtml?: string;
   bodyMarkdown?: string;
@@ -49,7 +50,7 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
     "@type": post.seo?.schemaType || "BlogPosting",
     "headline": post.seo?.metaTitle || post.title,
     "description": post.seo?.metaDescription || post.excerpt,
-    "image": post.mainImage ? urlFor(post.mainImage).width(1200).height(630).url() : undefined,
+    "image": post.mainImageUrl || (post.mainImage ? urlFor(post.mainImage).width(1200).height(630).url() : undefined),
     "datePublished": post.publishedAt,
     "dateModified": post.publishedAt, // Should be updated date if available
     "author": {
@@ -81,7 +82,14 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             {/* Featured Image with Date Badge */}
             <div className="relative aspect-[16/9] bg-gray-100">
-              {post.mainImage ? (
+              {post.mainImageUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={post.mainImageUrl}
+                  alt={post.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : post.mainImage ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={urlFor(post.mainImage).width(1200).height(675).url()}

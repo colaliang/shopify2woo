@@ -27,12 +27,13 @@ export default function LanguageSelector({ isOpen, onClose, onConfirm, isTransla
         if (saved) {
             try {
                 const parsed = JSON.parse(saved)
+                // eslint-disable-next-line
                 setSelected(parsed)
             } catch (e) { console.error(e) }
         } else {
+            // eslint-disable-next-line
             setSelected(languages.filter(l => l.id !== 'en').map(l => l.id))
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []) 
 
 
