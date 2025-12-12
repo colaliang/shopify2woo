@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2, Sparkles, Globe } from 'lucide-react'
+import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2, Sparkles, Globe, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
 import supabase from '@/lib/supabase'
 import MarkdownEditor from '@/components/admin/editor/MarkdownEditor'
 import AiContentPreview from '@/components/admin/ai/AiContentPreview'
 import { languages } from '@/sanity/lib/languages'
+
+import LanguageSelector from '@/components/admin/LanguageSelector'
 
 interface AiResult {
   title?: string
@@ -41,8 +43,9 @@ export default function NewPostPage() {
   
   // Language State
   const [contentLang, setContentLang] = useState('en')
-  const [autoTranslate, setAutoTranslate] = useState(true)
-
+  // const [autoTranslate, setAutoTranslate] = useState(true) // Removed
+  const [showTranslateModal, setShowTranslateModal] = useState(false)
+  
   const [formData, setFormData] = useState({
     title: { en: '' } as Record<string, string>,
     slug: '',
@@ -69,6 +72,33 @@ export default function NewPostPage() {
     },
     publishedAt: new Date().toISOString().slice(0, 16),
   })
+
+  // Undo/Redo State
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [history, setHistory] = useState<any[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+
+  const addToHistory = (newState: typeof formData) => {
+      const newHistory = history.slice(0, historyIndex + 1)
+      newHistory.push(JSON.parse(JSON.stringify(newState)))
+      setHistory(newHistory)
+      setHistoryIndex(newHistory.length - 1)
+  }
+
+  const undo = () => {
+      if (historyIndex > 0) {
+          setHistoryIndex(historyIndex - 1)
+          setFormData(history[historyIndex - 1])
+      }
+  }
+
+  // Initialize history
+  useEffect(() => {
+      if (history.length === 0 && formData.title.en) {
+          addToHistory(formData)
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.title.en]) // Only init when data is modified
 
   // AI Generation State
   const [aiConfig, setAiConfig] = useState({
@@ -277,6 +307,83 @@ export default function NewPostPage() {
     return data.asset.url
   }
 
+  async function handleTranslate(targetLangs: string[]) {
+      if (!formData.title.en || !formData.body.en) {
+          alert('Please enter English title and content first.')
+          return
+      }
+      
+      setTranslating(true)
+      
+      // Save current state to history before translating
+      addToHistory(formData)
+
+      try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const token = session?.access_token
+          
+          const res = await fetch('/api/admin/ai/translate', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({
+                  content: {
+                      title: formData.title.en,
+                      body: formData.body.en,
+                      excerpt: formData.excerpt.en,
+                      keyTakeaways: formData.keyTakeaways.en,
+                      faq: formData.faq.en
+                  },
+                  sourceLang: 'en',
+                  targetLangs
+              })
+          })
+
+          if (res.ok) {
+              const { translations } = await res.json()
+              
+              const newFormData = { ...formData }
+              
+              // Merge translations
+              targetLangs.forEach(lang => {
+                  if (translations[lang]) {
+                      const t = translations[lang]
+                      
+                      // Always overwrite if explicitly requested
+                      newFormData.title[lang] = t.title
+                      newFormData.body[lang] = t.body
+                      newFormData.excerpt[lang] = t.excerpt
+                      newFormData.keyTakeaways[lang] = t.keyTakeaways
+                      newFormData.faq[lang] = t.faq
+                      
+                      // Also translate Image Alt
+                      newFormData.alt[lang] = t.title
+
+                      // SEO fields
+                      newFormData.seo.metaTitle[lang] = t.title
+                      newFormData.seo.metaDescription[lang] = t.excerpt
+                      newFormData.openGraph.title[lang] = t.title
+                      newFormData.openGraph.description[lang] = t.excerpt
+                  }
+              })
+              
+              setFormData(newFormData)
+              addToHistory(newFormData)
+              setShowTranslateModal(false)
+              alert(`Successfully translated to ${targetLangs.length} languages. Review changes before saving.`)
+          } else {
+              throw new Error('Translation API failed')
+          }
+      } catch (err) {
+          console.error('Translation failed', err)
+          alert('Translation failed. Please try again.')
+      } finally {
+          setTranslating(false)
+      }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -286,72 +393,6 @@ export default function NewPostPage() {
       const token = session?.access_token
 
       const finalFormData = { ...formData }
-
-      // 1. Handle Auto Translate
-      if (autoTranslate && formData.title.en && formData.body.en) {
-          const proceed = window.confirm(
-            `Auto-translation is enabled. This will translate content to ${languages.filter(l => l.id !== 'en').length} other languages.\n\nExisting custom translations will be preserved.\n\nContinue?`
-          )
-          
-          if (!proceed) {
-              setLoading(false)
-              return
-          }
-
-          setTranslating(true)
-          try {
-              const targetLangs = languages.filter(l => l.id !== 'en').map(l => l.id)
-              
-              const res = await fetch('/api/admin/ai/translate', {
-                  method: 'POST',
-                  headers: { 
-                      'Content-Type': 'application/json',
-                      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                  },
-                  body: JSON.stringify({
-                      content: {
-                          title: formData.title.en,
-                          body: formData.body.en,
-                          excerpt: formData.excerpt.en,
-                          keyTakeaways: formData.keyTakeaways.en,
-                          faq: formData.faq.en
-                      },
-                      sourceLang: 'en',
-                      targetLangs
-                  })
-              })
-
-              if (res.ok) {
-                  const { translations } = await res.json()
-                  
-                  // Merge translations
-                  targetLangs.forEach(lang => {
-                      if (translations[lang]) {
-                          const t = translations[lang]
-                          finalFormData.title[lang] = finalFormData.title[lang] || t.title
-                          finalFormData.body[lang] = finalFormData.body[lang] || t.body
-                          finalFormData.excerpt[lang] = finalFormData.excerpt[lang] || t.excerpt
-                          finalFormData.keyTakeaways[lang] = finalFormData.keyTakeaways[lang] || t.keyTakeaways
-                          finalFormData.faq[lang] = finalFormData.faq[lang] || t.faq
-                          
-                          // Also translate Image Alt (using title as source if alt is empty or same as title)
-                          finalFormData.alt[lang] = finalFormData.alt[lang] || t.title
-
-                          // Simple copy for SEO if missing
-                          finalFormData.seo.metaTitle[lang] = finalFormData.seo.metaTitle[lang] || t.title
-                          finalFormData.seo.metaDescription[lang] = finalFormData.seo.metaDescription[lang] || t.excerpt
-                          finalFormData.openGraph.title[lang] = finalFormData.openGraph.title[lang] || t.title
-                          finalFormData.openGraph.description[lang] = finalFormData.openGraph.description[lang] || t.excerpt
-                      }
-                  })
-              }
-          } catch (err) {
-              console.error('Translation failed', err)
-              // Continue without translation, maybe warn user?
-          } finally {
-              setTranslating(false)
-          }
-      }
 
       // 2. Prepare Payload
       // Sanity expects localized fields as: { en: "...", zh_CN: "..." }
@@ -438,7 +479,7 @@ export default function NewPostPage() {
       alert(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
-      setTranslating(false)
+      // setTranslating(false)
     }
   }
 
@@ -463,12 +504,31 @@ export default function NewPostPage() {
 
   return (
     <div className="p-8 w-full max-w-full">
+      <LanguageSelector 
+        isOpen={showTranslateModal} 
+        onClose={() => setShowTranslateModal(false)}
+        onConfirm={handleTranslate}
+        isTranslating={translating}
+      />
+
       <div className="mb-6 flex items-center justify-between">
         <Link href="/admin/content" className="flex items-center text-gray-500 hover:text-gray-900">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Posts
         </Link>
-        <h1 className="text-2xl font-bold">New Post</h1>
+        <div className="flex items-center gap-2">
+            {historyIndex > 0 && (
+                <button 
+                    onClick={undo}
+                    type="button"
+                    className="flex items-center text-sm text-gray-600 hover:text-gray-900 px-3 py-1 bg-white border rounded shadow-sm"
+                    title="Undo last action"
+                >
+                    <RotateCcw className="w-4 h-4 mr-1" /> Undo
+                </button>
+            )}
+            <h1 className="text-2xl font-bold ml-2">New Post</h1>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
@@ -781,16 +841,14 @@ export default function NewPostPage() {
         <div className="flex flex-col gap-4 justify-end pt-4 border-t">
             {activeTab !== 'ai' && (
                 <div className="flex justify-end">
-                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none bg-gray-50 p-2 rounded-lg border border-gray-200">
-                        <input 
-                            type="checkbox" 
-                            checked={autoTranslate} 
-                            onChange={e => setAutoTranslate(e.target.checked)}
-                            className="rounded text-blue-600 focus:ring-blue-500"
-                        />
+                    <button 
+                        type="button"
+                        onClick={() => setShowTranslateModal(true)}
+                        className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 px-3 py-2 rounded-lg border border-gray-200 transition-colors"
+                    >
                         <Globe className="w-4 h-4 text-blue-500" />
-                        <span>Auto-translate to other languages</span>
-                    </label>
+                        <span>Translate to other languages...</span>
+                    </button>
                 </div>
             )}
 
@@ -801,7 +859,7 @@ export default function NewPostPage() {
                     className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                     {loading || translating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                    {translating ? 'Translating & Publishing...' : 'Publish Post'}
+                    Publish Post
                 </button>
             </div>
         </div>
