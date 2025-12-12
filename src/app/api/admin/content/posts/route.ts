@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { checkAdmin } from '@/lib/adminAuth';
 import { client, writeClient } from '@/lib/sanity';
+import { getLocalizedTitle } from '@/sanity/lib/languages';
 
 // LIST and CREATE posts
 export async function GET() {
@@ -8,7 +9,7 @@ export async function GET() {
   if (error) return NextResponse.json({ error }, { status });
 
   try {
-    const posts = await client.fetch(`*[_type == "post"] | order(publishedAt desc) {
+    const postsData = await client.fetch(`*[_type == "post"] | order(publishedAt desc) {
       _id,
       title,
       slug,
@@ -17,6 +18,14 @@ export async function GET() {
       mainImage,
       language
     }`, {}, { useCdn: false });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const posts = postsData.map((p: any) => ({
+      ...p,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      categories: p.categories?.map((t: any) => getLocalizedTitle(t, 'en'))
+    }));
+
     return NextResponse.json({ posts });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
