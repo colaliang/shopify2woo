@@ -1,4 +1,5 @@
 import { client, urlFor } from '@/lib/sanity'
+import { getLocalizedTitle } from '@/sanity/lib/languages'
 import BlogHeader from '../components/BlogHeader'
 import BlogPostContent from './components/BlogPostContent'
 import { Metadata } from 'next'
@@ -65,18 +66,21 @@ async function getPost(slug: string): Promise<Post | null> {
   const language = postData.language || 'en'
   const localizedPost = {
       ...postData,
+      title: getLocalizedTitle(postData.title, language),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       categories: postData.categories?.map((c: any) => ({
           ...c,
-          title: c.title?.[language.replace(/-/g, '_')] || c.title?.en || 'Untitled'
+          // If title is an object (localizedString), extract string. If it's already a string, use it.
+          title: getLocalizedTitle(c.title, language)
       })),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       relatedPosts: postData.relatedPosts?.map((rp: any) => ({
           ...rp,
+          title: getLocalizedTitle(rp.title, language),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           categories: rp.categories?.map((c: any) => ({
               ...c,
-              title: c.title?.[language.replace(/-/g, '_')] || c.title?.en || 'Untitled'
+              title: getLocalizedTitle(c.title, language)
           }))
       }))
   }
@@ -97,21 +101,33 @@ async function getRecentPosts(language?: string) {
     params.language = language
   }
 
-  return await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {
+  const postsData = await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {
     _id,
     title,
     slug,
     publishedAt,
     mainImage
   }`, params)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return postsData?.map((p: any) => ({
+      ...p,
+      title: getLocalizedTitle(p.title, language || 'en')
+  })) || []
 }
 
-async function getCategories() {
-  return await client.fetch(`*[_type == "category"] | order(title asc) {
+async function getCategories(language: string = 'en') {
+  const categories = await client.fetch(`*[_type == "category"] | order(title asc) {
     _id,
     title,
     slug
   }`)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return categories?.map((c: any) => ({
+      ...c,
+      title: getLocalizedTitle(c.title, language)
+  })) || []
 }
 
 // -----------------------------------------------------------------------------
@@ -157,7 +173,7 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
 
   const [recentPosts, categories] = await Promise.all([
     getRecentPosts(language),
-    getCategories()
+    getCategories(language)
   ])
 
   return (

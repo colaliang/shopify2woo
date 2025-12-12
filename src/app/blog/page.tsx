@@ -1,4 +1,5 @@
 import { client, urlFor } from '@/lib/sanity'
+import { getLocalizedTitle } from '@/sanity/lib/languages'
 import Link from 'next/link'
 import BlogHeader from './components/BlogHeader'
 import { Search, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
@@ -105,10 +106,11 @@ async function getPosts(search?: string, category?: string, language?: string, p
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const posts = postsData?.map((p: any) => ({
     ...p,
+    title: getLocalizedTitle(p.title, language || 'en'),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categories: p.categories?.map((c: any) => ({
       ...c,
-      title: c.title?.[(language || 'en').replace(/-/g, '_')] || c.title?.en || 'Untitled'
+      title: getLocalizedTitle(c.title, language || 'en')
     }))
   }))
 
@@ -144,10 +146,11 @@ async function getRecentPosts(language?: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const posts = postsData?.map((p: any) => ({
     ...p,
+    title: getLocalizedTitle(p.title, language || 'en'),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categories: p.categories?.map((c: any) => ({
       ...c,
-      title: c.title?.[(language || 'en').replace(/-/g, '_')] || c.title?.en || 'Untitled'
+      title: getLocalizedTitle(c.title, language || 'en')
     }))
   })) || []
   
@@ -165,7 +168,7 @@ async function getCategories(language: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return categories?.map((c: any) => ({
     ...c,
-    title: c.title?.[language.replace(/-/g, '_')] || c.title?.en || 'Untitled'
+    title: getLocalizedTitle(c.title, language)
   })) || []
 }
 
