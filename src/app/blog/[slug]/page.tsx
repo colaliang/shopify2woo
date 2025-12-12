@@ -124,12 +124,12 @@ async function getRecentPosts(language?: string) {
   const params: Record<string, string> = {}
 
   if (language) {
+    const langKey = language.replace(/-/g, '_')
     if (language === 'en') {
-      conditions += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
+      conditions += ` && (defined(localizedTitle.en) || defined(title) || language == "en" || !defined(language))`
     } else {
-      conditions += ` && language == $language`
+      conditions += ` && defined(localizedTitle.${langKey})`
     }
-    params.language = language
   }
 
   const postsData = await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {

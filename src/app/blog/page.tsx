@@ -73,17 +73,18 @@ async function getPosts(search?: string, category?: string, language?: string, p
   }
 
   if (language) {
+    const langKey = language.replace(/-/g, '_')
     if (language === 'en') {
       // For English, include:
-      // 1. Exact match 'en'
-      // 2. Undefined (legacy posts)
-      // 3. Empty string
-      // 4. Case insensitive match (just in case)
-      conditions += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
+      // 1. Defined English title
+      // 2. Legacy title
+      // 3. Fallback to existing language field checks (legacy)
+      conditions += ` && (defined(localizedTitle.en) || defined(title) || language == "en" || !defined(language))`
     } else {
-      conditions += ` && language == $language`
+      // For other languages, ensure the translation exists
+      conditions += ` && defined(localizedTitle.${langKey})`
     }
-    params.language = language
+    // We don't need params.language anymore for the query logic, but keeping it doesn't hurt if we removed the usage
   }
 
   const filter = `*[${conditions}]`
@@ -166,12 +167,12 @@ async function getRecentPosts(language?: string) {
   const params: Record<string, string> = {}
 
   if (language) {
+    const langKey = language.replace(/-/g, '_')
     if (language === 'en') {
-      conditions += ` && (language == $language || !defined(language) || language == "" || language == "EN")`
+      conditions += ` && (defined(localizedTitle.en) || defined(title) || language == "en" || !defined(language))`
     } else {
-      conditions += ` && language == $language`
+      conditions += ` && defined(localizedTitle.${langKey})`
     }
-    params.language = language
   }
 
   const postsData = await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {
