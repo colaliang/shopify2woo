@@ -63,9 +63,13 @@ export async function POST(req: Request) {
         }));
     }
 
+    // Prepare document data, excluding autoTranslate which is not in schema
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { autoTranslate, title: _t, description: _d, ...restBody } = body;
+
     const doc = await writeClient.create({
       _type: 'category',
-      ...body,
+      ...restBody,
       title,
       description
     });
