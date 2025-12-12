@@ -5,6 +5,7 @@ import BlogHeader from './components/BlogHeader'
 import { Search, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
 import { Metadata } from 'next'
 import MarkdownIt from 'markdown-it'
+import { getTranslations } from '@/lib/i18nServer'
 
 const md = new MarkdownIt({ html: true, breaks: true })
 
@@ -185,10 +186,11 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
   // Map 'en' to 'en-US' for date formatting to ensure English month names
   const dateLocale = lng === 'en' ? 'en-US' : lng;
 
-  const [{ posts, total }, categories, recentPosts] = await Promise.all([
+  const [{ posts, total }, categories, recentPosts, t] = await Promise.all([
     getPosts(search, categorySlug, lng, page),
     getCategories(lng),
-    getRecentPosts(lng)
+    getRecentPosts(lng),
+    getTranslations(lng)
   ])
 
   const totalPages = Math.ceil(total / 9)
@@ -254,15 +256,9 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                       
                       <div className="flex items-center justify-between border-t border-gray-100 pt-6">
                         <Link href={`/blog/${post.slug.current}`} className="inline-flex items-center text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors uppercase tracking-wide">
-                          Read More <ChevronRight className="w-4 h-4 ml-1" />
+                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                          {(t?.blog as any)?.read_more || 'Read More'} <ChevronRight className="w-4 h-4 ml-1" />
                         </Link>
-                        
-                        <div className="flex items-center text-gray-400 text-sm font-medium">
-                            <span className="flex items-center">
-                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                                No Comments
-                            </span>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -273,10 +269,13 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                 <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Search className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900">No posts found</h3>
-                <p className="text-gray-500 mt-2">Try adjusting your search or filter.</p>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                <h3 className="text-lg font-medium text-gray-900">{(t?.blog as any)?.no_posts || 'No posts found'}</h3>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                <p className="text-gray-500 mt-2">{(t?.blog as any)?.try_adjusting || 'Try adjusting your search or filter.'}</p>
                 <Link href="/blog" className="inline-block mt-4 text-blue-600 hover:underline">
-                    Clear all filters
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {(t?.blog as any)?.clear_filters || 'Clear all filters'}
                 </Link>
               </div>
             )}
@@ -316,7 +315,8 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                     <input 
                         name="q"
                         defaultValue={search}
-                        placeholder="Search" 
+                        /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+                        placeholder={(t?.blog as any)?.search || 'Search'} 
                         className="w-full pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-sm focus:outline-none focus:border-blue-500 transition-colors text-sm"
                     />
                     <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600">
@@ -328,7 +328,8 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
 
             {/* Recent Posts */}
             <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-6 pb-2 border-b border-gray-100">Recent Posts</h3>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                <h3 className="text-lg font-medium text-gray-900 mb-6 pb-2 border-b border-gray-100">{(t?.blog as any)?.recent_posts || 'Recent Posts'}</h3>
                 <div className="space-y-6">
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {recentPosts.map((post: any) => (
@@ -362,7 +363,8 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
 
             {/* Categories */}
             <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-6 pb-2 border-b border-gray-100">Categories</h3>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              <h3 className="text-lg font-medium text-gray-900 mb-6 pb-2 border-b border-gray-100">{(t?.blog as any)?.categories || 'Categories'}</h3>
               <div className="flex flex-col space-y-3">
                 <Link 
                   href="/blog"
@@ -372,7 +374,8 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                       : 'text-gray-600 hover:text-blue-600'
                   }`}
                 >
-                  All Posts
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {(t?.blog as any)?.all_posts || 'All Posts'}
                 </Link>
                 {categories.map((cat: Category) => (
                   <Link 

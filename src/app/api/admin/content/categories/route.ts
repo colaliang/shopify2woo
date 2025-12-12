@@ -69,9 +69,12 @@ export async function POST(req: Request) {
 
     const doc = await writeClient.create({
       _type: 'category',
-      ...restBody,
       title,
-      description
+      description,
+      slug: {
+        _type: 'slug',
+        current: body.slug?.current || body.slug
+      }
     });
     
     // Return sanitized document for the frontend
@@ -143,7 +146,10 @@ export async function PUT(req: Request) {
     const doc = await writeClient.patch(_id).set({
       title,
       description,
-      slug: body.slug // Allow slug update
+      slug: {
+        _type: 'slug',
+        current: body.slug?.current || body.slug
+      }
     }).commit();
     
     // Return sanitized document for the frontend
