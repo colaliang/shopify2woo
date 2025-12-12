@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Image as ImageIcon, Search, Facebook, Linkedin, Twitter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { urlFor } from "@/lib/sanity";
@@ -120,7 +121,7 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
               {post.keyTakeaways && post.keyTakeaways.length > 0 && (
                   <div className="mb-10 p-6 bg-blue-50 rounded-xl border border-blue-100">
                       <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center">
-                          <span className="mr-2">✨</span> Key Takeaways (TL;DR)
+                          <span className="mr-2">✨</span> {t("blog.key_takeaways")}
                       </h3>
                       <ul className="space-y-2">
                           {post.keyTakeaways.map((point, idx) => (
@@ -147,7 +148,7 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
               {/* FAQ Section */}
               {post.faq && post.faq.length > 0 && (
                   <div className="mt-12 pt-8 border-t border-gray-100">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-6">Frequently Asked Questions</h2>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-6">{t("blog.faq")}</h2>
                       <div className="space-y-6">
                           {post.faq.map((item, idx) => (
                               <div key={idx} className="bg-gray-50 rounded-lg p-6">
@@ -251,13 +252,22 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {recentPosts.map((p: any) => (
                 <Link key={p._id} href={`/blog/${p.slug.current}${i18n.language !== 'en' ? `?lng=${i18n.language}` : ''}`} className="flex gap-4 group">
-                  <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden shadow-sm">
-                    {p.mainImage ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
+                  <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden shadow-sm relative">
+                    {p.mainImageUrl ? (
+                      <Image
+                        src={p.mainImageUrl}
+                        alt={p.title}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        sizes="96px"
+                      />
+                    ) : p.mainImage ? (
+                      <Image
                         src={urlFor(p.mainImage).width(200).height(200).url()}
                         alt={p.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        sizes="96px"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400">

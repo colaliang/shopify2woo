@@ -251,6 +251,8 @@
     "no_content": "该文章暂无内容。",
     "back_to_blog": "返回博客",
     "table_of_contents": "目录",
+    "key_takeaways": "文章要点",
+    "faq": "常见问题",
     "show": "显示",
     "hide": "隐藏"
   }

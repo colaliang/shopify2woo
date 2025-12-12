@@ -247,7 +247,9 @@
     "no_content": "이 게시물에는 내용이 없습니다.",
     "back_to_blog": "블로그로 돌아가기",
     "table_of_contents": "목차",
-    "show": "표시",
+    "key_takeaways": "핵심 내용",
+    "faq": "자주 묻는 질문",
+    "show": "보기","표시",
     "hide": "숨기기"
   }
 }
