@@ -363,7 +363,7 @@ export default function NewPostPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const res: Record<string, any> = {}
           languages.forEach(lang => {
-              const val = data[lang.id] || data['en'] // Fallback to EN if missing? Or just leave undefined?
+              const val = data[lang.id] // Remove fallback to EN
               if (val) res[toSanityKey(lang.id)] = val
           })
           return res

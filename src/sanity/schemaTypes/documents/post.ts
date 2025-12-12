@@ -280,12 +280,24 @@ export const post = defineType({
   preview: {
     select: {
       title: 'localizedTitle.en',
-      author: 'author.name',
+      legacyTitle: 'title',
+      localizedTitle: 'localizedTitle',
       media: 'mainImage',
     },
     prepare(selection) {
-      const { title, author } = selection
-      return { ...selection, title: title || 'Untitled', subtitle: author && `by ${author}` }
+      const { title, legacyTitle, localizedTitle, media } = selection
+      const displayTitle = title || legacyTitle || 'Untitled'
+      
+      // Calculate available languages
+      const langs = localizedTitle 
+        ? Object.keys(localizedTitle).filter(k => k !== '_type').map(k => k.replace('_', '-').toUpperCase()) 
+        : []
+      
+      return { 
+        title: displayTitle, 
+        subtitle: langs.length > 0 ? `Available in: ${langs.join(', ')}` : 'No translations',
+        media
+      }
     },
   },
 })

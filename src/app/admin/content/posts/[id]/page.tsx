@@ -436,20 +436,54 @@ export default function EditPostPage() {
                   targetLangs.forEach(lang => {
                       if (translations[lang]) {
                           const t = translations[lang]
-                          finalFormData.title[lang] = finalFormData.title[lang] || t.title
-                          finalFormData.body[lang] = finalFormData.body[lang] || t.body
-                          finalFormData.excerpt[lang] = finalFormData.excerpt[lang] || t.excerpt
-                          finalFormData.keyTakeaways[lang] = finalFormData.keyTakeaways[lang] || t.keyTakeaways
-                          finalFormData.faq[lang] = finalFormData.faq[lang] || t.faq
+                          
+                          // Helper to overwrite if empty or matches source (legacy fallback)
+                          const shouldUpdate = (current: string, source: string) => !current || current === source
+
+                          if (shouldUpdate(finalFormData.title[lang], finalFormData.title.en)) {
+                              finalFormData.title[lang] = t.title
+                          }
+                          
+                          if (shouldUpdate(finalFormData.body[lang], finalFormData.body.en)) {
+                              finalFormData.body[lang] = t.body
+                          }
+                          
+                          if (shouldUpdate(finalFormData.excerpt[lang], finalFormData.excerpt.en)) {
+                              finalFormData.excerpt[lang] = t.excerpt
+                          }
+                          
+                          // Arrays need different check
+                          // For arrays, if length is 0, we take translation
+                          // We don't easily check for equality on arrays, so just check if empty
+                          if (!finalFormData.keyTakeaways[lang]?.length) {
+                              finalFormData.keyTakeaways[lang] = t.keyTakeaways
+                          }
+                          
+                          if (!finalFormData.faq[lang]?.length) {
+                              finalFormData.faq[lang] = t.faq
+                          }
                           
                           // Also translate Image Alt (using title as source if alt is empty or same as title)
-                          finalFormData.alt[lang] = finalFormData.alt[lang] || t.title
+                          if (shouldUpdate(finalFormData.alt[lang], finalFormData.title.en) || shouldUpdate(finalFormData.alt[lang], finalFormData.alt.en)) {
+                              finalFormData.alt[lang] = t.title
+                          }
 
-                          // Simple copy for SEO if missing
-                          finalFormData.seo.metaTitle[lang] = finalFormData.seo.metaTitle[lang] || t.title
-                          finalFormData.seo.metaDescription[lang] = finalFormData.seo.metaDescription[lang] || t.excerpt
-                          finalFormData.openGraph.title[lang] = finalFormData.openGraph.title[lang] || t.title
-                          finalFormData.openGraph.description[lang] = finalFormData.openGraph.description[lang] || t.excerpt
+                          // SEO fields
+                          if (shouldUpdate(finalFormData.seo.metaTitle[lang], finalFormData.seo.metaTitle.en)) {
+                              finalFormData.seo.metaTitle[lang] = t.title
+                          }
+                          
+                          if (shouldUpdate(finalFormData.seo.metaDescription[lang], finalFormData.seo.metaDescription.en)) {
+                              finalFormData.seo.metaDescription[lang] = t.excerpt
+                          }
+                          
+                          if (shouldUpdate(finalFormData.openGraph.title[lang], finalFormData.openGraph.title.en)) {
+                              finalFormData.openGraph.title[lang] = t.title
+                          }
+                          
+                          if (shouldUpdate(finalFormData.openGraph.description[lang], finalFormData.openGraph.description.en)) {
+                              finalFormData.openGraph.description[lang] = t.excerpt
+                          }
                       }
                   })
               }
@@ -468,7 +502,7 @@ export default function EditPostPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const res: Record<string, any> = {}
           languages.forEach(lang => {
-              const val = data[lang.id] || data['en']
+              const val = data[lang.id]
               if (val) res[toSanityKey(lang.id)] = val
           })
           return res
