@@ -49,13 +49,15 @@
 
 ### ✨ 扩展构思
 
-1. **AI产品优化**
+1. **AI产品管理与优化**
+   - 增加对产品的AI管理功能，适合于B2B，用户可以在Admin中新增，查看和管理已导入的产品。(优先考虑集成能Vercel部署)
    - 产品AI优化，标题，详情，场景图
 
 2. **AI BLOG生成**
    - AI内容生成与发布
    - AI图片与短视频生，多渠道发布
    - 现在流程是：NewPost/AI Generate -> Edit Post/AI Optimize( English/Chinese ) -> Translate to Other Lang -> Publish (最终优化为一键生成，自动发布，多渠道同步)
+   - 构建了一套完整的流程，可以用于集成到其项目中，为后AI建站提供支持。
 
 ## [Latest] - 2025-12-11/2025-12-12
 
@@ -64,6 +66,7 @@
 1. **BLOG优化**
    - UI样式优化
    - 按语言显示
+   - 优化图片为supabase存储，避免直接存储在sanity中
 
 2. **New Post AI生成内容优化**
    - 生成内容同时，满足sanity/schemaTypes要求，做好SEO优化

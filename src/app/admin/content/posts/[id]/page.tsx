@@ -188,8 +188,8 @@ export default function EditPostPage() {
             const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {}
 
             const [catData, postData] = await Promise.all([
-                fetch('/api/admin/content/categories', { headers }).then(r => r.json()),
-                fetch(`/api/admin/content/posts/${id}`, { headers }).then(r => r.json())
+                fetch('/api/admin/content/categories', { headers, cache: 'no-store' }).then(r => r.json()),
+                fetch(`/api/admin/content/posts/${id}`, { headers, cache: 'no-store' }).then(r => r.json())
             ])
 
             setCategories(catData.categories || [])
@@ -747,6 +747,7 @@ export default function EditPostPage() {
       // Update local state with new data (including translations)
       setFormData(finalFormData)
       alert('Post updated successfully!')
+      router.refresh()
       router.push('/admin/content')
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e))
