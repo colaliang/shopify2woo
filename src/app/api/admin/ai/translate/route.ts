@@ -28,76 +28,85 @@ export async function POST(req: Request) {
     // Identify which languages to translate to
     const langsToTranslate = targetLangs || languages.filter(l => l.id !== sourceLang).map(l => l.id);
 
-    // Prepare system prompt for translation
-    const systemPrompt = `You are a professional translator and localization expert. 
-    You will receive a JSON object containing text fields.
-    Your task is to translate the content into the following languages: ${langsToTranslate.join(', ')}.
-    
-    Output Format: PURE JSON OBJECT.
-    Structure:
-    {
-      "${langsToTranslate[0]}": {
-        "title": "Translated Title",
-        "body": "Translated Body (Markdown)",
-        "excerpt": "Translated Excerpt",
-        "keyTakeaways": ["Translated Point 1", ...],
-        "faq": [{ "question": "...", "answer": "..." }]
-      },
-      ...
-    }
-    
-    Guidelines:
-    - Maintain Markdown formatting.
-    - Adapt cultural context where appropriate.
-    - Ensure SEO keywords are naturally translated.
-    - Do NOT translate technical terms that should remain in English (unless standard).
-    `;
+    // Function to translate a single language
+    const translateOne = async (lang: string) => {
+        const systemPrompt = `You are a professional translator and localization expert. 
+        You will receive a JSON object containing text fields.
+        Your task is to translate the content into ${languages.find(l => l.id === lang)?.title || lang}.
+        
+        Output Format: PURE JSON OBJECT.
+        Structure:
+        {
+          "title": "Translated Title",
+          "body": "Translated Body (Markdown)",
+          "excerpt": "Translated Excerpt",
+          "keyTakeaways": ["Translated Point 1", ...],
+          "faq": [{ "question": "...", "answer": "..." }]
+        }
+        
+        Guidelines:
+        - Maintain Markdown formatting.
+        - Adapt cultural context where appropriate.
+        - Ensure SEO keywords are naturally translated.
+        - Do NOT translate technical terms that should remain in English (unless standard).
+        `;
 
-    const userPrompt = `
-    Source Content (${sourceLang}):
-    ${JSON.stringify(content, null, 2)}
-    
-    Please translate to: ${langsToTranslate.join(', ')}
-    `;
+        const userPrompt = `
+        Source Content (${sourceLang}):
+        ${JSON.stringify(content, null, 2)}
+        
+        Please translate to: ${lang}
+        `;
 
-    // Call Deepseek API
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        stream: false,
-        temperature: 0.3, // Lower temperature for more accurate translation
-        max_tokens: 4000,
-        response_format: { type: 'json_object' }
-      }),
-    });
+        try {
+            const response = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: 'deepseek-chat',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt },
+                    ],
+                    stream: false,
+                    temperature: 0.3,
+                    max_tokens: 8000,
+                    response_format: { type: 'json_object' }
+                }),
+            });
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Deepseek API Error:', errorText);
-        return NextResponse.json({ error: `Deepseek API Error: ${response.statusText}` }, { status: response.status });
-    }
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Deepseek API Error (${lang}):`, errorText);
+                return null;
+            }
 
-    const data = await response.json();
-    const result = data.choices[0]?.message?.content || '{}';
-    
-    let parsedResult = {};
-    try {
-        parsedResult = JSON.parse(result);
-    } catch (e) {
-        console.error('Failed to parse AI response', e);
-        // Try to salvage?
-    }
+            const data = await response.json();
+            const resultString = data.choices[0]?.message?.content || '{}';
+            const parsed = JSON.parse(resultString);
+            return { [lang]: parsed };
 
-    return NextResponse.json({ translations: parsedResult });
+        } catch (e) {
+            console.error(`Translation failed for ${lang}:`, e);
+            return null;
+        }
+    };
+
+    // Run translations in parallel
+    // We limit concurrency to 5 to avoid rate limits or timeouts if needed, 
+    // but for now Promise.all with all 10 should be fine for Deepseek (usually high rate limits).
+    const results = await Promise.all(langsToTranslate.map((lang: string) => translateOne(lang)));
+
+    // Merge results
+    const mergedResults = results.reduce((acc, curr) => {
+        if (curr) return { ...acc, ...curr };
+        return acc;
+    }, {});
+
+    return NextResponse.json({ translations: mergedResults });
 
   } catch (e) {
     console.error('Translation Error:', e);
