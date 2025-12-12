@@ -53,6 +53,7 @@ export default function NewPostPage() {
     excerpt: { en: '' } as Record<string, string>,
     categoryId: '',
     mainImageAssetId: '',
+    mainImage: { en: null } as Record<string, string | null>, // Store asset IDs per language
     alt: { en: '' } as Record<string, string>,
     tags: [] as string[],
     keyTakeaways: { en: [] } as Record<string, string[]>,
@@ -62,7 +63,7 @@ export default function NewPostPage() {
         metaTitle: { en: '' } as Record<string, string>,
         metaDescription: { en: '' } as Record<string, string>,
         focusKeyword: '',
-        keywords: [] as string[],
+        keywords: { en: [] } as Record<string, string[]>,
         noIndex: false,
         noFollow: false
     },
@@ -139,7 +140,20 @@ export default function NewPostPage() {
       .replace(/(^-|-$)+/g, '')
   }
 
-  // Load cached AI content on mount
+  // When changing language, update cover image preview if available
+  useEffect(() => {
+      const assetId = formData.mainImage[contentLang] || formData.mainImage.en
+      if (assetId) {
+          // Reconstruct URL (a bit hacky, but avoids fetching asset details again)
+          const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
+          const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
+          const [, id, dim, ext] = assetId.split('-')
+          setPreviewImage(`https://cdn.sanity.io/images/${projectId}/${dataset}/${id}-${dim}.${ext}`)
+      } else {
+          setPreviewImage(null)
+      }
+  }, [contentLang, formData.mainImage])
+
   useEffect(() => {
       const cached = localStorage.getItem('admin_ai_generated_content')
       if (cached) {
@@ -247,7 +261,7 @@ export default function NewPostPage() {
               metaTitle: { ...prev.seo.metaTitle, en: content.seo?.metaTitle || title },
               metaDescription: { ...prev.seo.metaDescription, en: content.seo?.metaDescription || body.replace(/<[^>]*>/g, '').slice(0, 150) + '...' },
               focusKeyword: content.seo?.focusKeyword || prev.seo.focusKeyword,
-              keywords: content.seo?.keywords || prev.seo.keywords,
+              keywords: content.seo?.keywords ? { ...prev.seo.keywords, en: content.seo.keywords } : prev.seo.keywords,
               noIndex: content.seo?.noIndex !== undefined ? content.seo.noIndex : prev.seo.noIndex,
               noFollow: content.seo?.noFollow !== undefined ? content.seo.noFollow : prev.seo.noFollow,
           },
@@ -282,7 +296,17 @@ export default function NewPostPage() {
           })
           if (!res.ok) throw new Error('Upload failed')
           const data = await res.json()
-          setFormData(prev => ({ ...prev, mainImageAssetId: data.asset._id }))
+          // setFormData(prev => ({ ...prev, mainImageAssetId: data.asset._id }))
+          
+          // Update localized image map
+          setFormData(prev => ({
+              ...prev,
+              mainImageAssetId: contentLang === 'en' ? data.asset._id : prev.mainImageAssetId,
+              mainImage: {
+                  ...prev.mainImage,
+                  [contentLang]: data.asset._id
+              }
+          }))
       } catch (e) {
           console.error(e)
           alert('Failed to upload image')
@@ -334,7 +358,9 @@ export default function NewPostPage() {
                       body: formData.body.en,
                       excerpt: formData.excerpt.en,
                       keyTakeaways: formData.keyTakeaways.en,
-                      faq: formData.faq.en
+                      faq: formData.faq.en,
+                      // Also translate keywords
+                      keywords: formData.seo.keywords.en
                   },
                   sourceLang: 'en',
                   targetLangs
@@ -366,6 +392,11 @@ export default function NewPostPage() {
                       newFormData.seo.metaDescription[lang] = t.excerpt
                       newFormData.openGraph.title[lang] = t.title
                       newFormData.openGraph.description[lang] = t.excerpt
+
+                      // Translate Keywords
+                      if (t.keywords) {
+                          newFormData.seo.keywords[lang] = t.keywords
+                      }
                   }
               })
               
@@ -437,7 +468,19 @@ export default function NewPostPage() {
                 asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
                 alt: finalFormData.alt.en || finalFormData.title.en, // Legacy field
                 localizedAlt: localize(finalFormData.alt) // New localized field
-            }
+            },
+            localizedMainImage: Object.keys(finalFormData.mainImage).reduce((acc, lang) => {
+                 const assetId = finalFormData.mainImage[lang]
+                 if (assetId) {
+                     acc[toSanityKey(lang)] = {
+                         _type: 'image',
+                         asset: { _type: 'reference', _ref: assetId },
+                         alt: finalFormData.alt[lang]
+                     }
+                 }
+                 return acc
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            }, {} as Record<string, any>),
         } : {}),
 
         // SEO
@@ -446,7 +489,8 @@ export default function NewPostPage() {
             metaTitleLocalized: localize(finalFormData.seo.metaTitle),
             metaDescriptionLocalized: localize(finalFormData.seo.metaDescription),
             focusKeyword: finalFormData.seo.focusKeyword,
-            keywords: finalFormData.seo.keywords,
+            keywords: finalFormData.seo.keywords.en, // Legacy
+            localizedKeywords: localize(finalFormData.seo.keywords), // New localized
             noIndex: finalFormData.seo.noIndex,
             noFollow: finalFormData.seo.noFollow
         },
@@ -741,6 +785,28 @@ export default function NewPostPage() {
                         </label>
                     </div>
                 )}
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Keywords ({languages.find(l => l.id === contentLang)?.title})
+                    </label>
+                    <input 
+                        type="text" 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="Comma separated keywords"
+                        value={(formData.seo.keywords[contentLang] || []).join(', ')}
+                        onChange={e => setFormData(prev => ({ 
+                            ...prev, 
+                            seo: { 
+                                ...prev.seo, 
+                                keywords: {
+                                    ...prev.seo.keywords,
+                                    [contentLang]: e.target.value.split(',').map(k => k.trim()).filter(Boolean)
+                                }
+                            } 
+                        }))}
+                    />
+                </div>
             </div>
         )}
 

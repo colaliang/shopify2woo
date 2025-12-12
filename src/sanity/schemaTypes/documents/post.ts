@@ -44,34 +44,48 @@ export const post = defineType({
     }),
     defineField({
       name: 'mainImage',
-      title: 'Main image',
+      title: 'Main image (Legacy)',
       type: 'image',
       group: 'content',
       options: {
         hotspot: true,
       },
+      hidden: true,
       fields: [
         {
           name: 'alt',
           type: 'string',
           title: 'Alternative Text (Legacy)',
-          description: 'Important for SEO and accessiblity.',
           hidden: true,
         },
         {
           name: 'localizedAlt',
           type: 'localizedString',
           title: 'Alternative Text',
-          description: 'Important for SEO and accessiblity.',
         },
-        {
-            name: 'lazyLoad',
-            type: 'boolean',
-            title: 'Lazy Load',
-            description: 'Should this image be lazy loaded?',
-            initialValue: true,
-        }
       ],
+    }),
+    defineField({
+      name: 'localizedMainImage',
+      title: 'Main image',
+      type: 'object',
+      group: 'content',
+      description: 'Localized cover images. Fallback to English if missing.',
+      fields: languages.map((lang) => 
+        defineField({
+          name: lang.id.replace(/-/g, '_'),
+          title: lang.title,
+          type: 'image',
+          options: { hotspot: true },
+          fields: [
+            {
+              name: 'alt',
+              type: 'string',
+              title: 'Alternative Text',
+            }
+          ]
+        })
+      )
     }),
     defineField({
       name: 'bodyMarkdown',
@@ -144,7 +158,20 @@ export const post = defineType({
       description: 'Short summary for list views and SEO fallback.',
     }),
     
-    // SEO & Social Fields
+    defineField({
+      name: 'localizedKeywords',
+      title: 'Keywords (Localized)',
+      type: 'object',
+      group: 'seo',
+      fields: languages.map((lang) => 
+        defineField({
+          name: lang.id.replace(/-/g, '_'),
+          title: lang.title,
+          type: 'array',
+          of: [{ type: 'string' }]
+        })
+      )
+    }),
     defineField({
       name: 'seo',
       title: 'SEO',
@@ -277,12 +304,13 @@ export const post = defineType({
     //     hidden: true,
     // })
   ],
-  preview: {
+    preview: {
     select: {
       title: 'localizedTitle.en',
       legacyTitle: 'title',
       localizedTitle: 'localizedTitle',
-      media: 'mainImage',
+      // media: 'mainImage', // legacy
+      media: 'localizedMainImage.en', // new default
     },
     prepare(selection) {
       const { title, legacyTitle, localizedTitle, media } = selection

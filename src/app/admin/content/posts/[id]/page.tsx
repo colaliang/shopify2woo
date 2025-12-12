@@ -58,6 +58,7 @@ export default function EditPostPage() {
     body: { en: '' } as Record<string, string>, 
     categoryId: '',
     mainImageAssetId: '',
+    mainImage: { en: null } as Record<string, string | null>, // Store asset IDs per language
     alt: { en: '' } as Record<string, string>,
     publishedAt: '',
     excerpt: { en: '' } as Record<string, string>,
@@ -69,7 +70,7 @@ export default function EditPostPage() {
         metaTitle: { en: '' } as Record<string, string>,
         metaDescription: { en: '' } as Record<string, string>,
         focusKeyword: '',
-        keywords: [] as string[],
+        keywords: { en: [] } as Record<string, string[]>,
         noIndex: false,
         noFollow: false
     },
@@ -129,7 +130,20 @@ export default function EditPostPage() {
   const [aiOutput, setAiOutput] = useState('')
   const [aiError, setAiError] = useState('')
 
-  // Load cached AI result on mount
+  // When changing language, update cover image preview if available
+  useEffect(() => {
+      const assetId = formData.mainImage[contentLang] || formData.mainImage.en
+      if (assetId) {
+          // Reconstruct URL (a bit hacky, but avoids fetching asset details again)
+          const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
+          const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
+          const [, id, dim, ext] = assetId.split('-')
+          setCoverImageUrl(`https://cdn.sanity.io/images/${projectId}/${dataset}/${id}-${dim}.${ext}`)
+      } else {
+          setCoverImageUrl('')
+      }
+  }, [contentLang, formData.mainImage])
+
   useEffect(() => {
     const id = params?.id
     if (!id) return
@@ -224,22 +238,36 @@ export default function EditPostPage() {
                 // Handle legacy mainImage alt
                 // mainImage.localizedAlt (new) vs mainImage.alt (legacy)
                 let localizedAlt = { en: '' }
+                // Handle localized mainImage
+                const localizedMainImage: Record<string, string | null> = { en: null }
+
                 if (p.mainImage) {
                     localizedAlt = fromSanity(p.mainImage.localizedAlt)
                     if (!localizedAlt.en && p.mainImage.alt && typeof p.mainImage.alt === 'string') {
                          localizedAlt.en = p.mainImage.alt
                     }
+                    if (p.mainImage.asset) {
+                        localizedMainImage.en = p.mainImage.asset._ref || p.mainImage.asset._id
+                    }
+                }
+                
+                if (p.localizedMainImage) {
+                    Object.keys(p.localizedMainImage).forEach(key => {
+                        const langId = key.replace(/_/g, '-')
+                        if (p.localizedMainImage[key]?.asset) {
+                            localizedMainImage[langId] = p.localizedMainImage[key].asset._ref || p.localizedMainImage[key].asset._id
+                        }
+                    })
                 }
 
                 let initialCoverUrl = ''
-                if (p.mainImage?.asset) {
-                    const ref = p.mainImage.asset._ref || p.mainImage.asset._id
-                    if (ref) {
-                         const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
-                         const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
-                         const [, assetId, dimensions, extension] = ref.split('-')
-                         initialCoverUrl = `https://cdn.sanity.io/images/${projectId}/${dataset}/${assetId}-${dimensions}.${extension}`
-                    }
+                // Determine initial cover URL based on default language (en) or legacy
+                const initialAssetId = localizedMainImage.en
+                if (initialAssetId) {
+                     const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID
+                     const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET
+                     const [, assetId, dimensions, extension] = initialAssetId.split('-')
+                     initialCoverUrl = `https://cdn.sanity.io/images/${projectId}/${dataset}/${assetId}-${dimensions}.${extension}`
                 }
 
                 setCoverImageUrl(initialCoverUrl)
@@ -248,7 +276,8 @@ export default function EditPostPage() {
                     slug: p.slug?.current || '',
                     body: localizedBody,
                     categoryId: p.categories?.[0]?._ref || '',
-                    mainImageAssetId: p.mainImage?.asset?._ref || '',
+                    mainImageAssetId: initialAssetId || '',
+                    mainImage: localizedMainImage,
                     // We store alt in a separate state or just reuse title?
                     // The user wanted localized alt. Let's add it to formData if needed.
                     // But for now, the existing code sets alt = title.en.
@@ -264,7 +293,7 @@ export default function EditPostPage() {
                         metaTitle: fromSanity(p.seo?.metaTitleLocalized),
                         metaDescription: fromSanity(p.seo?.metaDescriptionLocalized),
                         focusKeyword: p.seo?.focusKeyword || '',
-                        keywords: p.seo?.keywords || [],
+                        keywords: fromSanity(p.seo?.localizedKeywords || p.seo?.keywords, true),
                         noIndex: p.seo?.noIndex || false,
                         noFollow: p.seo?.noFollow || false
                     },
@@ -300,7 +329,17 @@ export default function EditPostPage() {
       const data = await res.json()
       
       setCoverImageUrl(data.asset.url)
-      setFormData(prev => ({ ...prev, mainImageAssetId: data.asset._id }))
+      // setFormData(prev => ({ ...prev, mainImageAssetId: data.asset._id }))
+      
+      // Update localized image map
+      setFormData(prev => ({
+          ...prev,
+          mainImageAssetId: contentLang === 'en' ? data.asset._id : prev.mainImageAssetId,
+          mainImage: {
+              ...prev.mainImage,
+              [contentLang]: data.asset._id
+          }
+      }))
   }
 
   async function handleEditorImageUpload(file: File): Promise<string> {
@@ -410,7 +449,7 @@ export default function EditPostPage() {
               metaTitle: { ...prev.seo.metaTitle, en: content.seo?.metaTitle || prev.seo.metaTitle.en },
               metaDescription: { ...prev.seo.metaDescription, en: content.seo?.metaDescription || prev.seo.metaDescription.en },
               focusKeyword: content.seo?.focusKeyword || prev.seo.focusKeyword,
-              keywords: content.seo?.keywords || prev.seo.keywords,
+              keywords: content.seo?.keywords ? { ...prev.seo.keywords, en: content.seo.keywords } : prev.seo.keywords,
               noIndex: content.seo?.noIndex !== undefined ? content.seo.noIndex : prev.seo.noIndex,
               noFollow: content.seo?.noFollow !== undefined ? content.seo.noFollow : prev.seo.noFollow,
           },
@@ -456,7 +495,9 @@ export default function EditPostPage() {
                       body: formData.body.en,
                       excerpt: formData.excerpt.en,
                       keyTakeaways: formData.keyTakeaways.en,
-                      faq: formData.faq.en
+                      faq: formData.faq.en,
+                      // Also translate keywords
+                      keywords: formData.seo.keywords.en
                   },
                   sourceLang: 'en',
                   targetLangs
@@ -488,6 +529,11 @@ export default function EditPostPage() {
                       newFormData.seo.metaDescription[lang] = t.excerpt
                       newFormData.openGraph.title[lang] = t.title
                       newFormData.openGraph.description[lang] = t.excerpt
+
+                      // Translate Keywords
+                      if (t.keywords) {
+                          newFormData.seo.keywords[lang] = t.keywords
+                      }
                   }
               })
               
@@ -557,7 +603,19 @@ export default function EditPostPage() {
                 asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
                 alt: finalFormData.alt.en || finalFormData.title.en, // Legacy field
                 localizedAlt: localize(finalFormData.alt) // New localized field
-            }
+            },
+            localizedMainImage: Object.keys(finalFormData.mainImage).reduce((acc, lang) => {
+                 const assetId = finalFormData.mainImage[lang]
+                 if (assetId) {
+                     acc[toSanityKey(lang)] = {
+                         _type: 'image',
+                         asset: { _type: 'reference', _ref: assetId },
+                         alt: finalFormData.alt[lang]
+                     }
+                 }
+                 return acc
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            }, {} as Record<string, any>),
         } : {}),
 
         seo: {
@@ -565,7 +623,8 @@ export default function EditPostPage() {
             metaTitleLocalized: localize(finalFormData.seo.metaTitle),
             metaDescriptionLocalized: localize(finalFormData.seo.metaDescription),
             focusKeyword: finalFormData.seo.focusKeyword,
-            keywords: finalFormData.seo.keywords,
+            keywords: finalFormData.seo.keywords.en, // Legacy
+            localizedKeywords: localize(finalFormData.seo.keywords), // New localized
             noIndex: finalFormData.seo.noIndex,
             noFollow: finalFormData.seo.noFollow
         },
@@ -591,7 +650,7 @@ export default function EditPostPage() {
       // Update local state with new data (including translations)
       setFormData(finalFormData)
       alert('Post updated successfully!')
-      router.refresh()
+      router.push('/admin/content')
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e))
     } finally {
@@ -812,10 +871,16 @@ export default function EditPostPage() {
                             <input 
                                 type="text" 
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                                value={formData.seo.keywords.join(', ')}
+                                value={(formData.seo.keywords.en || []).join(', ')}
                                 onChange={e => setFormData({ 
                                     ...formData, 
-                                    seo: { ...formData.seo, keywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean) } 
+                                    seo: { 
+                                        ...formData.seo, 
+                                        keywords: {
+                                            ...formData.seo.keywords,
+                                            en: e.target.value.split(',').map(k => k.trim()).filter(Boolean)
+                                        }
+                                    } 
                                 })}
                             />
                         </div>
@@ -837,6 +902,28 @@ export default function EditPostPage() {
                     </>
                 )}
                 
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Keywords ({languages.find(l => l.id === contentLang)?.title})
+                    </label>
+                    <input 
+                        type="text" 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="Comma separated keywords"
+                        value={(formData.seo.keywords[contentLang] || []).join(', ')}
+                        onChange={e => setFormData(prev => ({ 
+                            ...prev, 
+                            seo: { 
+                                ...prev.seo, 
+                                keywords: {
+                                    ...prev.seo.keywords,
+                                    [contentLang]: e.target.value.split(',').map(k => k.trim()).filter(Boolean)
+                                }
+                            } 
+                        }))}
+                    />
+                </div>
+
                 <div className="pt-4 border-t">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">Structured Data ({languages.find(l => l.id === contentLang)?.title})</h3>
                     <div className="space-y-4">
