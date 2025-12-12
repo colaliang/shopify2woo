@@ -55,6 +55,7 @@ export default function EditPostPage() {
     body: { en: '' } as Record<string, string>, 
     categoryId: '',
     mainImageAssetId: '',
+    alt: { en: '' } as Record<string, string>,
     publishedAt: '',
     excerpt: { en: '' } as Record<string, string>,
     tags: [] as string[],
@@ -176,6 +177,16 @@ export default function EditPostPage() {
                 const localizedExcerpt = fromSanity(p.localizedExcerpt)
                 if (!localizedExcerpt.en && p.excerpt) localizedExcerpt.en = p.excerpt
 
+                // Handle legacy mainImage alt
+                // mainImage.localizedAlt (new) vs mainImage.alt (legacy)
+                let localizedAlt = { en: '' }
+                if (p.mainImage) {
+                    localizedAlt = fromSanity(p.mainImage.localizedAlt)
+                    if (!localizedAlt.en && p.mainImage.alt && typeof p.mainImage.alt === 'string') {
+                         localizedAlt.en = p.mainImage.alt
+                    }
+                }
+
                 let initialCoverUrl = ''
                 if (p.mainImage?.asset) {
                     const ref = p.mainImage.asset._ref || p.mainImage.asset._id
@@ -194,6 +205,11 @@ export default function EditPostPage() {
                     body: localizedBody,
                     categoryId: p.categories?.[0]?._ref || '',
                     mainImageAssetId: p.mainImage?.asset?._ref || '',
+                    // We store alt in a separate state or just reuse title?
+                    // The user wanted localized alt. Let's add it to formData if needed.
+                    // But for now, the existing code sets alt = title.en.
+                    // Let's add a proper alt field to formData.
+                    alt: localizedAlt,
                     publishedAt: p.publishedAt ? p.publishedAt.slice(0, 16) : new Date().toISOString().slice(0, 16),
                     excerpt: localizedExcerpt,
                     tags: p.tags || [],
@@ -426,6 +442,9 @@ export default function EditPostPage() {
                           finalFormData.keyTakeaways[lang] = finalFormData.keyTakeaways[lang] || t.keyTakeaways
                           finalFormData.faq[lang] = finalFormData.faq[lang] || t.faq
                           
+                          // Also translate Image Alt (using title as source if alt is empty or same as title)
+                          finalFormData.alt[lang] = finalFormData.alt[lang] || t.title
+
                           // Simple copy for SEO if missing
                           finalFormData.seo.metaTitle[lang] = finalFormData.seo.metaTitle[lang] || t.title
                           finalFormData.seo.metaDescription[lang] = finalFormData.seo.metaDescription[lang] || t.excerpt
@@ -480,7 +499,8 @@ export default function EditPostPage() {
             mainImage: {
                 _type: 'image',
                 asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
-                alt: localize(finalFormData.title)
+                alt: finalFormData.alt.en || finalFormData.title.en, // Legacy field
+                localizedAlt: localize(finalFormData.alt) // New localized field
             }
         } : {}),
 
@@ -554,21 +574,6 @@ export default function EditPostPage() {
                 </button>
             ))}
         </div>
-
-        {activeTab !== 'ai' && (
-            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
-                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
-                    <input 
-                        type="checkbox" 
-                        checked={autoTranslate} 
-                        onChange={e => setAutoTranslate(e.target.checked)}
-                        className="rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <Globe className="w-4 h-4 text-blue-500" />
-                    <span>Auto-translate to other languages</span>
-                </label>
-            </div>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow border border-gray-200 p-6 space-y-6">
@@ -603,6 +608,21 @@ export default function EditPostPage() {
                         currentImage={coverImageUrl}
                         onSave={handleCoverImageSave}
                     />
+                    <div className="mt-2">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                            Alt Text ({languages.find(l => l.id === contentLang)?.title})
+                        </label>
+                        <input 
+                            type="text" 
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm"
+                            placeholder="Describe image for SEO"
+                            value={formData.alt[contentLang] || ''}
+                            onChange={e => setFormData(prev => ({
+                                ...prev,
+                                alt: { ...prev.alt, [contentLang]: e.target.value }
+                            }))}
+                        />
+                    </div>
                 </div>
 
                 <div>
@@ -871,15 +891,32 @@ export default function EditPostPage() {
             </div>
         )}
 
-        <div className="flex justify-end pt-4 border-t">
-            <button 
-                type="submit" 
-                disabled={loading}
-                className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                {translating ? 'Translating & Saving...' : 'Update Post'}
-            </button>
+        <div className="flex flex-col gap-4 justify-end pt-4 border-t">
+             {activeTab !== 'ai' && (
+                <div className="flex justify-end">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none bg-gray-50 p-2 rounded-lg border border-gray-200">
+                        <input 
+                            type="checkbox" 
+                            checked={autoTranslate} 
+                            onChange={e => setAutoTranslate(e.target.checked)}
+                            className="rounded text-blue-600 focus:ring-blue-500"
+                        />
+                        <Globe className="w-4 h-4 text-blue-500" />
+                        <span>Auto-translate to other languages</span>
+                    </label>
+                </div>
+            )}
+            
+            <div className="flex justify-end">
+                <button 
+                    type="submit" 
+                    disabled={loading}
+                    className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                    {translating ? 'Translating & Saving...' : 'Update Post'}
+                </button>
+            </div>
         </div>
       </form>
     </div>

@@ -50,6 +50,7 @@ export default function NewPostPage() {
     excerpt: { en: '' } as Record<string, string>,
     categoryId: '',
     mainImageAssetId: '',
+    alt: { en: '' } as Record<string, string>,
     tags: [] as string[],
     keyTakeaways: { en: [] } as Record<string, string[]>,
     faq: { en: [] } as Record<string, { question: string; answer: string }[]>,
@@ -333,6 +334,9 @@ export default function NewPostPage() {
                           finalFormData.keyTakeaways[lang] = finalFormData.keyTakeaways[lang] || t.keyTakeaways
                           finalFormData.faq[lang] = finalFormData.faq[lang] || t.faq
                           
+                          // Also translate Image Alt (using title as source if alt is empty or same as title)
+                          finalFormData.alt[lang] = finalFormData.alt[lang] || t.title
+
                           // Simple copy for SEO if missing
                           finalFormData.seo.metaTitle[lang] = finalFormData.seo.metaTitle[lang] || t.title
                           finalFormData.seo.metaDescription[lang] = finalFormData.seo.metaDescription[lang] || t.excerpt
@@ -390,7 +394,8 @@ export default function NewPostPage() {
             mainImage: {
                 _type: 'image',
                 asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
-                alt: localize(finalFormData.title)
+                alt: finalFormData.alt.en || finalFormData.title.en, // Legacy field
+                localizedAlt: localize(finalFormData.alt) // New localized field
             }
         } : {}),
 
@@ -484,21 +489,6 @@ export default function NewPostPage() {
                 </button>
             ))}
         </div>
-        
-        {activeTab !== 'ai' && (
-            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
-                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
-                    <input 
-                        type="checkbox" 
-                        checked={autoTranslate} 
-                        onChange={e => setAutoTranslate(e.target.checked)}
-                        className="rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <Globe className="w-4 h-4 text-blue-500" />
-                    <span>Auto-translate to other languages</span>
-                </label>
-            </div>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow border border-gray-200 p-6 space-y-6">
@@ -583,6 +573,21 @@ export default function NewPostPage() {
                                     <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                                 </label>
                             )}
+                        </div>
+                        <div className="mt-2">
+                             <label className="block text-xs font-medium text-gray-500 mb-1">
+                                 Alt Text ({languages.find(l => l.id === contentLang)?.title})
+                             </label>
+                             <input 
+                                 type="text" 
+                                 className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm"
+                                 placeholder="Describe image for SEO"
+                                 value={formData.alt[contentLang] || ''}
+                                 onChange={e => setFormData(prev => ({
+                                     ...prev,
+                                     alt: { ...prev.alt, [contentLang]: e.target.value }
+                                 }))}
+                             />
                         </div>
                     </div>
                 )}
@@ -773,15 +778,32 @@ export default function NewPostPage() {
             </div>
         )}
 
-        <div className="flex justify-end pt-4 border-t">
-            <button 
-                type="submit" 
-                disabled={loading || translating}
-                className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-                {loading || translating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                {translating ? 'Translating & Publishing...' : 'Publish Post'}
-            </button>
+        <div className="flex flex-col gap-4 justify-end pt-4 border-t">
+            {activeTab !== 'ai' && (
+                <div className="flex justify-end">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none bg-gray-50 p-2 rounded-lg border border-gray-200">
+                        <input 
+                            type="checkbox" 
+                            checked={autoTranslate} 
+                            onChange={e => setAutoTranslate(e.target.checked)}
+                            className="rounded text-blue-600 focus:ring-blue-500"
+                        />
+                        <Globe className="w-4 h-4 text-blue-500" />
+                        <span>Auto-translate to other languages</span>
+                    </label>
+                </div>
+            )}
+
+            <div className="flex justify-end">
+                <button 
+                    type="submit" 
+                    disabled={loading || translating}
+                    className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                    {loading || translating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                    {translating ? 'Translating & Publishing...' : 'Publish Post'}
+                </button>
+            </div>
         </div>
       </form>
     </div>

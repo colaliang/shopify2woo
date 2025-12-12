@@ -53,10 +53,16 @@ export const post = defineType({
       fields: [
         {
           name: 'alt',
+          type: 'string',
+          title: 'Alternative Text (Legacy)',
+          description: 'Important for SEO and accessiblity.',
+          hidden: true,
+        },
+        {
+          name: 'localizedAlt',
           type: 'localizedString',
           title: 'Alternative Text',
           description: 'Important for SEO and accessiblity.',
-          validation: (Rule) => Rule.required(),
         },
         {
             name: 'lazyLoad',
