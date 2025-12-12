@@ -12,6 +12,7 @@ export async function GET() {
     const postsData = await client.fetch(`*[_type == "post"] | order(publishedAt desc) {
       _id,
       title,
+      localizedTitle,
       slug,
       publishedAt,
       "categories": categories[]->title,
@@ -22,6 +23,7 @@ export async function GET() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const posts = postsData.map((p: any) => ({
       ...p,
+      title: p.localizedTitle?.en || p.title || 'Untitled',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       categories: p.categories?.map((t: any) => getLocalizedTitle(t, 'en'))
     }));

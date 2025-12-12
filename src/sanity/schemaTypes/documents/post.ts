@@ -20,10 +20,16 @@ export const post = defineType({
     }),
     defineField({
       name: 'title',
-      title: 'Title',
+      title: 'Title (Legacy)',
       type: 'string',
       group: 'content',
-      validation: (Rule) => Rule.required(),
+      hidden: true, // Hide legacy field
+    }),
+    defineField({
+      name: 'localizedTitle',
+      title: 'Title',
+      type: 'localizedString',
+      group: 'content',
     }),
     defineField({
       name: 'slug',
@@ -31,7 +37,7 @@ export const post = defineType({
       type: 'slug',
       group: 'content',
       options: {
-        source: 'title',
+        source: 'localizedTitle.en', // Use English title for slug generation
         maxLength: 96,
       },
       validation: (Rule) => Rule.required(),
@@ -47,7 +53,7 @@ export const post = defineType({
       fields: [
         {
           name: 'alt',
-          type: 'string',
+          type: 'localizedString',
           title: 'Alternative Text',
           description: 'Important for SEO and accessiblity.',
           validation: (Rule) => Rule.required(),
@@ -63,8 +69,15 @@ export const post = defineType({
     }),
     defineField({
       name: 'bodyMarkdown',
-      title: 'Body (Markdown)',
+      title: 'Body (Markdown Legacy)',
       type: 'markdown',
+      group: 'content',
+      hidden: true,
+    }),
+    defineField({
+      name: 'localizedBodyMarkdown',
+      title: 'Body (Markdown)',
+      type: 'localizedMarkdown',
       group: 'content',
       description: 'Markdown content. This is the primary storage format for blog posts.',
     }),
@@ -111,9 +124,16 @@ export const post = defineType({
     }),
     defineField({
       name: 'excerpt',
-      title: 'Excerpt',
+      title: 'Excerpt (Legacy)',
       type: 'text',
       rows: 4,
+      group: 'content',
+      hidden: true,
+    }),
+    defineField({
+      name: 'localizedExcerpt',
+      title: 'Excerpt',
+      type: 'localizedText',
       group: 'content',
       description: 'Short summary for list views and SEO fallback.',
     }),
@@ -164,12 +184,40 @@ export const post = defineType({
       ]
     }),
     defineField({
-      name: 'keyTakeaways',
-      title: 'Key Takeaways (TL;DR)',
-      type: 'array',
+      name: 'localizedKeyTakeaways',
+      title: 'Key Takeaways (Localized)',
+      type: 'object',
       group: 'content',
-      description: 'Summary points for the top of the article',
-      of: [{ type: 'string' }]
+      fields: languages.map((lang) => 
+        defineField({
+          name: lang.id.replace(/-/g, '_'),
+          title: lang.title,
+          type: 'array',
+          of: [{ type: 'string' }]
+        })
+      )
+    }),
+    defineField({
+      name: 'localizedFaq',
+      title: 'FAQ Schema (Localized)',
+      type: 'object',
+      group: 'seo',
+      fields: languages.map((lang) => 
+        defineField({
+          name: lang.id.replace(/-/g, '_'),
+          title: lang.title,
+          type: 'array',
+          of: [
+            {
+              type: 'object',
+              fields: [
+                { name: 'question', type: 'string', title: 'Question' },
+                { name: 'answer', type: 'text', title: 'Answer' }
+              ]
+            }
+          ]
+        })
+      )
     }),
 
     // Internal Linking / Quality
@@ -213,26 +261,25 @@ export const post = defineType({
         type: 'datetime',
         group: 'settings',
     }),
-    defineField({
-        name: 'language',
-        title: 'Language',
-        type: 'string',
-        group: 'settings',
-        options: {
-            list: languages.map((lang) => ({ title: lang.title, value: lang.id })),
-        },
-        initialValue: 'en',
-    })
+    // We remove the explicit language field as it is now field-level localized
+    // However, for compatibility or legacy data, we might want to keep it or mark it deprecated.
+    // The user requested "Default language set to English", which is handled by field-level defaults or UI.
+    // defineField({
+    //     name: 'language',
+    //     title: 'Language',
+    //     type: 'string',
+    //     hidden: true,
+    // })
   ],
   preview: {
     select: {
-      title: 'title',
+      title: 'localizedTitle.en',
       author: 'author.name',
       media: 'mainImage',
     },
     prepare(selection) {
-      const { author } = selection
-      return { ...selection, subtitle: author && `by ${author}` }
+      const { title, author } = selection
+      return { ...selection, title: title || 'Untitled', subtitle: author && `by ${author}` }
     },
   },
 })

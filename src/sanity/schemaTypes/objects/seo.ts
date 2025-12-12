@@ -7,18 +7,27 @@ export const seo = defineType({
   fields: [
     defineField({
       name: 'metaTitle',
-      title: 'Meta Title (SEO Title)',
+      title: 'Meta Title (Legacy)',
       type: 'string',
+      hidden: true,
+    }),
+    defineField({
+      name: 'metaTitleLocalized',
+      title: 'Meta Title',
+      type: 'localizedString',
       description: 'Title used for search engines and browser tabs. Keep it under 60 characters for best results.',
-      validation: (Rule) => Rule.required().max(60).warning('Longer titles may be truncated by search engines'),
     }),
     defineField({
       name: 'metaDescription',
-      title: 'Meta Description',
+      title: 'Meta Description (Legacy)',
       type: 'text',
-      rows: 3,
+      hidden: true,
+    }),
+    defineField({
+      name: 'metaDescriptionLocalized',
+      title: 'Meta Description',
+      type: 'localizedText',
       description: 'Description for search engines. Keep it under 160 characters.',
-      validation: (Rule) => Rule.required().max(160).warning('Longer descriptions may be truncated by search engines'),
     }),
     defineField({
       name: 'canonicalUrl',

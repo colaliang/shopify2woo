@@ -159,7 +159,7 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
                   {post.categories?.map((cat: any) => (
                     <Link
                       key={cat.slug.current}
-                      href={`/blog?category=${cat.slug.current}`}
+                      href={`/blog?category=${cat.slug.current}${i18n.language !== 'en' ? `&lng=${i18n.language}` : ''}`}
                       className="inline-flex items-center px-4 py-2 rounded-full bg-gray-50 text-gray-700 text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition-colors"
                     >
                       {cat.title}
@@ -227,6 +227,7 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
               >
                 <Search className="w-4 h-4" />
               </button>
+              {i18n.language !== 'en' && <input type="hidden" name="lng" value={i18n.language} />}
             </form>
           </div>
 
@@ -241,7 +242,7 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
             <div className="space-y-6">
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {recentPosts.map((p: any) => (
-                <Link key={p._id} href={`/blog/${p.slug.current}`} className="flex gap-4 group">
+                <Link key={p._id} href={`/blog/${p.slug.current}${i18n.language !== 'en' ? `?lng=${i18n.language}` : ''}`} className="flex gap-4 group">
                   <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden shadow-sm">
                     {p.mainImage ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
@@ -281,7 +282,7 @@ export default function BlogPostContent({ post, recentPosts, categories }: BlogP
               {categories.map((cat: any) => (
                 <Link
                   key={cat._id}
-                  href={`/blog?category=${cat.slug.current}`}
+                  href={`/blog?category=${cat.slug.current}${i18n.language !== 'en' ? `&lng=${i18n.language}` : ''}`}
                   className="text-sm text-gray-600 hover:text-blue-600 hover:translate-x-1 transition-all py-1"
                 >
                   {cat.title}

@@ -7,15 +7,26 @@ export const openGraph = defineType({
   fields: [
     defineField({
       name: 'title',
-      title: 'Social Title',
+      title: 'Social Title (Legacy)',
       type: 'string',
+      hidden: true,
+    }),
+    defineField({
+      name: 'titleLocalized',
+      title: 'Social Title',
+      type: 'localizedString',
       description: 'Heads up! This will override the page title for social sharing.',
     }),
     defineField({
       name: 'description',
-      title: 'Social Description',
+      title: 'Social Description (Legacy)',
       type: 'text',
-      rows: 3,
+      hidden: true,
+    }),
+    defineField({
+      name: 'descriptionLocalized',
+      title: 'Social Description',
+      type: 'localizedText',
       description: 'Heads up! This will override the page description for social sharing.',
     }),
     defineField({

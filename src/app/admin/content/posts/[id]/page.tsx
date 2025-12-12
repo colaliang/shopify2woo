@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Save, ArrowLeft, Loader2, Sparkles, Trash2 } from 'lucide-react'
+import { Save, ArrowLeft, Loader2, Sparkles, Trash2, Globe } from 'lucide-react'
 import Link from 'next/link'
 import supabase from '@/lib/supabase'
 
@@ -10,6 +10,7 @@ import CoverImageUploader from '@/components/admin/post/CoverImageUploader'
 import MarkdownEditor from '@/components/admin/editor/MarkdownEditor'
 import AiContentPreview from '@/components/admin/ai/AiContentPreview'
 import TurndownService from 'turndown'
+import { languages } from '@/sanity/lib/languages'
 
 interface AiResult {
   title?: string
@@ -43,30 +44,34 @@ export default function EditPostPage() {
   const [categories, setCategories] = useState<{ _id: string, title: string }[]>([])
   const [coverImageUrl, setCoverImageUrl] = useState<string>('')
   
+  // Language State
+  const [contentLang, setContentLang] = useState('en')
+  const [autoTranslate, setAutoTranslate] = useState(true)
+  const [translating, setTranslating] = useState(false)
+
   const [formData, setFormData] = useState({
-    title: '',
+    title: { en: '' } as Record<string, string>,
     slug: '',
-    body: '', 
+    body: { en: '' } as Record<string, string>, 
     categoryId: '',
     mainImageAssetId: '',
     publishedAt: '',
-    language: 'en',
-    excerpt: '',
+    excerpt: { en: '' } as Record<string, string>,
     tags: [] as string[],
-    keyTakeaways: [] as string[],
-    faq: [] as { question: string; answer: string }[],
+    keyTakeaways: { en: [] } as Record<string, string[]>,
+    faq: { en: [] } as Record<string, { question: string; answer: string }[]>,
     schemaType: 'BlogPosting',
     seo: {
-        metaTitle: '',
-        metaDescription: '',
+        metaTitle: { en: '' } as Record<string, string>,
+        metaDescription: { en: '' } as Record<string, string>,
         focusKeyword: '',
         keywords: [] as string[],
         noIndex: false,
         noFollow: false
     },
     openGraph: {
-        title: '',
-        description: ''
+        title: { en: '' } as Record<string, string>,
+        description: { en: '' } as Record<string, string>
     }
   })
 
@@ -123,17 +128,53 @@ export default function EditPostPage() {
             
             if (postData.post) {
                 const p = postData.post
-                let bodyMarkdown = ''
                 
-                if (p.bodyMarkdown) {
-                    bodyMarkdown = p.bodyMarkdown
+                // Helper to convert Sanity localized object to our state (underscore to hyphen)
+                // Sanity: { en: "...", zh_CN: "..." }
+                // State: { en: "...", "zh-CN": "..." }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const fromSanity = (data: any, isArray = false) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (!data) return isArray ? { en: [] } : { en: '' } as any
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const res: any = {}
+                    Object.keys(data).forEach(key => {
+                        // skip system fields like _type
+                        if (key.startsWith('_')) return
+                        // convert zh_CN to zh-CN
+                        const langId = key.replace(/_/g, '-')
+                        res[langId] = data[key]
+                    })
+                    // Ensure 'en' exists
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (!res.en) res.en = isArray ? [] : '' as any
+                    return res
+                }
+
+                // Handle legacy body fields
+                let bodyEn = ''
+                if (p.localizedBodyMarkdown?.en) {
+                    bodyEn = p.localizedBodyMarkdown.en
+                } else if (p.bodyMarkdown) {
+                    bodyEn = p.bodyMarkdown
                 } else if (p.bodyHtml) {
                     const turndownService = new TurndownService()
-                    bodyMarkdown = turndownService.turndown(p.bodyHtml)
+                    bodyEn = turndownService.turndown(p.bodyHtml)
                 } else if (Array.isArray(p.body)) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    bodyMarkdown = p.body.map((b: any) => b.children?.map((c: any) => c.text).join('')).join('\n\n')
+                    bodyEn = p.body.map((b: any) => b.children?.map((c: any) => c.text).join('')).join('\n\n')
                 }
+
+                const localizedBody = fromSanity(p.localizedBodyMarkdown)
+                if (!localizedBody.en && bodyEn) localizedBody.en = bodyEn
+
+                // Handle legacy title
+                const localizedTitle = fromSanity(p.localizedTitle)
+                if (!localizedTitle.en && p.title) localizedTitle.en = p.title
+
+                // Handle legacy excerpt
+                const localizedExcerpt = fromSanity(p.localizedExcerpt)
+                if (!localizedExcerpt.en && p.excerpt) localizedExcerpt.en = p.excerpt
 
                 let initialCoverUrl = ''
                 if (p.mainImage?.asset) {
@@ -148,29 +189,28 @@ export default function EditPostPage() {
 
                 setCoverImageUrl(initialCoverUrl)
                 setFormData({
-                    title: p.title || '',
+                    title: localizedTitle,
                     slug: p.slug?.current || '',
-                    body: bodyMarkdown,
+                    body: localizedBody,
                     categoryId: p.categories?.[0]?._ref || '',
                     mainImageAssetId: p.mainImage?.asset?._ref || '',
                     publishedAt: p.publishedAt ? p.publishedAt.slice(0, 16) : new Date().toISOString().slice(0, 16),
-                    language: p.language || 'en',
-                    excerpt: p.excerpt || '',
+                    excerpt: localizedExcerpt,
                     tags: p.tags || [],
-                    keyTakeaways: p.keyTakeaways || [],
-                    faq: p.faq || [],
+                    keyTakeaways: fromSanity(p.localizedKeyTakeaways, true),
+                    faq: fromSanity(p.localizedFaq, true),
                     schemaType: p.schemaType || 'BlogPosting',
                     seo: {
-                        metaTitle: p.seo?.metaTitle || '',
-                        metaDescription: p.seo?.metaDescription || '',
+                        metaTitle: fromSanity(p.seo?.metaTitleLocalized),
+                        metaDescription: fromSanity(p.seo?.metaDescriptionLocalized),
                         focusKeyword: p.seo?.focusKeyword || '',
                         keywords: p.seo?.keywords || [],
                         noIndex: p.seo?.noIndex || false,
                         noFollow: p.seo?.noFollow || false
                     },
                     openGraph: {
-                        title: p.openGraph?.title || '',
-                        description: p.openGraph?.description || ''
+                        title: fromSanity(p.openGraph?.titleLocalized),
+                        description: fromSanity(p.openGraph?.descriptionLocalized)
                     }
                 })
             }
@@ -222,8 +262,8 @@ export default function EditPostPage() {
   }
 
   async function handleAiOptimize() {
-      if (!formData.title) {
-          setAiError('Title is required for optimization')
+      if (!formData.title.en) {
+          setAiError('English Title is required for optimization')
           return
       }
       
@@ -243,11 +283,11 @@ export default function EditPostPage() {
                   ...(token ? { 'Authorization': `Bearer ${token}` } : {})
               },
               body: JSON.stringify({
-                  title: formData.title,
-                  body: formData.body,
+                  title: formData.title.en,
+                  body: formData.body.en,
                   keywords: formData.seo.keywords,
                   requirements: aiConfig.requirements,
-                  language: formData.language
+                  language: 'en'
               })
           })
 
@@ -297,18 +337,18 @@ export default function EditPostPage() {
 
       setFormData(prev => ({
           ...prev,
-          title: content.title || prev.title,
+          title: { ...prev.title, en: content.title || prev.title.en },
           slug: content.slug || prev.slug,
-          body: body,
-          excerpt: content.excerpt || prev.excerpt,
+          body: { ...prev.body, en: body },
+          excerpt: { ...prev.excerpt, en: content.excerpt || prev.excerpt.en },
           tags: content.tags || prev.tags,
-          keyTakeaways: content.keyTakeaways || prev.keyTakeaways,
-          faq: content.faq || prev.faq,
+          keyTakeaways: { ...prev.keyTakeaways, en: content.keyTakeaways || prev.keyTakeaways.en },
+          faq: { ...prev.faq, en: content.faq || prev.faq.en },
           schemaType: content.seo?.schemaType || prev.schemaType,
           seo: {
               ...prev.seo,
-              metaTitle: content.seo?.metaTitle || prev.seo.metaTitle,
-              metaDescription: content.seo?.metaDescription || prev.seo.metaDescription,
+              metaTitle: { ...prev.seo.metaTitle, en: content.seo?.metaTitle || prev.seo.metaTitle.en },
+              metaDescription: { ...prev.seo.metaDescription, en: content.seo?.metaDescription || prev.seo.metaDescription.en },
               focusKeyword: content.seo?.focusKeyword || prev.seo.focusKeyword,
               keywords: content.seo?.keywords || prev.seo.keywords,
               noIndex: content.seo?.noIndex !== undefined ? content.seo.noIndex : prev.seo.noIndex,
@@ -316,8 +356,8 @@ export default function EditPostPage() {
           },
           openGraph: {
               ...prev.openGraph,
-              title: content.openGraph?.title || prev.openGraph.title,
-              description: content.openGraph?.description || prev.openGraph.description
+              title: { ...prev.openGraph.title, en: content.openGraph?.title || prev.openGraph.title.en },
+              description: { ...prev.openGraph.description, en: content.openGraph?.description || prev.openGraph.description.en }
           }
       }))
       
@@ -334,53 +374,132 @@ export default function EditPostPage() {
     setLoading(true)
 
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const finalFormData = { ...formData }
+
+      // 1. Handle Auto Translate
+      if (autoTranslate && formData.title.en && formData.body.en) {
+          const proceed = window.confirm(
+            `Auto-translation is enabled. This will translate content to ${languages.filter(l => l.id !== 'en').length} other languages.\n\nExisting custom translations will be preserved.\n\nContinue?`
+          )
+          
+          if (!proceed) {
+              setLoading(false)
+              return
+          }
+
+          setTranslating(true)
+          try {
+              const targetLangs = languages.filter(l => l.id !== 'en').map(l => l.id)
+              
+              const res = await fetch('/api/admin/ai/translate', {
+                  method: 'POST',
+                  headers: { 
+                      'Content-Type': 'application/json',
+                      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                  },
+                  body: JSON.stringify({
+                      content: {
+                          title: formData.title.en,
+                          body: formData.body.en,
+                          excerpt: formData.excerpt.en,
+                          keyTakeaways: formData.keyTakeaways.en,
+                          faq: formData.faq.en
+                      },
+                      sourceLang: 'en',
+                      targetLangs
+                  })
+              })
+
+              if (res.ok) {
+                  const { translations } = await res.json()
+                  
+                  // Merge translations
+                  targetLangs.forEach(lang => {
+                      if (translations[lang]) {
+                          const t = translations[lang]
+                          finalFormData.title[lang] = finalFormData.title[lang] || t.title
+                          finalFormData.body[lang] = finalFormData.body[lang] || t.body
+                          finalFormData.excerpt[lang] = finalFormData.excerpt[lang] || t.excerpt
+                          finalFormData.keyTakeaways[lang] = finalFormData.keyTakeaways[lang] || t.keyTakeaways
+                          finalFormData.faq[lang] = finalFormData.faq[lang] || t.faq
+                          
+                          // Simple copy for SEO if missing
+                          finalFormData.seo.metaTitle[lang] = finalFormData.seo.metaTitle[lang] || t.title
+                          finalFormData.seo.metaDescription[lang] = finalFormData.seo.metaDescription[lang] || t.excerpt
+                          finalFormData.openGraph.title[lang] = finalFormData.openGraph.title[lang] || t.title
+                          finalFormData.openGraph.description[lang] = finalFormData.openGraph.description[lang] || t.excerpt
+                      }
+                  })
+              }
+          } catch (err) {
+              console.error('Translation failed', err)
+          } finally {
+              setTranslating(false)
+          }
+      }
+
+      // 2. Prepare Payload
+      const toSanityKey = (lang: string) => lang.replace(/-/g, '_')
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const localize = (data: Record<string, any>) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const res: Record<string, any> = {}
+          languages.forEach(lang => {
+              const val = data[lang.id] || data['en']
+              if (val) res[toSanityKey(lang.id)] = val
+          })
+          return res
+      }
+
       const payload = {
-        title: formData.title,
-        slug: { _type: 'slug', current: formData.slug },
-        bodyMarkdown: formData.body,
-        bodyHtml: '',
-        body: [],
-        excerpt: formData.excerpt,
-        publishedAt: new Date(formData.publishedAt).toISOString(),
-        language: formData.language,
-        tags: formData.tags,
-        keyTakeaways: formData.keyTakeaways,
-        faq: formData.faq?.map(f => ({
-            _key: Math.random().toString(36).substring(7),
-            question: f.question,
-            answer: f.answer
-        })),
-        schemaType: formData.schemaType,
+        // Legacy fields for backward compatibility
+        title: finalFormData.title.en,
+        bodyMarkdown: finalFormData.body.en,
+        excerpt: finalFormData.excerpt.en,
+
+        localizedTitle: localize(finalFormData.title),
+        slug: { _type: 'slug', current: finalFormData.slug },
+        localizedBodyMarkdown: localize(finalFormData.body),
+        localizedExcerpt: localize(finalFormData.excerpt),
         
-        ...(formData.categoryId ? { categories: [{ _type: 'reference', _ref: formData.categoryId, _key: Math.random().toString(36).substring(7) }] } : {}),
+        publishedAt: new Date(finalFormData.publishedAt).toISOString(),
+        tags: finalFormData.tags,
         
-        ...(formData.mainImageAssetId ? {
+        localizedKeyTakeaways: localize(finalFormData.keyTakeaways),
+        localizedFaq: localize(finalFormData.faq),
+        
+        schemaType: finalFormData.schemaType,
+        
+        ...(finalFormData.categoryId ? { categories: [{ _type: 'reference', _ref: finalFormData.categoryId, _key: Math.random().toString(36).substring(7) }] } : {}),
+        
+        ...(finalFormData.mainImageAssetId ? {
             mainImage: {
                 _type: 'image',
-                asset: { _type: 'reference', _ref: formData.mainImageAssetId },
-                alt: formData.title
+                asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
+                alt: localize(finalFormData.title)
             }
         } : {}),
 
         seo: {
             _type: 'seo',
-            metaTitle: formData.seo.metaTitle,
-            metaDescription: formData.seo.metaDescription,
-            focusKeyword: formData.seo.focusKeyword,
-            keywords: formData.seo.keywords,
-            noIndex: formData.seo.noIndex,
-            noFollow: formData.seo.noFollow
+            metaTitleLocalized: localize(finalFormData.seo.metaTitle),
+            metaDescriptionLocalized: localize(finalFormData.seo.metaDescription),
+            focusKeyword: finalFormData.seo.focusKeyword,
+            keywords: finalFormData.seo.keywords,
+            noIndex: finalFormData.seo.noIndex,
+            noFollow: finalFormData.seo.noFollow
         },
 
         openGraph: {
             _type: 'openGraph',
-            title: formData.openGraph.title,
-            description: formData.openGraph.description
+            titleLocalized: localize(finalFormData.openGraph.title),
+            descriptionLocalized: localize(finalFormData.openGraph.description),
         }
       }
-
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
 
       const res = await fetch(`/api/admin/content/posts/${params?.id}`, {
         method: 'PUT',
@@ -393,11 +512,15 @@ export default function EditPostPage() {
 
       if (!res.ok) throw new Error('Failed to update post')
 
-      router.push('/admin/content')
+      // Update local state with new data (including translations)
+      setFormData(finalFormData)
+      alert('Post updated successfully!')
+      router.refresh()
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
+      setTranslating(false)
     }
   }
 
@@ -413,26 +536,64 @@ export default function EditPostPage() {
         <h1 className="text-2xl font-bold">Edit Post</h1>
       </div>
 
-      <div className="flex gap-4 mb-6 border-b border-gray-200">
-          {['content', 'seo', 'settings', 'ai'].map((tab) => (
-              <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab as 'content' | 'seo' | 'settings' | 'ai')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                      activeTab === tab 
-                      ? 'border-blue-500 text-blue-600' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                  {tab === 'ai' && <Sparkles className="w-4 h-4" />}
-                  {tab === 'ai' ? 'AI Optimizer' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-          ))}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
+        <div className="flex gap-4 border-b border-gray-200">
+            {['content', 'seo', 'settings', 'ai'].map((tab) => (
+                <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab as 'content' | 'seo' | 'settings' | 'ai')}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                        activeTab === tab 
+                        ? 'border-blue-500 text-blue-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    {tab === 'ai' && <Sparkles className="w-4 h-4" />}
+                    {tab === 'ai' ? 'AI Optimizer' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+            ))}
+        </div>
+
+        {activeTab !== 'ai' && (
+            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                    <input 
+                        type="checkbox" 
+                        checked={autoTranslate} 
+                        onChange={e => setAutoTranslate(e.target.checked)}
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <Globe className="w-4 h-4 text-blue-500" />
+                    <span>Auto-translate to other languages</span>
+                </label>
+            </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow border border-gray-200 p-6 space-y-6">
         
+        {/* Language Tabs for Content/SEO */}
+        {(activeTab === 'content' || activeTab === 'seo') && (
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                {languages.map(lang => (
+                    <button
+                        key={lang.id}
+                        type="button"
+                        onClick={() => setContentLang(lang.id)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
+                            contentLang === lang.id
+                            ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-500'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                    >
+                        {lang.title}
+                        {lang.id === 'en' && ' (Default)'}
+                    </button>
+                ))}
+            </div>
+        )}
+
         {/* CONTENT TAB */}
         {activeTab === 'content' && (
             <div className="space-y-6">
@@ -445,57 +606,76 @@ export default function EditPostPage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Title ({languages.find(l => l.id === contentLang)?.title})
+                    </label>
                     <input 
                         type="text" 
-                        required
+                        required={contentLang === 'en'}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={formData.title}
-                        onChange={e => setFormData({ ...formData, title: e.target.value })}
+                        value={formData.title[contentLang] || ''}
+                        onChange={e => {
+                            const val = e.target.value;
+                            setFormData(prev => ({
+                                ...prev,
+                                title: { ...prev.title, [contentLang]: val },
+                                slug: contentLang === 'en' ? val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') : prev.slug
+                            }))
+                        }}
                     />
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Slug</label>
-                    <input 
-                        type="text" 
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-mono text-sm"
-                        value={formData.slug}
-                        onChange={e => setFormData({ ...formData, slug: e.target.value })}
-                    />
-                </div>
+                {contentLang === 'en' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
+                        <input 
+                            type="text" 
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-mono text-sm"
+                            value={formData.slug}
+                            onChange={e => setFormData({ ...formData, slug: e.target.value })}
+                        />
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt (Markdown supported)</label>
                     <textarea 
                         className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm font-mono"
                         rows={3}
-                        value={formData.excerpt}
-                        onChange={e => setFormData({ ...formData, excerpt: e.target.value })}
+                        value={formData.excerpt[contentLang] || ''}
+                        onChange={e => setFormData(prev => ({
+                            ...prev,
+                            excerpt: { ...prev.excerpt, [contentLang]: e.target.value }
+                        }))}
                         placeholder="Short summary for list views and SEO."
                     />
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <select 
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        value={formData.categoryId}
-                        onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
-                    >
-                        <option value="">Select a category...</option>
-                        {categories.map(c => (
-                            <option key={c._id} value={c._id}>{c.title}</option>
-                        ))}
-                    </select>
-                </div>
+                {contentLang === 'en' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            value={formData.categoryId}
+                            onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                        >
+                            <option value="">Select a category...</option>
+                            {categories.map(c => (
+                                <option key={c._id} value={c._id}>{c.title}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Content (Markdown)</label>
                     <MarkdownEditor 
-                        content={formData.body}
-                        onChange={(md) => setFormData({ ...formData, body: md })}
+                        content={formData.body[contentLang] || ''}
+                        onChange={(md) => setFormData(prev => ({
+                            ...prev,
+                            body: { ...prev.body, [contentLang]: md }
+                        }))}
                         onImageUpload={handleEditorImageUpload}
                     />
                 </div>
@@ -510,12 +690,12 @@ export default function EditPostPage() {
                     <input 
                         type="text" 
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder={formData.title}
-                        value={formData.seo.metaTitle}
-                        onChange={e => setFormData({ 
-                            ...formData, 
-                            seo: { ...formData.seo, metaTitle: e.target.value } 
-                        })}
+                        placeholder={formData.title[contentLang]}
+                        value={formData.seo.metaTitle[contentLang] || ''}
+                        onChange={e => setFormData(prev => ({ 
+                            ...prev, 
+                            seo: { ...prev.seo, metaTitle: { ...prev.seo.metaTitle, [contentLang]: e.target.value } } 
+                        }))}
                     />
                 </div>
                 <div>
@@ -523,63 +703,73 @@ export default function EditPostPage() {
                     <textarea 
                         rows={3}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        value={formData.seo.metaDescription}
-                        onChange={e => setFormData({ 
-                            ...formData, 
-                            seo: { ...formData.seo, metaDescription: e.target.value } 
-                        })}
+                        value={formData.seo.metaDescription[contentLang] || ''}
+                        onChange={e => setFormData(prev => ({ 
+                            ...prev, 
+                            seo: { ...prev.seo, metaDescription: { ...prev.seo.metaDescription, [contentLang]: e.target.value } } 
+                        }))}
                     ></textarea>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Keywords (Comma separated)</label>
-                    <input 
-                        type="text" 
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        value={formData.seo.keywords.join(', ')}
-                        onChange={e => setFormData({ 
-                            ...formData, 
-                            seo: { ...formData.seo, keywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean) } 
-                        })}
-                    />
-                </div>
-                <div className="flex items-center">
-                    <input 
-                        type="checkbox" 
-                        id="noIndex"
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300"
-                        checked={formData.seo.noIndex}
-                        onChange={e => setFormData({ 
-                            ...formData, 
-                            seo: { ...formData.seo, noIndex: e.target.checked } 
-                        })}
-                    />
-                    <label htmlFor="noIndex" className="ml-2 block text-sm text-gray-900">
-                        No Index (Hide from search engines)
-                    </label>
-                </div>
+                {contentLang === 'en' && (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Keywords (Comma separated)</label>
+                            <input 
+                                type="text" 
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                value={formData.seo.keywords.join(', ')}
+                                onChange={e => setFormData({ 
+                                    ...formData, 
+                                    seo: { ...formData.seo, keywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean) } 
+                                })}
+                            />
+                        </div>
+                        <div className="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                id="noIndex"
+                                className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                                checked={formData.seo.noIndex}
+                                onChange={e => setFormData({ 
+                                    ...formData, 
+                                    seo: { ...formData.seo, noIndex: e.target.checked } 
+                                })}
+                            />
+                            <label htmlFor="noIndex" className="ml-2 block text-sm text-gray-900">
+                                No Index (Hide from search engines)
+                            </label>
+                        </div>
+                    </>
+                )}
                 
                 <div className="pt-4 border-t">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Structured Data</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Structured Data ({languages.find(l => l.id === contentLang)?.title})</h3>
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Key Takeaways</label>
-                            {formData.keyTakeaways.map((item, idx) => (
+                            {(formData.keyTakeaways[contentLang] || []).map((item, idx) => (
                                 <div key={idx} className="flex gap-2 mb-2">
                                     <input 
                                         type="text"
                                         className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
                                         value={item}
                                         onChange={e => {
-                                            const newItems = [...formData.keyTakeaways];
+                                            const newItems = [...(formData.keyTakeaways[contentLang] || [])];
                                             newItems[idx] = e.target.value;
-                                            setFormData({ ...formData, keyTakeaways: newItems });
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                keyTakeaways: { ...prev.keyTakeaways, [contentLang]: newItems }
+                                            }));
                                         }}
                                     />
                                     <button 
                                         type="button"
                                         onClick={() => {
-                                            const newItems = formData.keyTakeaways.filter((_, i) => i !== idx);
-                                            setFormData({ ...formData, keyTakeaways: newItems });
+                                            const newItems = (formData.keyTakeaways[contentLang] || []).filter((_, i) => i !== idx);
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                keyTakeaways: { ...prev.keyTakeaways, [contentLang]: newItems }
+                                            }));
                                         }}
                                         className="p-2 text-red-500 hover:bg-red-50 rounded"
                                     >
@@ -589,7 +779,10 @@ export default function EditPostPage() {
                             ))}
                             <button 
                                 type="button"
-                                onClick={() => setFormData({ ...formData, keyTakeaways: [...formData.keyTakeaways, ''] })}
+                                onClick={() => setFormData(prev => ({
+                                    ...prev,
+                                    keyTakeaways: { ...prev.keyTakeaways, [contentLang]: [...(prev.keyTakeaways[contentLang] || []), ''] }
+                                }))}
                                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                             >
                                 + Add Takeaway
@@ -613,28 +806,6 @@ export default function EditPostPage() {
                             value={formData.publishedAt}
                             onChange={e => setFormData({ ...formData, publishedAt: e.target.value })}
                         />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
-                        <select 
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            value={formData.language}
-                            onChange={e => setFormData({ ...formData, language: e.target.value })}
-                        >
-                            <option value="en">English</option>
-                            <option value="zh-CN">Chinese (Simplified)</option>
-                            <option value="zh-TW">Chinese (Traditional)</option>
-                            <option value="de">German</option>
-                            <option value="fr">French</option>
-                            <option value="es">Spanish</option>
-                            <option value="it">Italian</option>
-                            <option value="ja">Japanese</option>
-                            <option value="ko">Korean</option>
-                            <option value="pt">Portuguese</option>
-                            <option value="ru">Russian</option>
-                            <option value="ar">Arabic</option>
-                        </select>
                     </div>
                 </div>
             </div>
@@ -707,7 +878,7 @@ export default function EditPostPage() {
                 className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                Update Post
+                {translating ? 'Translating & Saving...' : 'Update Post'}
             </button>
         </div>
       </form>

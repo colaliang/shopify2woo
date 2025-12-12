@@ -38,7 +38,7 @@ type SanityImageSource = any
 // -----------------------------------------------------------------------------
 // Data Fetching
 // -----------------------------------------------------------------------------
-async function getPost(slug: string): Promise<Post | null> {
+async function getPost(slug: string, language: string = 'en'): Promise<Post | null> {
   const postData = await client.fetch(`*[_type == "post" && slug.current == $slug][0] {
     ...,
     "author": author->name,
@@ -62,21 +62,49 @@ async function getPost(slug: string): Promise<Post | null> {
     return null
   }
 
-  // Localize categories for the main post
-  const language = postData.language || 'en'
+  // Resolve localized fields
+  const langKey = language.replace(/-/g, '_')
+  
+  // Helper to resolve string or object
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const resolve = (data: any) => {
+    if (!data) return undefined
+    if (typeof data === 'string') return data
+    return data[langKey] || data['en'] || data[Object.keys(data)[0]]
+  }
+  
+  // Helper to resolve array (like keyTakeaways)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const resolveArray = (data: any) => {
+      if (!data) return undefined
+      if (Array.isArray(data)) return data
+      return data[langKey] || data['en'] || []
+  }
+
   const localizedPost = {
       ...postData,
-      title: getLocalizedTitle(postData.title, language),
+      title: resolve(postData.localizedTitle) || postData.title,
+      excerpt: resolve(postData.localizedExcerpt) || postData.excerpt,
+      bodyMarkdown: resolve(postData.localizedBodyMarkdown) || postData.bodyMarkdown,
+      keyTakeaways: resolveArray(postData.localizedKeyTakeaways) || postData.keyTakeaways,
+      faq: resolveArray(postData.localizedFaq) || postData.faq,
+      
+      seo: {
+          metaTitle: resolve(postData.seo?.metaTitleLocalized) || postData.seo?.metaTitle,
+          metaDescription: resolve(postData.seo?.metaDescriptionLocalized) || postData.seo?.metaDescription,
+          noIndex: postData.seo?.noIndex,
+          schemaType: postData.schemaType
+      },
+      
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       categories: postData.categories?.map((c: any) => ({
           ...c,
-          // If title is an object (localizedString), extract string. If it's already a string, use it.
           title: getLocalizedTitle(c.title, language)
       })),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       relatedPosts: postData.relatedPosts?.map((rp: any) => ({
           ...rp,
-          title: getLocalizedTitle(rp.title, language),
+          title: rp.localizedTitle ? getLocalizedTitle(rp.localizedTitle, language) : rp.title,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           categories: rp.categories?.map((c: any) => ({
               ...c,
@@ -104,6 +132,7 @@ async function getRecentPosts(language?: string) {
   const postsData = await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {
     _id,
     title,
+    localizedTitle,
     slug,
     publishedAt,
     mainImage
@@ -112,7 +141,9 @@ async function getRecentPosts(language?: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return postsData?.map((p: any) => ({
       ...p,
-      title: getLocalizedTitle(p.title, language || 'en')
+      title: p.localizedTitle 
+        ? getLocalizedTitle(p.localizedTitle, language || 'en') 
+        : p.title || 'Untitled'
   })) || []
 }
 
@@ -133,9 +164,11 @@ async function getCategories(language: string = 'en') {
 // -----------------------------------------------------------------------------
 // Metadata
 // -----------------------------------------------------------------------------
-export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<{ slug: string }>; searchParams: Promise<{ lng?: string }> }): Promise<Metadata> {
   const params = await props.params
-  const post = await getPost(params.slug)
+  const searchParams = await props.searchParams
+  const lng = searchParams.lng || 'en'
+  const post = await getPost(params.slug, lng)
   
   if (!post) {
       return {
@@ -160,20 +193,20 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
 // -----------------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------------
-export default async function BlogPostPage(props: { params: Promise<{ slug: string }> }) {
+export default async function BlogPostPage(props: { params: Promise<{ slug: string }>; searchParams: Promise<{ lng?: string }> }) {
   const params = await props.params
-  const post = await getPost(params.slug)
+  const searchParams = await props.searchParams
+  const lng = searchParams.lng || 'en'
+  
+  const post = await getPost(params.slug, lng)
 
   if (!post) {
     notFound()
   }
 
-  // Determine language from post data
-  const language = (post.language as string) || 'en'
-
   const [recentPosts, categories] = await Promise.all([
-    getRecentPosts(language),
-    getCategories(language)
+    getRecentPosts(lng),
+    getCategories(lng)
   ])
 
   return (

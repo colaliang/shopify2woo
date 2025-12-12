@@ -100,11 +100,15 @@ async function getPosts(search?: string, category?: string, language?: string, p
   const query = `${filter} | order(publishedAt desc) [${start}...${end}] {
     _id,
     title,
+    localizedTitle,
     slug,
     publishedAt,
     language,
-    // Use body text as excerpt fallback if excerpt is missing, limit to 200 chars
-    "excerpt": coalesce(excerpt, pt::text(body)[0...200] + "..."),
+    excerpt,
+    localizedExcerpt,
+    localizedBodyMarkdown,
+    body,
+    "legacyExcerpt": coalesce(excerpt, pt::text(body)[0...200] + "..."),
     mainImage,
     "categories": categories[]->{title, slug}
   }`
@@ -113,15 +117,43 @@ async function getPosts(search?: string, category?: string, language?: string, p
 
   // Localize categories inside posts
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const posts = postsData?.map((p: any) => ({
-    ...p,
-    title: getLocalizedTitle(p.title, language || 'en'),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    categories: p.categories?.map((c: any) => ({
-      ...c,
-      title: getLocalizedTitle(c.title, language || 'en')
-    }))
-  }))
+  const posts = postsData?.map((p: any) => {
+    // Resolve Title
+    const title = p.localizedTitle 
+      ? getLocalizedTitle(p.localizedTitle, language || 'en') 
+      : p.title || 'Untitled'
+
+    // Resolve Excerpt
+    const langKey = (language || 'en').replace(/-/g, '_')
+    let excerpt = ''
+    
+    // 1. Try localized excerpt
+    if (p.localizedExcerpt) {
+        excerpt = p.localizedExcerpt[langKey] || p.localizedExcerpt['en']
+    }
+    
+    // 2. Try localized body markdown
+    if (!excerpt && p.localizedBodyMarkdown) {
+        const bodyMd = p.localizedBodyMarkdown[langKey] || p.localizedBodyMarkdown['en']
+        if (bodyMd) excerpt = bodyMd.slice(0, 200) + '...'
+    }
+    
+    // 3. Fallback to legacy excerpt/body
+    if (!excerpt) {
+        excerpt = p.legacyExcerpt || ''
+    }
+
+    return {
+      ...p,
+      title,
+      excerpt,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      categories: p.categories?.map((c: any) => ({
+        ...c,
+        title: getLocalizedTitle(c.title, language || 'en')
+      }))
+    }
+  })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   console.log('[Blog Debug] Fetched posts:', posts?.length, posts?.map((p: any) => ({ title: p.title, lang: p.language })))
@@ -145,6 +177,7 @@ async function getRecentPosts(language?: string) {
   const postsData = await client.fetch(`*[${conditions}] | order(publishedAt desc) [0...5] {
     _id,
     title,
+    localizedTitle,
     slug,
     publishedAt,
     mainImage,
@@ -155,7 +188,9 @@ async function getRecentPosts(language?: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const posts = postsData?.map((p: any) => ({
     ...p,
-    title: getLocalizedTitle(p.title, language || 'en'),
+    title: p.localizedTitle 
+      ? getLocalizedTitle(p.localizedTitle, language || 'en') 
+      : p.title || 'Untitled',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categories: p.categories?.map((c: any) => ({
       ...c,
@@ -226,7 +261,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                   return (
                   <div key={post._id} className="group rounded-none sm:rounded-xl overflow-hidden">
                     {/* Image */}
-                    <Link href={`/blog/${post.slug.current}`} className="block relative aspect-[16/9] bg-gray-100 overflow-hidden rounded-lg">
+                    <Link href={`/blog/${post.slug.current}${lng !== 'en' ? `?lng=${lng}` : ''}`} className="block relative aspect-[16/9] bg-gray-100 overflow-hidden rounded-lg">
                       {post.mainImage ? (
                         <div className="absolute inset-0">
                              {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -251,7 +286,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
 
                     {/* Content */}
                     <div className="pt-6">
-                      <Link href={`/blog/${post.slug.current}`}>
+                      <Link href={`/blog/${post.slug.current}${lng !== 'en' ? `?lng=${lng}` : ''}`}>
                         <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 hover:text-blue-600 transition-colors">
                             {post.title}
                         </h2>
@@ -263,7 +298,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                       />
                       
                       <div className="flex items-center justify-between border-t border-gray-100 pt-6">
-                        <Link href={`/blog/${post.slug.current}`} className="inline-flex items-center text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors uppercase tracking-wide">
+                        <Link href={`/blog/${post.slug.current}${lng !== 'en' ? `?lng=${lng}` : ''}`} className="inline-flex items-center text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors uppercase tracking-wide">
                           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                           {(t?.blog as any)?.read_more || 'Read More'} <ChevronRight className="w-4 h-4 ml-1" />
                         </Link>
@@ -292,7 +327,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
             {totalPages > 1 && (
               <div className="mt-16 flex justify-center gap-2">
                 <Link
-                  href={`/blog?page=${Math.max(1, page - 1)}${search ? `&q=${search}` : ''}${categorySlug ? `&category=${categorySlug}` : ''}`}
+                  href={`/blog?page=${Math.max(1, page - 1)}${search ? `&q=${search}` : ''}${categorySlug ? `&category=${categorySlug}` : ''}${lng !== 'en' ? `&lng=${lng}` : ''}`}
                   className={`p-2 rounded-lg border border-gray-200 transition-colors ${
                     page <= 1 ? 'text-gray-300 pointer-events-none' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
                   }`}
@@ -304,7 +339,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                     {((t?.blog as any)?.page_info || 'Page {{page}} of {{total}}').replace('{{page}}', page.toString()).replace('{{total}}', totalPages.toString())}
                 </div>
                 <Link
-                  href={`/blog?page=${Math.min(totalPages, page + 1)}${search ? `&q=${search}` : ''}${categorySlug ? `&category=${categorySlug}` : ''}`}
+                  href={`/blog?page=${Math.min(totalPages, page + 1)}${search ? `&q=${search}` : ''}${categorySlug ? `&category=${categorySlug}` : ''}${lng !== 'en' ? `&lng=${lng}` : ''}`}
                   className={`p-2 rounded-lg border border-gray-200 transition-colors ${
                     page >= totalPages ? 'text-gray-300 pointer-events-none' : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
                   }`}
@@ -332,6 +367,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                         <Search className="w-4 h-4" />
                     </button>
                     {categorySlug && <input type="hidden" name="category" value={categorySlug} />}
+                    {lng !== 'en' && <input type="hidden" name="lng" value={lng} />}
                 </form>
             </div>
 
@@ -342,7 +378,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                 <div className="space-y-6">
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {recentPosts.map((post: any) => (
-                        <Link key={post._id} href={`/blog/${post.slug.current}`} className="flex gap-4 group">
+                        <Link key={post._id} href={`/blog/${post.slug.current}${lng !== 'en' ? `?lng=${lng}` : ''}`} className="flex gap-4 group">
                             <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
                                 {post.mainImage ? (
                                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -376,7 +412,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
               <h3 className="text-lg font-medium text-gray-900 mb-6 pb-2 border-b border-gray-100">{(t?.blog as any)?.categories || 'Categories'}</h3>
               <div className="flex flex-col space-y-3">
                 <Link 
-                  href="/blog"
+                  href={`/blog${lng !== 'en' ? `?lng=${lng}` : ''}`}
                   className={`text-sm transition-colors ${
                     !categorySlug 
                       ? 'text-blue-600 font-medium' 
@@ -389,7 +425,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                 {categories.map((cat: Category) => (
                   <Link 
                     key={cat._id}
-                    href={`/blog?category=${cat.slug.current}${search ? `&q=${search}` : ''}`}
+                    href={`/blog?category=${cat.slug.current}${search ? `&q=${search}` : ''}${lng !== 'en' ? `&lng=${lng}` : ''}`}
                     className={`text-sm transition-colors ${
                       categorySlug === cat.slug.current
                         ? 'text-blue-600 font-medium' 

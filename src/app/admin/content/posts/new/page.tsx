@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2, Sparkles } from 'lucide-react'
+import { Save, ArrowLeft, Loader2, Image as ImageIcon, Trash2, Sparkles, Globe } from 'lucide-react'
 import Link from 'next/link'
 import supabase from '@/lib/supabase'
 import MarkdownEditor from '@/components/admin/editor/MarkdownEditor'
 import AiContentPreview from '@/components/admin/ai/AiContentPreview'
+import { languages } from '@/sanity/lib/languages'
 
 interface AiResult {
   title?: string
@@ -34,35 +35,38 @@ interface AiResult {
 export default function NewPostPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [translating, setTranslating] = useState(false)
   const [categories, setCategories] = useState<{ _id: string, title: string }[]>([])
   const [activeTab, setActiveTab] = useState<'content' | 'seo' | 'settings' | 'ai'>('content')
   
+  // Language State
+  const [contentLang, setContentLang] = useState('en')
+  const [autoTranslate, setAutoTranslate] = useState(true)
+
   const [formData, setFormData] = useState({
-    title: '',
+    title: { en: '' } as Record<string, string>,
     slug: '',
-    body: '',
+    body: { en: '' } as Record<string, string>,
+    excerpt: { en: '' } as Record<string, string>,
     categoryId: '',
-    // New fields
     mainImageAssetId: '',
     tags: [] as string[],
-    keyTakeaways: [] as string[],
-    faq: [] as { question: string; answer: string }[],
+    keyTakeaways: { en: [] } as Record<string, string[]>,
+    faq: { en: [] } as Record<string, { question: string; answer: string }[]>,
     schemaType: 'BlogPosting',
     seo: {
-        metaTitle: '',
-        metaDescription: '',
+        metaTitle: { en: '' } as Record<string, string>,
+        metaDescription: { en: '' } as Record<string, string>,
         focusKeyword: '',
         keywords: [] as string[],
         noIndex: false,
         noFollow: false
     },
     openGraph: {
-        title: '',
-        description: ''
+        title: { en: '' } as Record<string, string>,
+        description: { en: '' } as Record<string, string>
     },
-    publishedAt: new Date().toISOString().slice(0, 16), // Format for datetime-local
-    language: 'en',
-    excerpt: ''
+    publishedAt: new Date().toISOString().slice(0, 16),
   })
 
   // AI Generation State
@@ -71,9 +75,9 @@ export default function NewPostPage() {
       keywords: '',
       requirements: ''
   })
-  const [aiResult, setAiResult] = useState<AiResult | null>(null) // Store full AI response object
+  const [aiResult, setAiResult] = useState<AiResult | null>(null)
   const [aiGenerating, setAiGenerating] = useState(false)
-  const [aiOutput, setAiOutput] = useState('') // Keep for preview (body content)
+  const [aiOutput, setAiOutput] = useState('') 
   const [aiError, setAiError] = useState('')
 
   // For image preview
@@ -110,8 +114,6 @@ export default function NewPostPage() {
       if (cached) {
           try {
               const parsed = JSON.parse(cached)
-              // Optional: Check if cache is too old (e.g., > 24 hours)
-              // For now, we just load it
               setAiOutput(parsed.content || '')
               setAiConfig(prev => ({
                   ...prev,
@@ -150,7 +152,7 @@ export default function NewPostPage() {
                   title: aiConfig.title,
                   keywords: aiConfig.keywords.split(',').map(k => k.trim()),
                   requirements: aiConfig.requirements,
-                  language: formData.language
+                  language: 'en' // Always generate in English first
               })
           })
 
@@ -165,11 +167,9 @@ export default function NewPostPage() {
           let bodyContent = '';
 
           try {
-            // Attempt to parse JSON content
             parsedContent = JSON.parse(data.content);
             bodyContent = parsedContent.body || '';
           } catch (e) {
-            // Fallback if not valid JSON (legacy or error)
             console.warn('AI output is not valid JSON, using raw string', e);
             bodyContent = data.content || '';
             parsedContent = { body: bodyContent };
@@ -178,7 +178,6 @@ export default function NewPostPage() {
           setAiOutput(bodyContent)
           setAiResult(parsedContent)
           
-          // Cache the result
           localStorage.setItem('admin_ai_generated_content', JSON.stringify({
               title: aiConfig.title,
               keywords: aiConfig.keywords,
@@ -199,40 +198,36 @@ export default function NewPostPage() {
       
       const content = aiResult || { body: aiOutput };
       const body = content.body || aiOutput;
+      const title = content.title || aiConfig.title || formData.title.en;
 
-      // Update form data with AI content
+      // Update form data with AI content (Default to English)
       setFormData(prev => ({
           ...prev,
-          title: content.title || aiConfig.title || prev.title,
-          slug: content.slug || generateSlug(content.title || aiConfig.title || prev.title),
-          body: body,
-          excerpt: content.excerpt || prev.excerpt,
+          title: { ...prev.title, en: title },
+          slug: content.slug || generateSlug(title),
+          body: { ...prev.body, en: body },
+          excerpt: { ...prev.excerpt, en: content.excerpt || prev.excerpt.en },
           tags: content.tags || prev.tags,
-          keyTakeaways: content.keyTakeaways || prev.keyTakeaways,
-          faq: content.faq || prev.faq,
+          keyTakeaways: { ...prev.keyTakeaways, en: content.keyTakeaways || prev.keyTakeaways.en },
+          faq: { ...prev.faq, en: content.faq || prev.faq.en },
           schemaType: content.seo?.schemaType || prev.schemaType,
           seo: {
               ...prev.seo,
-              metaTitle: content.seo?.metaTitle || content.title || aiConfig.title || prev.title,
-              metaDescription: content.seo?.metaDescription || body.replace(/<[^>]*>/g, '').slice(0, 150) + '...',
+              metaTitle: { ...prev.seo.metaTitle, en: content.seo?.metaTitle || title },
+              metaDescription: { ...prev.seo.metaDescription, en: content.seo?.metaDescription || body.replace(/<[^>]*>/g, '').slice(0, 150) + '...' },
               focusKeyword: content.seo?.focusKeyword || prev.seo.focusKeyword,
               keywords: content.seo?.keywords || prev.seo.keywords,
-              // Keep existing noIndex/noFollow unless explicitly set? Usually AI doesn't set these, but let's see.
-              // If AI provides them, use them, else keep default/prev.
               noIndex: content.seo?.noIndex !== undefined ? content.seo.noIndex : prev.seo.noIndex,
               noFollow: content.seo?.noFollow !== undefined ? content.seo.noFollow : prev.seo.noFollow,
           },
           openGraph: {
               ...prev.openGraph,
-              title: content.openGraph?.title || content.seo?.metaTitle || content.title || prev.openGraph.title,
-              description: content.openGraph?.description || content.seo?.metaDescription || prev.openGraph.description
+              title: { ...prev.openGraph.title, en: content.openGraph?.title || content.seo?.metaTitle || title },
+              description: { ...prev.openGraph.description, en: content.openGraph?.description || content.seo?.metaDescription || prev.openGraph.description.en }
           }
       }))
       
-      // Clear cache after applying
       localStorage.removeItem('admin_ai_generated_content')
-      
-      // Switch to content tab
       setActiveTab('content')
   }
 
@@ -240,7 +235,6 @@ export default function NewPostPage() {
       const file = e.target.files?.[0]
       if (!file) return
 
-      // Local preview
       setPreviewImage(URL.createObjectURL(file))
       
       const form = new FormData()
@@ -279,16 +273,7 @@ export default function NewPostPage() {
 
     if (!res.ok) throw new Error('Upload failed')
     const data = await res.json()
-    // We need to construct the image URL. 
-    // Ideally, the upload API should return the URL or we use urlFor helper.
-    // For Tiptap, we need a direct URL.
-    // Since we don't have the sanity client directly here with the image builder setup fully for direct URL return without extra fetch,
-    // let's assume we can get the URL from the asset document if we fetched it, 
-    // OR we can use the CDN URL pattern: https://cdn.sanity.io/images/<project-id>/<dataset>/<filename>-<width>x<height>.<extension>
-    // For simplicity in this step, let's update the upload API to return the URL or use a placeholder if complex.
-    // Better yet, let's update the upload API to return the `url` field from the asset document.
-    
-    return data.asset.url // Ensure API returns this
+    return data.asset.url
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -296,94 +281,135 @@ export default function NewPostPage() {
     setLoading(true)
 
     try {
-      // Logic to handle AI content if user publishes directly from AI tab
-      let submitData = { ...formData };
-      
-      if (activeTab === 'ai' && (aiOutput || aiResult)) {
-          // If we are on AI tab and have output, use it for submission
-          const content = aiResult || { body: aiOutput };
-          const body = content.body || aiOutput;
-          const title = content.title || aiConfig.title || formData.title;
-
-          submitData = {
-              ...submitData,
-              title: title,
-              slug: content.slug || formData.slug || generateSlug(title),
-              body: body, // Use AI output as body (Markdown)
-              excerpt: content.excerpt || submitData.excerpt,
-              tags: content.tags || submitData.tags,
-              keyTakeaways: content.keyTakeaways || submitData.keyTakeaways,
-              faq: content.faq || submitData.faq,
-              schemaType: content.seo?.schemaType || submitData.schemaType,
-              seo: {
-                  ...submitData.seo,
-                  metaTitle: content.seo?.metaTitle || title,
-                  // Strip markdown syntax for meta description roughly
-                  metaDescription: content.seo?.metaDescription || body.replace(/[#*`_\[\]]/g, '').slice(0, 150) + '...',
-                  focusKeyword: content.seo?.focusKeyword || submitData.seo.focusKeyword,
-                  keywords: content.seo?.keywords || submitData.seo.keywords,
-                  noIndex: content.seo?.noIndex !== undefined ? content.seo.noIndex : submitData.seo.noIndex,
-                  noFollow: content.seo?.noFollow !== undefined ? content.seo.noFollow : submitData.seo.noFollow
-              },
-              openGraph: {
-                  ...submitData.openGraph,
-                  title: content.openGraph?.title || content.seo?.metaTitle || title,
-                  description: content.openGraph?.description || content.seo?.metaDescription || submitData.openGraph.description
-              }
-          };
-      }
-
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
 
+      const finalFormData = { ...formData }
+
+      // 1. Handle Auto Translate
+      if (autoTranslate && formData.title.en && formData.body.en) {
+          const proceed = window.confirm(
+            `Auto-translation is enabled. This will translate content to ${languages.filter(l => l.id !== 'en').length} other languages.\n\nExisting custom translations will be preserved.\n\nContinue?`
+          )
+          
+          if (!proceed) {
+              setLoading(false)
+              return
+          }
+
+          setTranslating(true)
+          try {
+              const targetLangs = languages.filter(l => l.id !== 'en').map(l => l.id)
+              
+              const res = await fetch('/api/admin/ai/translate', {
+                  method: 'POST',
+                  headers: { 
+                      'Content-Type': 'application/json',
+                      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                  },
+                  body: JSON.stringify({
+                      content: {
+                          title: formData.title.en,
+                          body: formData.body.en,
+                          excerpt: formData.excerpt.en,
+                          keyTakeaways: formData.keyTakeaways.en,
+                          faq: formData.faq.en
+                      },
+                      sourceLang: 'en',
+                      targetLangs
+                  })
+              })
+
+              if (res.ok) {
+                  const { translations } = await res.json()
+                  
+                  // Merge translations
+                  targetLangs.forEach(lang => {
+                      if (translations[lang]) {
+                          const t = translations[lang]
+                          finalFormData.title[lang] = finalFormData.title[lang] || t.title
+                          finalFormData.body[lang] = finalFormData.body[lang] || t.body
+                          finalFormData.excerpt[lang] = finalFormData.excerpt[lang] || t.excerpt
+                          finalFormData.keyTakeaways[lang] = finalFormData.keyTakeaways[lang] || t.keyTakeaways
+                          finalFormData.faq[lang] = finalFormData.faq[lang] || t.faq
+                          
+                          // Simple copy for SEO if missing
+                          finalFormData.seo.metaTitle[lang] = finalFormData.seo.metaTitle[lang] || t.title
+                          finalFormData.seo.metaDescription[lang] = finalFormData.seo.metaDescription[lang] || t.excerpt
+                          finalFormData.openGraph.title[lang] = finalFormData.openGraph.title[lang] || t.title
+                          finalFormData.openGraph.description[lang] = finalFormData.openGraph.description[lang] || t.excerpt
+                      }
+                  })
+              }
+          } catch (err) {
+              console.error('Translation failed', err)
+              // Continue without translation, maybe warn user?
+          } finally {
+              setTranslating(false)
+          }
+      }
+
+      // 2. Prepare Payload
+      // Sanity expects localized fields as: { en: "...", zh_CN: "..." }
+      // Our state keys are like "zh-CN", we need to convert to Sanity keys (underscore)
+      const toSanityKey = (lang: string) => lang.replace(/-/g, '_')
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const localize = (data: Record<string, any>) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const res: Record<string, any> = {}
+          languages.forEach(lang => {
+              const val = data[lang.id] || data['en'] // Fallback to EN if missing? Or just leave undefined?
+              if (val) res[toSanityKey(lang.id)] = val
+          })
+          return res
+      }
+
       const payload = {
-        title: submitData.title,
-        slug: { _type: 'slug', current: submitData.slug || generateSlug(submitData.title) },
-        bodyMarkdown: submitData.body, // Save to new markdown field
-        bodyHtml: '', // Clear HTML field
-        // We still send `body` for compatibility with Studio (maybe empty or stripped text)
-        body: [],
-        excerpt: submitData.excerpt,
-        categories: submitData.categoryId ? [{ _type: 'reference', _ref: submitData.categoryId, _key: Math.random().toString(36).substring(7) }] : [],
-        tags: submitData.tags,
-        keyTakeaways: submitData.keyTakeaways,
-        faq: submitData.faq?.map(f => ({
-            _key: Math.random().toString(36).substring(7),
-            question: f.question,
-            answer: f.answer
-        })),
-        publishedAt: new Date(submitData.publishedAt).toISOString(),
-        language: submitData.language,
-        schemaType: submitData.schemaType,
+        // Legacy fields for backward compatibility
+        title: finalFormData.title.en,
+        bodyMarkdown: finalFormData.body.en,
+        excerpt: finalFormData.excerpt.en,
+
+        localizedTitle: localize(finalFormData.title),
+        slug: { _type: 'slug', current: finalFormData.slug || generateSlug(finalFormData.title.en) },
+        localizedBodyMarkdown: localize(finalFormData.body),
+        localizedExcerpt: localize(finalFormData.excerpt),
+        
+        categories: finalFormData.categoryId ? [{ _type: 'reference', _ref: finalFormData.categoryId, _key: Math.random().toString(36).substring(7) }] : [],
+        tags: finalFormData.tags,
+        
+        localizedKeyTakeaways: localize(finalFormData.keyTakeaways),
+        localizedFaq: localize(finalFormData.faq),
+        
+        publishedAt: new Date(finalFormData.publishedAt).toISOString(),
+        schemaType: finalFormData.schemaType,
         
         // Image
-        ...(submitData.mainImageAssetId ? {
+        ...(finalFormData.mainImageAssetId ? {
             mainImage: {
                 _type: 'image',
-                asset: { _type: 'reference', _ref: submitData.mainImageAssetId },
-                alt: submitData.title // Default alt to title
+                asset: { _type: 'reference', _ref: finalFormData.mainImageAssetId },
+                alt: localize(finalFormData.title)
             }
         } : {}),
 
         // SEO
         seo: {
             _type: 'seo',
-            metaTitle: submitData.seo.metaTitle || submitData.title,
-            metaDescription: submitData.seo.metaDescription,
-            focusKeyword: submitData.seo.focusKeyword,
-            keywords: submitData.seo.keywords,
-            noIndex: submitData.seo.noIndex,
-            noFollow: submitData.seo.noFollow
+            metaTitleLocalized: localize(finalFormData.seo.metaTitle),
+            metaDescriptionLocalized: localize(finalFormData.seo.metaDescription),
+            focusKeyword: finalFormData.seo.focusKeyword,
+            keywords: finalFormData.seo.keywords,
+            noIndex: finalFormData.seo.noIndex,
+            noFollow: finalFormData.seo.noFollow
         },
 
         // OpenGraph
         openGraph: {
             _type: 'openGraph',
-            title: submitData.openGraph.title || submitData.seo.metaTitle || submitData.title,
-            description: submitData.openGraph.description || submitData.seo.metaDescription,
-            // image: handled by mainImage if not explicitly set, but schema defines separate OG image. 
-            // For now, let's assume if mainImage is set, we might want to use it or leave it blank to fallback in frontend/meta generation.
-            // The schema has `image` field in `openGraph` object.
+            titleLocalized: localize(finalFormData.openGraph.title),
+            descriptionLocalized: localize(finalFormData.openGraph.description),
         }
       }
 
@@ -407,7 +433,27 @@ export default function NewPostPage() {
       alert(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
+      setTranslating(false)
     }
+  }
+
+  const handleNestedChange = (
+    category: 'seo' | 'openGraph', 
+    field: string, 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    value: any
+  ) => {
+    setFormData(prev => ({
+        ...prev,
+        [category]: {
+            ...prev[category],
+            [field]: {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ...(prev[category] as any)[field],
+                [contentLang]: value
+            }
+        }
+    }))
   }
 
   return (
@@ -420,106 +466,169 @@ export default function NewPostPage() {
         <h1 className="text-2xl font-bold">New Post</h1>
       </div>
 
-      <div className="flex gap-4 mb-6 border-b border-gray-200">
-          {['content', 'seo', 'settings', 'ai'].map((tab) => (
-              <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab as 'content' | 'seo' | 'settings' | 'ai')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                      activeTab === tab 
-                      ? 'border-blue-500 text-blue-600' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                  {tab === 'ai' && <Sparkles className="w-4 h-4" />}
-                  {tab === 'ai' ? 'AI Generator' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-          ))}
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
+        <div className="flex gap-4 border-b border-gray-200">
+            {['content', 'seo', 'settings', 'ai'].map((tab) => (
+                <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab as 'content' | 'seo' | 'settings' | 'ai')}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                        activeTab === tab 
+                        ? 'border-blue-500 text-blue-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    {tab === 'ai' && <Sparkles className="w-4 h-4" />}
+                    {tab === 'ai' ? 'AI Generator' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+            ))}
+        </div>
+        
+        {activeTab !== 'ai' && (
+            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                    <input 
+                        type="checkbox" 
+                        checked={autoTranslate} 
+                        onChange={e => setAutoTranslate(e.target.checked)}
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <Globe className="w-4 h-4 text-blue-500" />
+                    <span>Auto-translate to other languages</span>
+                </label>
+            </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow border border-gray-200 p-6 space-y-6">
         
+        {/* Language Tabs for Content/SEO */}
+        {(activeTab === 'content' || activeTab === 'seo') && (
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                {languages.map(lang => (
+                    <button
+                        key={lang.id}
+                        type="button"
+                        onClick={() => setContentLang(lang.id)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
+                            contentLang === lang.id
+                            ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-500'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                    >
+                        {lang.title}
+                        {lang.id === 'en' && ' (Default)'}
+                    </button>
+                ))}
+            </div>
+        )}
+
         {/* CONTENT TAB */}
         {activeTab === 'content' && (
             <div className="space-y-6">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Title ({languages.find(l => l.id === contentLang)?.title})
+                    </label>
                     <input 
                         type="text" 
-                        required
+                        required={contentLang === 'en'}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={formData.title}
-                        onChange={e => setFormData({ ...formData, title: e.target.value, slug: generateSlug(e.target.value) })}
+                        value={formData.title[contentLang] || ''}
+                        onChange={e => {
+                            const val = e.target.value;
+                            setFormData(prev => ({
+                                ...prev,
+                                title: { ...prev.title, [contentLang]: val },
+                                slug: contentLang === 'en' ? generateSlug(val) : prev.slug
+                            }))
+                        }}
                     />
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
-                    <input 
-                        type="text" 
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-mono text-sm"
-                        value={formData.slug}
-                        onChange={e => setFormData({ ...formData, slug: e.target.value })}
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Main Image</label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
-                        {previewImage ? (
-                            <div className="relative">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={previewImage} alt="Preview" className="max-h-64 mx-auto rounded" />
-                                <button 
-                                    type="button"
-                                    onClick={() => { setPreviewImage(null); setFormData(prev => ({ ...prev, mainImageAssetId: '' })) }}
-                                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                            </div>
-                        ) : (
-                            <label className="cursor-pointer block">
-                                <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                                <span className="text-blue-600 hover:underline">Upload an image</span>
-                                <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                            </label>
-                        )}
+                {contentLang === 'en' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
+                        <input 
+                            type="text" 
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-mono text-sm"
+                            value={formData.slug}
+                            onChange={e => setFormData({ ...formData, slug: e.target.value })}
+                        />
                     </div>
-                </div>
+                )}
+
+                {contentLang === 'en' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Main Image</label>
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+                            {previewImage ? (
+                                <div className="relative">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={previewImage} alt="Preview" className="max-h-64 mx-auto rounded" />
+                                    <button 
+                                        type="button"
+                                        onClick={() => { setPreviewImage(null); setFormData(prev => ({ ...prev, mainImageAssetId: '' })) }}
+                                        className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <label className="cursor-pointer block">
+                                    <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                                    <span className="text-blue-600 hover:underline">Upload an image</span>
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                </label>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt (Markdown supported)</label>
-            <textarea 
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm font-mono"
-                rows={3}
-                value={formData.excerpt}
-                onChange={e => setFormData({ ...formData, excerpt: e.target.value })}
-                placeholder="Short summary for list views and SEO."
-            />
-        </div>
-
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <select 
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        value={formData.categoryId}
-                        onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
-                    >
-                        <option value="">Select a category...</option>
-                        {categories.map(c => (
-                            <option key={c._id} value={c._id}>{c.title}</option>
-                        ))}
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Excerpt ({languages.find(l => l.id === contentLang)?.title})
+                    </label>
+                    <textarea 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm font-mono"
+                        rows={3}
+                        value={formData.excerpt[contentLang] || ''}
+                        onChange={e => setFormData(prev => ({
+                            ...prev,
+                            excerpt: { ...prev.excerpt, [contentLang]: e.target.value }
+                        }))}
+                        placeholder="Short summary for list views and SEO."
+                    />
                 </div>
 
+                {contentLang === 'en' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            value={formData.categoryId}
+                            onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                        >
+                            <option value="">Select a category...</option>
+                            {categories.map(c => (
+                                <option key={c._id} value={c._id}>{c.title}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Content (Markdown)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Content ({languages.find(l => l.id === contentLang)?.title})
+                    </label>
                     <MarkdownEditor 
-                        content={formData.body}
-                        onChange={(md) => setFormData({ ...formData, body: md })}
+                        content={formData.body[contentLang] || ''}
+                        onChange={(md) => setFormData(prev => ({
+                            ...prev,
+                            body: { ...prev.body, [contentLang]: md }
+                        }))}
                         onImageUpload={handleEditorImageUpload}
                     />
                 </div>
@@ -530,46 +639,43 @@ export default function NewPostPage() {
         {activeTab === 'seo' && (
             <div className="space-y-6">
                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">SEO Title</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">SEO Title ({languages.find(l => l.id === contentLang)?.title})</label>
                     <input 
                         type="text" 
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder={formData.title}
-                        value={formData.seo.metaTitle}
-                        onChange={e => setFormData({ 
-                            ...formData, 
-                            seo: { ...formData.seo, metaTitle: e.target.value } 
-                        })}
+                        placeholder={formData.title[contentLang]}
+                        value={formData.seo.metaTitle[contentLang] || ''}
+                        onChange={e => handleNestedChange('seo', 'metaTitle', e.target.value)}
                     />
                     <p className="text-xs text-gray-500 mt-1">Leave blank to use post title.</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Meta Description</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Meta Description ({languages.find(l => l.id === contentLang)?.title})</label>
                     <textarea 
                         rows={3}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        value={formData.seo.metaDescription}
-                        onChange={e => setFormData({ 
-                            ...formData, 
-                            seo: { ...formData.seo, metaDescription: e.target.value } 
-                        })}
+                        value={formData.seo.metaDescription[contentLang] || ''}
+                        onChange={e => handleNestedChange('seo', 'metaDescription', e.target.value)}
                     ></textarea>
                 </div>
-                <div className="flex items-center">
-                    <input 
-                        type="checkbox" 
-                        id="noIndex"
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300"
-                        checked={formData.seo.noIndex}
-                        onChange={e => setFormData({ 
-                            ...formData, 
-                            seo: { ...formData.seo, noIndex: e.target.checked } 
-                        })}
-                    />
-                    <label htmlFor="noIndex" className="ml-2 block text-sm text-gray-900">
-                        No Index (Hide from search engines)
-                    </label>
-                </div>
+                
+                {contentLang === 'en' && (
+                    <div className="flex items-center">
+                        <input 
+                            type="checkbox" 
+                            id="noIndex"
+                            className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                            checked={formData.seo.noIndex}
+                            onChange={e => setFormData({ 
+                                ...formData, 
+                                seo: { ...formData.seo, noIndex: e.target.checked } 
+                            })}
+                        />
+                        <label htmlFor="noIndex" className="ml-2 block text-sm text-gray-900">
+                            No Index (Hide from search engines)
+                        </label>
+                    </div>
+                )}
             </div>
         )}
 
@@ -584,18 +690,6 @@ export default function NewPostPage() {
                         value={formData.publishedAt}
                         onChange={e => setFormData({ ...formData, publishedAt: e.target.value })}
                     />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
-                    <select 
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        value={formData.language}
-                        onChange={e => setFormData({ ...formData, language: e.target.value })}
-                    >
-                        <option value="en">English</option>
-                        <option value="zh-CN">Chinese (Simplified)</option>
-                        <option value="zh-TW">Chinese (Traditional)</option>
-                    </select>
                 </div>
             </div>
         )}
@@ -682,11 +776,11 @@ export default function NewPostPage() {
         <div className="flex justify-end pt-4 border-t">
             <button 
                 type="submit" 
-                disabled={loading}
+                disabled={loading || translating}
                 className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                Publish Post
+                {loading || translating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                {translating ? 'Translating & Publishing...' : 'Publish Post'}
             </button>
         </div>
       </form>
