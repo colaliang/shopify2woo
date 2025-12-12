@@ -37,6 +37,7 @@ interface Post {
   title: string
   slug: { current: string }
   mainImage: SanityImageSource
+  mainImageUrl?: string
   publishedAt: string
   excerpt: string
   categories: { title: string; slug: { current: string } }[]
@@ -111,6 +112,8 @@ async function getPosts(search?: string, category?: string, language?: string, p
     body,
     "legacyExcerpt": coalesce(excerpt, pt::text(body)[0...200] + "..."),
     mainImage,
+    localizedMainImage,
+    localizedMainImageUrl,
     "categories": categories[]->{title, slug}
   }`
   
@@ -144,10 +147,26 @@ async function getPosts(search?: string, category?: string, language?: string, p
         excerpt = p.legacyExcerpt || ''
     }
 
+    // Resolve Image
+    let mainImage = p.mainImage
+    let mainImageUrl = undefined
+
+    // 1. Try localized Supabase URL
+    if (p.localizedMainImageUrl) {
+        mainImageUrl = p.localizedMainImageUrl[langKey] || p.localizedMainImageUrl['en']
+    }
+
+    // 2. Try localized Sanity Asset
+    if (!mainImageUrl && p.localizedMainImage) {
+        mainImage = p.localizedMainImage[langKey] || p.localizedMainImage['en'] || p.mainImage
+    }
+
     return {
       ...p,
       title,
       excerpt,
+      mainImage,
+      mainImageUrl,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       categories: p.categories?.map((c: any) => ({
         ...c,
@@ -182,22 +201,43 @@ async function getRecentPosts(language?: string) {
     slug,
     publishedAt,
     mainImage,
+    localizedMainImage,
+    localizedMainImageUrl,
     "categories": categories[]->{title, slug}
   }`, params, { next: { revalidate: 0 } })
 
   // Localize categories inside recent posts
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const posts = postsData?.map((p: any) => ({
+  const posts = postsData?.map((p: any) => {
+    const langKey = (language || 'en').replace(/-/g, '_')
+    
+    // Resolve Image
+    let mainImage = p.mainImage
+    let mainImageUrl = undefined
+
+    // 1. Try localized Supabase URL
+    if (p.localizedMainImageUrl) {
+        mainImageUrl = p.localizedMainImageUrl[langKey] || p.localizedMainImageUrl['en']
+    }
+
+    // 2. Try localized Sanity Asset
+    if (!mainImageUrl && p.localizedMainImage) {
+        mainImage = p.localizedMainImage[langKey] || p.localizedMainImage['en'] || p.mainImage
+    }
+
+    return {
     ...p,
     title: p.localizedTitle 
       ? getLocalizedTitle(p.localizedTitle, language || 'en') 
       : p.title || 'Untitled',
+    mainImage,
+    mainImageUrl,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     categories: p.categories?.map((c: any) => ({
       ...c,
       title: getLocalizedTitle(c.title, language || 'en')
     }))
-  })) || []
+  }}) || []
   
   return posts
 }
@@ -263,7 +303,14 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                   <div key={post._id} className="group rounded-none sm:rounded-xl overflow-hidden">
                     {/* Image */}
                     <Link href={`/blog/${post.slug.current}${lng !== 'en' ? `?lng=${lng}` : ''}`} className="block relative aspect-[16/9] bg-gray-100 overflow-hidden rounded-lg">
-                      {post.mainImage ? (
+                      {post.mainImageUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img 
+                            src={post.mainImageUrl}
+                            alt={post.title}
+                            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : post.mainImage ? (
                         <div className="absolute inset-0">
                              {/* eslint-disable-next-line @next/next/no-img-element */}
                              <img 
@@ -381,7 +428,14 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                     {recentPosts.map((post: any) => (
                         <Link key={post._id} href={`/blog/${post.slug.current}${lng !== 'en' ? `?lng=${lng}` : ''}`} className="flex gap-4 group">
                             <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
-                                {post.mainImage ? (
+                                {post.mainImageUrl ? (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                    <img 
+                                        src={post.mainImageUrl}
+                                        alt={post.title}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                ) : post.mainImage ? (
                                     /* eslint-disable-next-line @next/next/no-img-element */
                                     <img 
                                         src={urlFor(post.mainImage).width(200).height(200).url()}
