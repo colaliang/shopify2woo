@@ -17,6 +17,7 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true)
   // const [error, setError] = useState('')
   const [newCategory, setNewCategory] = useState({ title: '', description: '' })
+  const [autoTranslate, setAutoTranslate] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
 
   useEffect(() => {
@@ -61,7 +62,8 @@ export default function CategoriesPage() {
         body: JSON.stringify({
             title: newCategory.title,
             description: newCategory.description,
-            slug: { _type: 'slug', current: slug }
+            slug: { _type: 'slug', current: slug },
+            autoTranslate
         })
       })
 
@@ -134,6 +136,18 @@ export default function CategoriesPage() {
                         value={newCategory.description}
                         onChange={e => setNewCategory({ ...newCategory, description: e.target.value })}
                     ></textarea>
+                </div>
+                <div className="flex items-center">
+                    <input
+                        id="autoTranslate"
+                        type="checkbox"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        checked={autoTranslate}
+                        onChange={e => setAutoTranslate(e.target.checked)}
+                    />
+                    <label htmlFor="autoTranslate" className="ml-2 block text-sm text-gray-900">
+                        Auto translate to multi-language
+                    </label>
                 </div>
                 <button 
                     type="submit" 
