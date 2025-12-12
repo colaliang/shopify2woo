@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { checkAdmin } from '@/lib/adminAuth';
+import { languages } from '@/sanity/lib/languages';
 
 export const runtime = 'nodejs';
 
@@ -24,12 +25,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Body content is required for SEO analysis' }, { status: 400 });
     }
 
+    const targetLang = languages.find(l => l.id === language)?.title || language;
+
     // 3. Construct Prompt
     const systemPrompt = `You are an SEO expert specializing in metadata optimization and keyword research.
     Your goal is to analyze the provided blog post content and generate comprehensive SEO metadata, structured data, and keywords.
     
     Requirements:
-    - Language: ${language === 'zh-CN' ? 'Simplified Chinese' : language === 'zh-TW' ? 'Traditional Chinese' : 'English'}
+    - Language: ${targetLang} (IMPORTANT: The output content MUST be in this language)
     - Output Format: PURE JSON OBJECT. Do NOT wrap in markdown code blocks. The JSON must follow this schema:
     {
       "seo": {

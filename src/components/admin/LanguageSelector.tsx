@@ -31,7 +31,6 @@ export default function LanguageSelector({ isOpen, onClose, onConfirm, isTransla
                 setSelected(parsed)
             } catch (e) { console.error(e) }
         } else {
-            // eslint-disable-next-line
             setSelected(languages.filter(l => l.id !== 'en').map(l => l.id))
         }
     }, []) 

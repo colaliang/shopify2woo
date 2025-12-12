@@ -388,8 +388,8 @@ export default function EditPostPage() {
   }
 
   async function handleAiSeo() {
-      if (!formData.body.en) {
-          alert('Please write some content first.')
+      if (!formData.body[contentLang]) {
+          alert(`Please write some content in ${contentLang} first.`)
           return
       }
 
@@ -406,9 +406,9 @@ export default function EditPostPage() {
                   ...(token ? { 'Authorization': `Bearer ${token}` } : {})
               },
               body: JSON.stringify({
-                  title: formData.title.en,
-                  body: formData.body.en,
-                  language: 'en'
+                  title: formData.title[contentLang],
+                  body: formData.body[contentLang],
+                  language: contentLang
               })
           })
 
@@ -424,20 +424,20 @@ export default function EditPostPage() {
               ...prev,
               seo: {
                   ...prev.seo,
-                  metaTitle: { ...prev.seo.metaTitle, en: parsed.seo?.metaTitle || prev.seo.metaTitle.en },
-                  metaDescription: { ...prev.seo.metaDescription, en: parsed.seo?.metaDescription || prev.seo.metaDescription.en },
+                  metaTitle: { ...prev.seo.metaTitle, [contentLang]: parsed.seo?.metaTitle || prev.seo.metaTitle[contentLang] },
+                  metaDescription: { ...prev.seo.metaDescription, [contentLang]: parsed.seo?.metaDescription || prev.seo.metaDescription[contentLang] },
                   focusKeyword: parsed.seo?.focusKeyword || prev.seo.focusKeyword,
-                  keywords: parsed.seo?.keywords ? { ...prev.seo.keywords, en: parsed.seo.keywords } : prev.seo.keywords,
+                  keywords: parsed.seo?.keywords ? { ...prev.seo.keywords, [contentLang]: parsed.seo.keywords } : prev.seo.keywords,
                   schemaType: parsed.seo?.schemaType || prev.schemaType,
               },
-              excerpt: { ...prev.excerpt, en: parsed.excerpt || prev.excerpt.en },
+              excerpt: { ...prev.excerpt, [contentLang]: parsed.excerpt || prev.excerpt[contentLang] },
               tags: parsed.tags || prev.tags,
-              keyTakeaways: { ...prev.keyTakeaways, en: parsed.keyTakeaways || prev.keyTakeaways.en },
-              faq: { ...prev.faq, en: parsed.faq || prev.faq.en },
+              keyTakeaways: { ...prev.keyTakeaways, [contentLang]: parsed.keyTakeaways || prev.keyTakeaways[contentLang] },
+              faq: { ...prev.faq, [contentLang]: parsed.faq || prev.faq[contentLang] },
               openGraph: {
                   ...prev.openGraph,
-                  title: { ...prev.openGraph.title, en: parsed.openGraph?.title || parsed.seo?.metaTitle || prev.openGraph.title.en },
-                  description: { ...prev.openGraph.description, en: parsed.openGraph?.description || parsed.seo?.metaDescription || prev.openGraph.description.en }
+                  title: { ...prev.openGraph.title, [contentLang]: parsed.openGraph?.title || parsed.seo?.metaTitle || prev.openGraph.title[contentLang] },
+                  description: { ...prev.openGraph.description, [contentLang]: parsed.openGraph?.description || parsed.seo?.metaDescription || prev.openGraph.description[contentLang] }
               }
           }))
 

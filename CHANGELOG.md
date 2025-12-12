@@ -55,7 +55,7 @@
 2. **AI BLOG生成**
    - AI内容生成与发布
    - AI图片与短视频生，多渠道发布
-
+   - 现在流程是：NewPost/AI Generate -> Edit Post/AI Optimize( English/Chinese ) -> Translate to Other Lang -> Publish (最终优化为一键生成，自动发布，多渠道同步)
 
 ## [Latest] - 2025-12-11/2025-12-12
 
@@ -72,6 +72,11 @@
 3. **Edit Post AI生成内容优化**
    - 生成后的AI内容优化
    - 支持多语言翻译，用户可以在Admin中管理不同语言的blog文章。
+
+4. **AI SEO优化**
+   - 利用Deepseek AI模型，根据现有内容，优化生成更符合SEO规范的标题和描述。
+   - 成本非常低，可以应用在导入后产品编辑
+   
 
 
 ---
