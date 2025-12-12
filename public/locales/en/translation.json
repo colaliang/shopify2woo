@@ -236,6 +236,9 @@
     }
   },
   "blog": {
+    "title": "Blog - Insights & Updates",
+    "description": "Latest news, tutorials, and insights about e-commerce and dropshipping.",
+    "page_info": "Page {{page}} of {{total}}",
     "share_article": "Share this article:",
     "read_more": "Read More",
     "recent_posts": "Recent Posts",

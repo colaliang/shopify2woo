@@ -16,9 +16,17 @@ type SanityImageSource = any
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const metadata: Metadata = {
-  title: 'Blog - Insights & Updates',
-  description: 'Latest news, tutorials, and insights about e-commerce and dropshipping.',
+export async function generateMetadata(props: { searchParams: Promise<{ lng?: string }> }): Promise<Metadata> {
+  const searchParams = await props.searchParams
+  const lng = searchParams.lng || 'en'
+  const t = await getTranslations(lng)
+  
+  return {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+    title: (t?.blog as any)?.title || 'Blog - Insights & Updates',
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+    description: (t?.blog as any)?.description || 'Latest news, tutorials, and insights about e-commerce and dropshipping.',
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -292,7 +300,8 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                   <ChevronLeft className="w-5 h-5" />
                 </Link>
                 <div className="flex items-center gap-1 px-4 font-medium text-gray-600">
-                    Page {page} of {totalPages}
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {((t?.blog as any)?.page_info || 'Page {{page}} of {{total}}').replace('{{page}}', page.toString()).replace('{{total}}', totalPages.toString())}
                 </div>
                 <Link
                   href={`/blog?page=${Math.min(totalPages, page + 1)}${search ? `&q=${search}` : ''}${categorySlug ? `&category=${categorySlug}` : ''}`}

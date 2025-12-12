@@ -236,6 +236,9 @@
     }
   },
   "blog": {
+    "title": "博客 - 洞察与更新",
+    "description": "关于跨境电商和Dropshipping的最新新闻、教程和见解。",
+    "page_info": "第 {{page}} 页，共 {{total}} 页",
     "share_article": "分享文章：",
     "read_more": "阅读更多",
     "recent_posts": "最新文章",
