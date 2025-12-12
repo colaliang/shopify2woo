@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Edit } from 'lucide-react'
 import Link from 'next/link'
 import supabase from '@/lib/supabase'
+import { languages } from '@/sanity/lib/languages'
 
 interface Category {
   _id: string
@@ -19,6 +20,7 @@ export default function CategoriesPage() {
   const [newCategory, setNewCategory] = useState({ title: '', description: '' })
   const [autoTranslate, setAutoTranslate] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchCategories()
@@ -43,7 +45,7 @@ export default function CategoriesPage() {
     }
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleCreateOrUpdate(e: React.FormEvent) {
     e.preventDefault()
     setIsCreating(true)
 
@@ -53,29 +55,38 @@ export default function CategoriesPage() {
 
       const slug = newCategory.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
       
+      const method = editingId ? 'PUT' : 'POST'
+      const body = {
+        _id: editingId,
+        title: newCategory.title,
+        description: newCategory.description,
+        slug: { _type: 'slug', current: slug },
+        autoTranslate
+      }
+
       const res = await fetch('/api/admin/content/categories', {
-        method: 'POST',
+        method,
         headers: { 
             'Content-Type': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({
-            title: newCategory.title,
-            description: newCategory.description,
-            slug: { _type: 'slug', current: slug },
-            autoTranslate
-        })
+        body: JSON.stringify(body)
       })
 
-      if (!res.ok) throw new Error('Failed to create category')
+      if (!res.ok) throw new Error(`Failed to ${editingId ? 'update' : 'create'} category`)
       const data = await res.json()
       
       setNewCategory({ title: '', description: '' })
-      // Optimistically update the list with the returned category
+      setEditingId(null)
+      setAutoTranslate(true) // Reset auto translate to true
+
       if (data.category) {
-          setCategories(prev => [...prev, data.category].sort((a, b) => a.title.localeCompare(b.title)))
+        if (editingId) {
+            setCategories(prev => prev.map(c => c._id === editingId ? data.category : c).sort((a, b) => a.title.localeCompare(b.title)))
+        } else {
+            setCategories(prev => [...prev, data.category].sort((a, b) => a.title.localeCompare(b.title)))
+        }
       } else {
-          // Fallback if no category returned (though API should return it)
           fetchCategories()
       }
     } catch (e) {
@@ -83,6 +94,18 @@ export default function CategoriesPage() {
     } finally {
       setIsCreating(false)
     }
+  }
+
+  function startEdit(cat: Category) {
+      setNewCategory({ title: cat.title, description: cat.description || '' })
+      setEditingId(cat._id)
+      setAutoTranslate(true) // Default to true when editing too
+  }
+
+  function cancelEdit() {
+      setNewCategory({ title: '', description: '' })
+      setEditingId(null)
+      setAutoTranslate(true)
   }
 
   async function handleDelete(id: string) {
@@ -114,10 +137,10 @@ export default function CategoriesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Create Form */}
+        {/* Create/Edit Form */}
         <div className="bg-white rounded-lg shadow border border-gray-200 p-6 h-fit">
-            <h2 className="text-lg font-semibold mb-4">Add New Category</h2>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <h2 className="text-lg font-semibold mb-4">{editingId ? 'Edit Category' : 'Add New Category'}</h2>
+            <form onSubmit={handleCreateOrUpdate} className="space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                     <input 
@@ -137,6 +160,19 @@ export default function CategoriesPage() {
                         onChange={e => setNewCategory({ ...newCategory, description: e.target.value })}
                     ></textarea>
                 </div>
+                
+                {/* Language Support Info */}
+                <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                    <p className="font-medium mb-1">Supported Languages:</p>
+                    <div className="flex flex-wrap gap-1">
+                        {languages.filter(l => l.id !== 'en').map(l => (
+                            <span key={l.id} className="bg-gray-200 px-1.5 py-0.5 rounded text-gray-700">
+                                {l.title.split(' ')[0]}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="flex items-center">
                     <input
                         id="autoTranslate"
@@ -146,17 +182,29 @@ export default function CategoriesPage() {
                         onChange={e => setAutoTranslate(e.target.checked)}
                     />
                     <label htmlFor="autoTranslate" className="ml-2 block text-sm text-gray-900">
-                        Auto translate to multi-language
+                        {editingId ? 'Update translations for all languages' : 'Auto translate to multi-language'}
                     </label>
                 </div>
-                <button 
-                    type="submit" 
-                    disabled={isCreating}
-                    className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Category
-                </button>
+                
+                <div className="flex gap-2">
+                    <button 
+                        type="submit" 
+                        disabled={isCreating}
+                        className="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        {editingId ? <Edit className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                        {editingId ? 'Update' : 'Add'}
+                    </button>
+                    {editingId && (
+                        <button 
+                            type="button"
+                            onClick={cancelEdit}
+                            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                        >
+                            Cancel
+                        </button>
+                    )}
+                </div>
             </form>
         </div>
 
@@ -188,7 +236,14 @@ export default function CategoriesPage() {
                             <td className="px-6 py-4 text-sm text-gray-500 font-mono">
                                 {cat.slug?.current}
                             </td>
-                            <td className="px-6 py-4 text-right">
+                            <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                <button
+                                    onClick={() => startEdit(cat)}
+                                    className="text-gray-400 hover:text-blue-600 transition-colors"
+                                    title="Edit"
+                                >
+                                    <Edit className="w-4 h-4" />
+                                </button>
                                 <button
                                     onClick={() => handleDelete(cat._id)}
                                     className="text-gray-400 hover:text-red-600 transition-colors"

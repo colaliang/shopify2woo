@@ -91,3 +91,75 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }
+
+export async function PUT(req: Request) {
+  const { error, status, user } = await checkAdmin();
+  if (error || !user) return NextResponse.json({ error }, { status });
+
+  try {
+    const body = await req.json();
+    const { _id, autoTranslate, title: newTitle, description: newDescription } = body;
+
+    if (!_id) return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
+
+    // Fetch existing document to preserve other translations if not auto-translating
+    const existing = await client.fetch(`*[_id == $_id][0]`, { _id });
+    if (!existing) return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const title: any = {
+      ...existing.title,
+      en: newTitle
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const description: any = newDescription ? {
+      ...(existing.description || {}),
+      _type: 'localizedString',
+      en: newDescription
+    } : undefined;
+
+    // Auto translate if requested
+    if (autoTranslate) {
+        const targetLangs = languages.filter(l => l.id !== 'en').map(l => l.id);
+        
+        await Promise.all(targetLangs.map(async (lang) => {
+            try {
+                // Translate Title
+                const translatedTitle = await callDeepseek(newTitle, lang);
+                title[getSanityField(lang)] = translatedTitle;
+
+                // Translate Description (if exists)
+                if (description && newDescription) {
+                    const translatedDesc = await callDeepseek(newDescription, lang);
+                    description[getSanityField(lang)] = translatedDesc;
+                }
+            } catch (e) {
+                console.error(`Failed to translate category for ${lang}`, e);
+            }
+        }));
+    }
+
+    const doc = await writeClient.patch(_id).set({
+      title,
+      description,
+      slug: body.slug // Allow slug update
+    }).commit();
+    
+    // Return sanitized document for the frontend
+    const sanitizedDoc = {
+        ...doc,
+        title: newTitle,
+        description: newDescription
+    };
+    
+    await fetch(new URL('/api/admin/sanity-log', req.url).toString(), {
+        method: 'POST',
+        body: JSON.stringify({ userId: user.id, success: true, details: `Updated category: ${newTitle}` })
+    });
+
+    return NextResponse.json({ category: sanitizedDoc });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
+}
