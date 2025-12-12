@@ -3,6 +3,7 @@ import { getLocalizedTitle } from '@/sanity/lib/languages'
 import Link from 'next/link'
 import BlogHeader from './components/BlogHeader'
 import { Search, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
+import Image from 'next/image'
 import { Metadata } from 'next'
 import MarkdownIt from 'markdown-it'
 import { getTranslations } from '@/lib/i18nServer'
@@ -95,7 +96,7 @@ async function getPosts(search?: string, category?: string, language?: string, p
 
   // Count total for pagination
   const countQuery = `count(${filter})`
-  const total = await client.fetch(countQuery, params, { next: { revalidate: 0 } })
+  const total = await client.fetch(countQuery, params, { next: { revalidate: 3600 } })
   console.log('[Blog Debug] Total count:', total)
 
   // Fetch posts
@@ -117,7 +118,7 @@ async function getPosts(search?: string, category?: string, language?: string, p
     "categories": categories[]->{title, slug}
   }`
   
-  const postsData = await client.fetch(query, params, { next: { revalidate: 0 } })
+  const postsData = await client.fetch(query, params, { next: { revalidate: 3600 } }) // Cache for 1 hour
 
   // Localize categories inside posts
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -204,7 +205,7 @@ async function getRecentPosts(language?: string) {
     localizedMainImage,
     localizedMainImageUrl,
     "categories": categories[]->{title, slug}
-  }`, params, { next: { revalidate: 0 } })
+  }`, params, { next: { revalidate: 3600 } })
 
   // Localize categories inside recent posts
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -247,7 +248,7 @@ async function getCategories(language: string) {
     _id,
     title,
     slug
-  }`)
+  }`, {}, { next: { revalidate: 3600 } })
   
   // Map category title to current language
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -304,11 +305,12 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                     {/* Image */}
                     <Link href={`/blog/${post.slug.current}${lng !== 'en' ? `?lng=${lng}` : ''}`} className="block relative aspect-[16/9] bg-gray-100 overflow-hidden rounded-lg">
                       {post.mainImageUrl ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img 
+                        <Image 
                             src={post.mainImageUrl}
                             alt={post.title}
-                            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                            fill
+                            className="object-cover transform group-hover:scale-105 transition-transform duration-500"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         />
                       ) : post.mainImage ? (
                         <div className="absolute inset-0">
@@ -427,13 +429,14 @@ export default async function BlogPage(props: { searchParams: Promise<{ q?: stri
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {recentPosts.map((post: any) => (
                         <Link key={post._id} href={`/blog/${post.slug.current}${lng !== 'en' ? `?lng=${lng}` : ''}`} className="flex gap-4 group">
-                            <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
+                            <div className="w-24 h-24 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden relative">
                                 {post.mainImageUrl ? (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img 
+                                    <Image 
                                         src={post.mainImageUrl}
                                         alt={post.title}
-                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        fill
+                                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                        sizes="96px"
                                     />
                                 ) : post.mainImage ? (
                                     /* eslint-disable-next-line @next/next/no-img-element */

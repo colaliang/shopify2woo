@@ -2,7 +2,25 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    unoptimized: true,
+    // unoptimized: true, // Use optimization if possible
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.sanity.io',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co', // Allow Supabase Storage
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com', // Google Avatar
+      }
+    ]
   },
   async headers() {
     return [

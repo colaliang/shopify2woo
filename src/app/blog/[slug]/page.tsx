@@ -52,12 +52,14 @@ async function getPost(slug: string, language: string = 'en'): Promise<Post | nu
       slug,
       publishedAt,
       mainImage,
+      localizedMainImage,
+      localizedMainImageUrl,
       "categories": categories[]->{
         title,
         slug
       }
     }
-  }`, { slug }, { next: { revalidate: 0 } })
+  }`, { slug }, { next: { revalidate: 3600 } })
 
   if (!postData) {
     return null
@@ -105,15 +107,32 @@ async function getPost(slug: string, language: string = 'en'): Promise<Post | nu
           title: getLocalizedTitle(c.title, language)
       })),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      relatedPosts: postData.relatedPosts?.map((rp: any) => ({
+      relatedPosts: postData.relatedPosts?.map((rp: any) => {
+          // Resolve Related Post Image
+          let rpMainImage = rp.mainImage
+          let rpMainImageUrl = undefined
+
+          // 1. Try localized Supabase URL
+          if (rp.localizedMainImageUrl) {
+              rpMainImageUrl = rp.localizedMainImageUrl[langKey] || rp.localizedMainImageUrl['en']
+          }
+
+          // 2. Try localized Sanity Asset
+          if (!rpMainImageUrl && rp.localizedMainImage) {
+              rpMainImage = rp.localizedMainImage[langKey] || rp.localizedMainImage['en'] || rp.mainImage
+          }
+
+          return {
           ...rp,
           title: rp.localizedTitle ? getLocalizedTitle(rp.localizedTitle, language) : rp.title,
+          mainImage: rpMainImage,
+          mainImageUrl: rpMainImageUrl,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           categories: rp.categories?.map((c: any) => ({
               ...c,
               title: getLocalizedTitle(c.title, language)
           }))
-      }))
+      }})
   }
 
   return localizedPost
@@ -138,16 +157,37 @@ async function getRecentPosts(language?: string) {
     localizedTitle,
     slug,
     publishedAt,
-    mainImage
+    mainImage,
+    localizedMainImage,
+    localizedMainImageUrl
   }`, params)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return postsData?.map((p: any) => ({
+  return postsData?.map((p: any) => {
+      const langKey = (language || 'en').replace(/-/g, '_')
+      
+      // Resolve Image
+      let mainImage = p.mainImage
+      let mainImageUrl = undefined
+
+      // 1. Try localized Supabase URL
+      if (p.localizedMainImageUrl) {
+          mainImageUrl = p.localizedMainImageUrl[langKey] || p.localizedMainImageUrl['en']
+      }
+
+      // 2. Try localized Sanity Asset
+      if (!mainImageUrl && p.localizedMainImage) {
+          mainImage = p.localizedMainImage[langKey] || p.localizedMainImage['en'] || p.mainImage
+      }
+
+      return {
       ...p,
       title: p.localizedTitle 
         ? getLocalizedTitle(p.localizedTitle, language || 'en') 
-        : p.title || 'Untitled'
-  })) || []
+        : p.title || 'Untitled',
+      mainImage,
+      mainImageUrl
+  }}) || []
 }
 
 async function getCategories(language: string = 'en') {
@@ -155,7 +195,7 @@ async function getCategories(language: string = 'en') {
     _id,
     title,
     slug
-  }`)
+  }`, {}, { next: { revalidate: 3600 } })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return categories?.map((c: any) => ({
