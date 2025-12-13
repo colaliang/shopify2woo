@@ -683,6 +683,14 @@ export default function EditPostPage() {
 
       const finalFormData = { ...formData }
 
+      // 1. Clean Data
+      // Filter out empty key takeaways
+      const cleanKeyTakeaways = { ...finalFormData.keyTakeaways }
+      Object.keys(cleanKeyTakeaways).forEach(lang => {
+          cleanKeyTakeaways[lang] = cleanKeyTakeaways[lang].filter(k => k && k.trim() !== '')
+      })
+      finalFormData.keyTakeaways = cleanKeyTakeaways
+
       // 2. Prepare Payload
       const toSanityKey = (lang: string) => lang.replace(/-/g, '_')
       
@@ -778,7 +786,8 @@ export default function EditPostPage() {
       setFormData(finalFormData)
       alert('Post updated successfully!')
       router.refresh()
-      router.push('/admin/content')
+      // Optional: Don't push back immediately if we want to stay on page
+      // router.push('/admin/content') 
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e))
     } finally {

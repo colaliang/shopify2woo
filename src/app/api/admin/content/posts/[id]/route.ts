@@ -9,7 +9,8 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
   if (error) return NextResponse.json({ error }, { status });
 
   try {
-    const post = await client.fetch(`*[_type == "post" && _id == $id][0]`, { id: params.id });
+    // Use writeClient to fetch to ensure we get the latest data (bypass CDN)
+    const post = await writeClient.fetch(`*[_type == "post" && _id == $id][0]`, { id: params.id });
     if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     return NextResponse.json({ post });
   } catch (e) {
