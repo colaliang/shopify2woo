@@ -659,9 +659,16 @@ export default function EditPostPage() {
               })
               
               setFormData(newFormData)
+              // Force a re-render or state update might be needed if deep nested
+              // but setFormData with new object usually works.
+              
               addToHistory(newFormData)
               setShowTranslateModal(false)
               alert(`Successfully translated to ${targetLangs.length} languages. Review changes before saving.`)
+              
+              // If we translated to the currently viewed language, we might need to refresh editor?
+              // The state update should handle it, but markdown editor might need a key change to force refresh if it manages its own state
+              
           } else {
               throw new Error('Translation API failed')
           }
@@ -786,8 +793,7 @@ export default function EditPostPage() {
       setFormData(finalFormData)
       alert('Post updated successfully!')
       router.refresh()
-      // Optional: Don't push back immediately if we want to stay on page
-      // router.push('/admin/content') 
+      router.push('/admin/content') 
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e))
     } finally {
@@ -963,6 +969,7 @@ export default function EditPostPage() {
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Content (Markdown)</label>
                     <MarkdownEditor 
+                        key={`${contentLang}-${formData.body[contentLang]?.length || 0}`} // Force re-render on language change or content length change
                         content={formData.body[contentLang] || ''}
                         onChange={(md) => setFormData(prev => ({
                             ...prev,
