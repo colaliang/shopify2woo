@@ -1,5 +1,5 @@
 import { createClient } from 'next-sanity'
-import createImageUrlBuilder from '@sanity/image-url'
+import { createImageUrlBuilder } from '@sanity/image-url'
 
 // Simplified type definition to avoid import errors
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

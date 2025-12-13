@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { checkAdmin } from '@/lib/adminAuth';
-import { client, writeClient } from '@/lib/sanity';
+import { writeClient } from '@/lib/sanity';
 
 // GET Single, UPDATE, DELETE
 export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
