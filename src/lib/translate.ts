@@ -11,7 +11,8 @@ export async function translateText(text: string, targetLang: string) {
   // Map language codes
   let deepLLang = targetLang.toUpperCase();
   if (deepLLang === 'EN') deepLLang = 'EN-US';
-  if (deepLLang === 'ZH-CN') deepLLang = 'ZH';
+  if (deepLLang === 'ZH-CN') deepLLang = 'ZH-HANS';
+  if (deepLLang === 'ZH-TW') deepLLang = 'ZH-HANT';
   if (deepLLang === 'PT') deepLLang = 'PT-PT';
   // Add other mappings if needed
 

@@ -169,7 +169,8 @@ export async function POST(req: Request) {
             
             // Handle specific mappings
             if (deepLLang === 'EN') deepLLang = 'EN-US';
-            if (deepLLang === 'ZH-CN') deepLLang = 'ZH';
+            if (deepLLang === 'ZH-CN') deepLLang = 'ZH-HANS';
+            if (deepLLang === 'ZH-TW') deepLLang = 'ZH-HANT';
             if (deepLLang === 'PT') deepLLang = 'PT-PT';
             
             try {
