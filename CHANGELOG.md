@@ -59,6 +59,20 @@
    - 现在流程是：NewPost/AI Generate -> Edit Post/AI Optimize( English/Chinese ) -> Translate to Other Lang -> Publish (最终优化为一键生成，自动发布，多渠道同步)
    - 构建了一套完整的流程，可以用于集成到其项目中，为后AI建站提供支持。
 
+3. **AI Facebook优化**
+   - 兴趣，人群生成
+   - 自动发布到Facebook，根据用户兴趣，自动发布到不同的Facebook群组
+
+
+## [Latest] - 2025-12-11/2025-12-12
+
+### ✨ 新增功能 (Features)
+
+1. **翻译功能优化**
+   - Deepseek AI 翻译成本太高，切换为DeepL翻译，有免费50w的额度
+   - 重构翻译逻辑，优化性能
+
+
 ## [Latest] - 2025-12-11/2025-12-12
 
 ### ✨ 新增功能 (Features)

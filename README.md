@@ -54,6 +54,7 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `WECHAT_APP_ID`（微信开放平台 AppID）
    - `WECHAT_APP_SECRET`（微信开放平台 AppSecret）
+   - `DEEPL_API_KEY`（DeepL 翻译 API Key）
    - （可选）`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - （可选）`HTTP_PROXY`、`HTTPS_PROXY`（仅服务器端请求需要代理时）
 3. 触发一次部署（自动），完成后将获得生产域名，例如 `https://shopify2woo-web.vercel.app`。

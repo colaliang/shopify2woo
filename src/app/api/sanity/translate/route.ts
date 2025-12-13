@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { callDeepseek } from '@/lib/translate';
+import { translateText } from '@/lib/translate';
 
 export async function POST(req: Request) {
   try {
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     // Parallel execution for speed (in production, batch if API supports it)
     await Promise.all(targetLangs.map(async (lang) => {
       try {
-        const translated = await callDeepseek(text, lang);
+        const translated = await translateText(text, lang);
         translations[lang] = translated;
       } catch (e) {
         console.error(`Failed to translate to ${lang}`, e);

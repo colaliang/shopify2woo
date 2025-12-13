@@ -1,115 +1,194 @@
 import { NextResponse } from 'next/server';
 import { checkAdmin } from '@/lib/adminAuth';
-import { languages } from '@/sanity/lib/languages';
 
 export const runtime = 'nodejs';
 
-export async function POST(req: Request) {
-  // 1. Check Auth
-  const { error, status } = await checkAdmin();
-  if (error) return NextResponse.json({ error }, { status });
+// DeepL API Configuration
+const DEEPL_API_KEY = process.env.DEEPL_API_KEY || '';
+const DEEPL_API_URL = DEEPL_API_KEY.endsWith(':fx') 
+    ? 'https://api-free.deepl.com/v2/translate' 
+    : 'https://api.deepl.com/v2/translate';
 
-  // 2. Check API Key
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: 'Deepseek API key not configured.' },
-      { status: 500 }
-    );
-  }
+// Helper to flatten the content object into an array of strings
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function flattenContent(content: any): { texts: string[], map: any[] } {
+    const texts: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const map: any[] = [];
 
-  try {
-    const { content, sourceLang = 'en', targetLangs } = await req.json();
-
-    if (!content) {
-        return NextResponse.json({ error: 'Content is required' }, { status: 400 });
-    }
-
-    // Identify which languages to translate to
-    const langsToTranslate = targetLangs || languages.filter(l => l.id !== sourceLang).map(l => l.id);
-
-    // Function to translate a single language
-    const translateOne = async (lang: string) => {
-        const systemPrompt = `You are a professional translator and localization expert. 
-        You will receive a JSON object containing text fields.
-        Your task is to translate the content into ${languages.find(l => l.id === lang)?.title || lang}.
-        
-        Output Format: PURE JSON OBJECT.
-        Structure:
-        {
-          "title": "Translated Title",
-          "body": "Translated Body (Markdown)",
-          "excerpt": "Translated Excerpt",
-          "keyTakeaways": ["Translated Point 1", ...],
-          "faq": [{ "question": "...", "answer": "..." }]
+    const addText = (text: string, path: (string | number)[]) => {
+        // Only translate non-empty strings
+        if (text && typeof text === 'string' && text.trim().length > 0) {
+            texts.push(text);
+            map.push({ path, index: texts.length - 1 });
         }
-        
-        Guidelines:
-        - Maintain Markdown formatting.
-        - Adapt cultural context where appropriate.
-        - Ensure SEO keywords are naturally translated.
-        - Do NOT translate technical terms that should remain in English (unless standard).
-        `;
+    };
 
-        const userPrompt = `
-        Source Content (${sourceLang}):
-        ${JSON.stringify(content, null, 2)}
-        
-        Please translate to: ${lang}
-        `;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const traverse = (obj: any, currentPath: (string | number)[]) => {
+        if (typeof obj === 'string') {
+            addText(obj, currentPath);
+        } else if (Array.isArray(obj)) {
+            obj.forEach((item, i) => traverse(item, [...currentPath, i]));
+        } else if (obj && typeof obj === 'object') {
+            Object.keys(obj).forEach(key => traverse(obj[key], [...currentPath, key]));
+        }
+    };
 
+    traverse(content, []);
+    return { texts, map };
+}
+
+// Helper to reconstruct the content object from translated texts
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function reconstructContent(originalContent: any, translations: string[], map: any[]) {
+    // Deep clone original content to preserve structure and non-translated fields
+    const newContent = JSON.parse(JSON.stringify(originalContent));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    map.forEach(({ path, index }: any) => {
+        const translatedText = translations[index];
+        // Only update if we have a valid translation
+        if (translatedText !== undefined && translatedText !== null) {
+            let current = newContent;
+            for (let i = 0; i < path.length - 1; i++) {
+                current = current[path[i]];
+            }
+            current[path[path.length - 1]] = translatedText;
+        }
+    });
+
+    return newContent;
+}
+
+async function translateBatch(texts: string[], targetLang: string): Promise<string[]> {
+    if (texts.length === 0) return [];
+
+    // DeepL limits: 50 texts per request, 128KB total request size.
+    const BATCH_SIZE = 50;
+    const MAX_PAYLOAD_SIZE = 100 * 1024; // 100KB safety margin
+
+    const results: string[] = new Array(texts.length).fill('');
+    
+    let currentBatch: { text: string, index: number }[] = [];
+    let currentBatchSize = 0;
+
+    const processBatch = async (batch: { text: string, index: number }[]) => {
+        if (batch.length === 0) return;
+        
         try {
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
+            const response = await fetch(DEEPL_API_URL, {
                 method: 'POST',
                 headers: {
+                    'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
                 },
                 body: JSON.stringify({
-                    model: 'deepseek-chat',
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt },
-                    ],
-                    stream: false,
-                    temperature: 0.3,
-                    max_tokens: 8000,
-                    response_format: { type: 'json_object' }
+                    text: batch.map(b => b.text),
+                    target_lang: targetLang,
+                    // tag_handling: 'xml' // Optional: if we want to protect tags more strictly
                 }),
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`Deepseek API Error (${lang}):`, errorText);
-                return null;
+                const errText = await response.text();
+                console.error(`DeepL API Error (${targetLang}):`, errText);
+                throw new Error(`DeepL API Error: ${response.status} ${response.statusText}`);
             }
 
             const data = await response.json();
-            const resultString = data.choices[0]?.message?.content || '{}';
-            const parsed = JSON.parse(resultString);
-            return { [lang]: parsed };
-
+            
+            if (data.translations && Array.isArray(data.translations)) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                data.translations.forEach((t: any, i: number) => {
+                    results[batch[i].index] = t.text;
+                });
+            }
         } catch (e) {
-            console.error(`Translation failed for ${lang}:`, e);
-            return null;
+            console.error(`Translation batch failed for ${targetLang}`, e);
+            throw e;
         }
     };
 
-    // Run translations in parallel
-    // We limit concurrency to 5 to avoid rate limits or timeouts if needed, 
-    // but for now Promise.all with all 10 should be fine for Deepseek (usually high rate limits).
-    const results = await Promise.all(langsToTranslate.map((lang: string) => translateOne(lang)));
+    for (let i = 0; i < texts.length; i++) {
+        const text = texts[i];
+        const textSize = Buffer.byteLength(text, 'utf8');
 
-    // Merge results
-    const mergedResults = results.reduce((acc, curr) => {
-        if (curr) return { ...acc, ...curr };
-        return acc;
-    }, {});
+        // Check limits
+        if (currentBatch.length >= BATCH_SIZE || (currentBatchSize + textSize) > MAX_PAYLOAD_SIZE) {
+            await processBatch(currentBatch);
+            currentBatch = [];
+            currentBatchSize = 0;
+        }
 
-    return NextResponse.json({ translations: mergedResults });
+        currentBatch.push({ text, index: i });
+        currentBatchSize += textSize;
+    }
 
-  } catch (e) {
-    console.error('Translation Error:', e);
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
-  }
+    if (currentBatch.length > 0) {
+        await processBatch(currentBatch);
+    }
+
+    return results;
+}
+
+export async function POST(req: Request) {
+    const startTime = Date.now();
+    
+    // 1. Check Auth
+    const { error, status } = await checkAdmin();
+    if (error) return NextResponse.json({ error }, { status });
+
+    if (!DEEPL_API_KEY) {
+         return NextResponse.json({ error: 'DeepL API key not configured.' }, { status: 500 });
+    }
+
+    try {
+        const { content, targetLangs } = await req.json(); // sourceLang is optional for DeepL
+
+        if (!content) {
+            return NextResponse.json({ error: 'Content is required' }, { status: 400 });
+        }
+
+        // 2. Flatten Content
+        const { texts, map } = flattenContent(content);
+        
+        console.log(`Translating ${texts.length} segments to ${targetLangs.length} languages.`);
+
+        if (texts.length === 0) {
+             return NextResponse.json({ translations: {} });
+        }
+
+        // 3. Translate for each target language
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const translations: Record<string, any> = {};
+        
+        await Promise.all(targetLangs.map(async (lang: string) => {
+            // Map common language codes to DeepL codes
+            let deepLLang = lang.toUpperCase();
+            
+            // Handle specific mappings
+            if (deepLLang === 'EN') deepLLang = 'EN-US';
+            if (deepLLang === 'ZH-CN') deepLLang = 'ZH';
+            if (deepLLang === 'PT') deepLLang = 'PT-PT';
+            
+            try {
+                const translatedTexts = await translateBatch(texts, deepLLang);
+                translations[lang] = reconstructContent(content, translatedTexts, map);
+            } catch (e) {
+                console.error(`Failed to translate to ${lang}`, e);
+                // Return null or partial error for this lang?
+                // We'll just omit it from the result, client will handle it.
+            }
+        }));
+
+        const duration = Date.now() - startTime;
+        console.log(`Translation completed in ${duration}ms.`);
+
+        return NextResponse.json({ translations });
+
+    } catch (e) {
+        console.error('Translation Error:', e);
+        return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    }
 }

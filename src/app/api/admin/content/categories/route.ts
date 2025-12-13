@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { checkAdmin } from '@/lib/adminAuth';
 import { client, writeClient } from '@/lib/sanity';
 import { getLocalizedTitle, languages, getSanityField } from '@/sanity/lib/languages';
-import { callDeepseek } from '@/lib/translate';
+import { translateText } from '@/lib/translate';
 
 export async function GET() {
   const { error, status } = await checkAdmin();
@@ -49,12 +49,12 @@ export async function POST(req: Request) {
         await Promise.all(targetLangs.map(async (lang) => {
             try {
                 // Translate Title
-                const translatedTitle = await callDeepseek(body.title, lang);
+                const translatedTitle = await translateText(body.title, lang);
                 title[getSanityField(lang)] = translatedTitle;
 
                 // Translate Description (if exists)
                 if (description && body.description) {
-                    const translatedDesc = await callDeepseek(body.description, lang);
+                    const translatedDesc = await translateText(body.description, lang);
                     description[getSanityField(lang)] = translatedDesc;
                 }
             } catch (e) {
@@ -129,12 +129,12 @@ export async function PUT(req: Request) {
         await Promise.all(targetLangs.map(async (lang) => {
             try {
                 // Translate Title
-                const translatedTitle = await callDeepseek(newTitle, lang);
+                const translatedTitle = await translateText(newTitle, lang);
                 title[getSanityField(lang)] = translatedTitle;
 
                 // Translate Description (if exists)
                 if (description && newDescription) {
-                    const translatedDesc = await callDeepseek(newDescription, lang);
+                    const translatedDesc = await translateText(newDescription, lang);
                     description[getSanityField(lang)] = translatedDesc;
                 }
             } catch (e) {

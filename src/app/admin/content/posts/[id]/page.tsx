@@ -12,7 +12,24 @@ import AiContentPreview from '@/components/admin/ai/AiContentPreview'
 import TurndownService from 'turndown'
 import { languages } from '@/sanity/lib/languages'
 
-import LanguageSelector from '@/components/admin/LanguageSelector'
+import LanguageSelector, { FieldOption } from '@/components/admin/LanguageSelector'
+
+const contentFields: FieldOption[] = [
+    { id: 'title', label: 'Title' },
+    { id: 'body', label: 'Content Body' },
+    { id: 'excerpt', label: 'Excerpt' },
+    { id: 'keyTakeaways', label: 'Key Takeaways' },
+    { id: 'faq', label: 'FAQ' },
+    { id: 'alt', label: 'Image Alt Text' }
+]
+
+const seoFields: FieldOption[] = [
+    { id: 'metaTitle', label: 'SEO Title' },
+    { id: 'metaDescription', label: 'Meta Description' },
+    { id: 'keywords', label: 'Keywords' },
+    { id: 'ogTitle', label: 'OpenGraph Title' },
+    { id: 'ogDescription', label: 'OpenGraph Description' }
+]
 
 interface AiResult {
   title?: string
@@ -51,6 +68,13 @@ export default function EditPostPage() {
   // const [autoTranslate, setAutoTranslate] = useState(true) // Removed in favor of manual trigger
   const [translating, setTranslating] = useState(false)
   const [showTranslateModal, setShowTranslateModal] = useState(false)
+  const [availableFields, setAvailableFields] = useState<FieldOption[]>([])
+
+  useEffect(() => {
+      if (activeTab === 'content') setAvailableFields(contentFields)
+      else if (activeTab === 'seo') setAvailableFields(seoFields)
+      else setAvailableFields([])
+  }, [activeTab])
   
   const [formData, setFormData] = useState({
     title: { en: '' } as Record<string, string>,
@@ -559,7 +583,7 @@ export default function EditPostPage() {
       setActiveTab('content')
   }
 
-  async function handleTranslate(targetLangs: string[]) {
+  async function handleTranslate(targetLangs: string[], selectedFields?: string[]) {
       if (!formData.title.en || !formData.body.en) {
           alert('Please enter English title and content first.')
           return
@@ -574,6 +598,26 @@ export default function EditPostPage() {
           const { data: { session } } = await supabase.auth.getSession()
           const token = session?.access_token
           
+          // Construct content object based on selectedFields
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const contentToTranslate: Record<string, any> = {}
+          const shouldInclude = (field: string) => !selectedFields || selectedFields.includes(field)
+
+          // Content Fields
+          if (shouldInclude('title')) contentToTranslate.title = formData.title.en
+          if (shouldInclude('body')) contentToTranslate.body = formData.body.en
+          if (shouldInclude('excerpt')) contentToTranslate.excerpt = formData.excerpt.en
+          if (shouldInclude('keyTakeaways')) contentToTranslate.keyTakeaways = formData.keyTakeaways.en
+          if (shouldInclude('faq')) contentToTranslate.faq = formData.faq.en
+          if (shouldInclude('alt')) contentToTranslate.alt = formData.alt.en
+
+          // SEO Fields (Use fallbacks if English SEO fields are empty)
+          if (shouldInclude('metaTitle')) contentToTranslate.metaTitle = formData.seo.metaTitle.en || formData.title.en
+          if (shouldInclude('metaDescription')) contentToTranslate.metaDescription = formData.seo.metaDescription.en || formData.excerpt.en
+          if (shouldInclude('keywords')) contentToTranslate.keywords = formData.seo.keywords.en
+          if (shouldInclude('ogTitle')) contentToTranslate.ogTitle = formData.openGraph.title.en || formData.seo.metaTitle.en || formData.title.en
+          if (shouldInclude('ogDescription')) contentToTranslate.ogDescription = formData.openGraph.description.en || formData.seo.metaDescription.en || formData.excerpt.en
+
           const res = await fetch('/api/admin/ai/translate', {
               method: 'POST',
               headers: { 
@@ -581,15 +625,7 @@ export default function EditPostPage() {
                   ...(token ? { 'Authorization': `Bearer ${token}` } : {})
               },
               body: JSON.stringify({
-                  content: {
-                      title: formData.title.en,
-                      body: formData.body.en,
-                      excerpt: formData.excerpt.en,
-                      keyTakeaways: formData.keyTakeaways.en,
-                      faq: formData.faq.en,
-                      // Also translate keywords
-                      keywords: formData.seo.keywords.en
-                  },
+                  content: contentToTranslate,
                   sourceLang: 'en',
                   targetLangs
               })
@@ -605,26 +641,20 @@ export default function EditPostPage() {
                   if (translations[lang]) {
                       const t = translations[lang]
                       
-                      // Always overwrite if explicitly requested
-                      newFormData.title[lang] = t.title
-                      newFormData.body[lang] = t.body
-                      newFormData.excerpt[lang] = t.excerpt
-                      newFormData.keyTakeaways[lang] = t.keyTakeaways
-                      newFormData.faq[lang] = t.faq
-                      
-                      // Also translate Image Alt
-                      newFormData.alt[lang] = t.title
+                      // Content Fields
+                      if (t.title) newFormData.title[lang] = t.title
+                      if (t.body) newFormData.body[lang] = t.body
+                      if (t.excerpt) newFormData.excerpt[lang] = t.excerpt
+                      if (t.keyTakeaways) newFormData.keyTakeaways[lang] = t.keyTakeaways
+                      if (t.faq) newFormData.faq[lang] = t.faq
+                      if (t.alt) newFormData.alt[lang] = t.alt
 
-                      // SEO fields
-                      newFormData.seo.metaTitle[lang] = t.title
-                      newFormData.seo.metaDescription[lang] = t.excerpt
-                      newFormData.openGraph.title[lang] = t.title
-                      newFormData.openGraph.description[lang] = t.excerpt
-
-                      // Translate Keywords
-                      if (t.keywords) {
-                          newFormData.seo.keywords[lang] = t.keywords
-                      }
+                      // SEO Fields
+                      if (t.metaTitle) newFormData.seo.metaTitle[lang] = t.metaTitle
+                      if (t.metaDescription) newFormData.seo.metaDescription[lang] = t.metaDescription
+                      if (t.keywords) newFormData.seo.keywords[lang] = t.keywords
+                      if (t.ogTitle) newFormData.openGraph.title[lang] = t.ogTitle
+                      if (t.ogDescription) newFormData.openGraph.description[lang] = t.ogDescription
                   }
               })
               
@@ -766,6 +796,7 @@ export default function EditPostPage() {
         onClose={() => setShowTranslateModal(false)}
         onConfirm={handleTranslate}
         isTranslating={translating}
+        availableFields={availableFields}
       />
       
       <div className="mb-6 flex items-center justify-between">
@@ -962,43 +993,7 @@ export default function EditPostPage() {
                         }))}
                     ></textarea>
                 </div>
-                {contentLang === 'en' && (
-                    <>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Keywords (Comma separated)</label>
-                            <input 
-                                type="text" 
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                                value={(formData.seo.keywords.en || []).join(', ')}
-                                onChange={e => setFormData({ 
-                                    ...formData, 
-                                    seo: { 
-                                        ...formData.seo, 
-                                        keywords: {
-                                            ...formData.seo.keywords,
-                                            en: e.target.value.split(',').map(k => k.trim()).filter(Boolean)
-                                        }
-                                    } 
-                                })}
-                            />
-                        </div>
-                        <div className="flex items-center">
-                            <input 
-                                type="checkbox" 
-                                id="noIndex"
-                                className="h-4 w-4 text-blue-600 rounded border-gray-300"
-                                checked={formData.seo.noIndex}
-                                onChange={e => setFormData({ 
-                                    ...formData, 
-                                    seo: { ...formData.seo, noIndex: e.target.checked } 
-                                })}
-                            />
-                            <label htmlFor="noIndex" className="ml-2 block text-sm text-gray-900">
-                                No Index (Hide from search engines)
-                            </label>
-                        </div>
-                    </>
-                )}
+               
                 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">

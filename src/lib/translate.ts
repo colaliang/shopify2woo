@@ -1,42 +1,43 @@
-// Real Deepseek API call
-export async function callDeepseek(text: string, targetLang: string) {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY is not configured');
+// DeepL API call
+export async function translateText(text: string, targetLang: string) {
+  const DEEPL_API_KEY = process.env.DEEPL_API_KEY;
+  if (!DEEPL_API_KEY) throw new Error('DeepL API Key is not configured');
+  const DEEPL_API_URL = DEEPL_API_KEY.endsWith(':fx') 
+    ? 'https://api-free.deepl.com/v2/translate' 
+    : 'https://api.deepl.com/v2/translate';
+
+  if (!text) return '';
+
+  // Map language codes
+  let deepLLang = targetLang.toUpperCase();
+  if (deepLLang === 'EN') deepLLang = 'EN-US';
+  if (deepLLang === 'ZH-CN') deepLLang = 'ZH';
+  if (deepLLang === 'PT') deepLLang = 'PT-PT';
+  // Add other mappings if needed
+
+  try {
+    const response = await fetch(DEEPL_API_URL, {
+        method: 'POST',
+        headers: {
+            'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            text: [text],
+            target_lang: deepLLang,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`DeepL API Error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.translations?.[0]?.text || text;
+
+  } catch (e) {
+      console.error(`Translation failed for ${targetLang}:`, e);
+      throw e;
   }
-
-  // Map our language codes to standard ones if necessary
-  // Deepseek generally understands standard codes like zh-CN, fr, etc.
-  const prompt = `Translate the following text to ${targetLang}. Only return the translated text, no explanations or quotes.
-Text: ${text}`;
-
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: "deepseek-chat",
-      messages: [
-        { role: "system", content: "You are a helpful translation assistant." },
-        { role: "user", content: prompt }
-      ],
-      temperature: 0.3
-    })
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Deepseek API error: ${response.status} - ${errorBody}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  
-  if (!content) {
-    throw new Error('No content in Deepseek response');
-  }
-
-  return content.trim();
 }
