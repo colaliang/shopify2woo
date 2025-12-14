@@ -40,6 +40,22 @@ export default function SidebarFooter() {
              </Link>
 
             <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
+             <Link 
+               href="/privacy"
+               className="hover:text-primary-600 hover:underline"
+             >
+               {t('footer.privacy')}
+             </Link>
+
+            <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
+             <Link 
+               href="/terms"
+               className="hover:text-primary-600 hover:underline"
+             >
+               {t('footer.terms')}
+             </Link>
+
+            <div className="hidden sm:block w-px h-3 bg-gray-300"></div>
             <button
               onClick={openContactModal}
               className="hover:text-primary-600 hover:underline text-left"

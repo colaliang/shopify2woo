@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 export default function RechargeModal() {
   const { t } = useTranslation();
   const { rechargeModalOpen, closeRechargeModal, user } = useUserStore();
-  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'wechat'>('stripe');
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'wechat' | 'paypal'>('stripe');
   const [loading, setLoading] = useState(false);
   const [showWeChat, setShowWeChat] = useState(false);
 
@@ -157,6 +157,20 @@ export default function RechargeModal() {
                 >
                     <CreditCard className="w-6 h-6" />
                     <span className="font-medium">{t('payment.credit_card')}</span>
+                </button>
+                <button
+                    onClick={() => setPaymentMethod('paypal')}
+                    className={`flex-1 p-4 rounded-lg border-2 flex items-center justify-center gap-3 transition-all ${
+                        paymentMethod === 'paypal' 
+                        ? 'border-blue-600 bg-blue-50 text-blue-800' 
+                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                    }`}
+                >
+                    {/* Simple PayPal Icon SVG */}
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7.076 21.337l.756-4.789h3.297c5.449 0 7.647-2.658 7.647-6.526 0-2.834-2.296-4.901-7.25-4.901H4.496l-2.49 16.216h5.07z"/>
+                    </svg>
+                    <span className="font-medium">PayPal</span>
                 </button>
             </div>
           </div>

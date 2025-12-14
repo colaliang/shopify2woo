@@ -107,7 +107,9 @@
     "cloud_store": "Yundian+ B2B Marketing Service",
     "help": "Help",
     "blog": "Blog",
-    "contact": "Contact Us"
+    "contact": "Contact Us",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
   },
   "auth": {
     "recharge": "Recharge",

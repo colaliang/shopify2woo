@@ -30,33 +30,57 @@ export async function POST(req: Request) {
   }
 
   // Handle the event
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    
-    // Fulfill the purchase...
-    const orderId = session.metadata?.orderId || session.client_reference_id;
-    
-    if (orderId) {
-        console.log(`Processing successful payment for order ${orderId}`);
-        const supabase = getSupabaseServer();
-        if (supabase) {
-            const { data, error } = await supabase.rpc('complete_payment_order', {
-                p_order_id: orderId,
-                p_external_id: session.id
-            });
-            
-            if (error) {
-                console.error('Error completing order in DB:', error);
-                return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
-            }
-            console.log('Order completed result:', data);
-        } else {
-            console.error('Supabase client not available in webhook');
-            return NextResponse.json({ error: 'Internal error' }, { status: 500 });
-        }
-    } else {
-        console.warn('No orderId found in session metadata');
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object;
+      
+      // Fulfill the purchase...
+      const orderId = session.metadata?.orderId || session.client_reference_id;
+      
+      if (orderId) {
+          console.log(`Processing successful payment for order ${orderId}`);
+          const supabase = getSupabaseServer();
+          if (supabase) {
+              const { data, error } = await supabase.rpc('complete_payment_order', {
+                  p_order_id: orderId,
+                  p_external_id: session.id
+              });
+              
+              if (error) {
+                  console.error('Error completing order in DB:', error);
+                  return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
+              }
+              console.log('Order completed result:', data);
+          } else {
+              console.error('Supabase client not available in webhook');
+              return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+          }
+      } else {
+          console.warn('No orderId found in session metadata');
+      }
+      break;
     }
+    
+    case 'payment_intent.payment_failed': {
+      const paymentIntent = event.data.object;
+      const errorMessage = paymentIntent.last_payment_error?.message || 'Unknown error';
+      console.error(`Payment failed for PaymentIntent ${paymentIntent.id}: ${errorMessage}`);
+      
+      // TODO: Log to database if needed
+      // const orderId = paymentIntent.metadata?.orderId;
+      // if (orderId) { ... }
+      break;
+    }
+
+    case 'charge.refunded': {
+      const charge = event.data.object;
+      console.log(`Charge refunded: ${charge.id}`);
+      // Handle refund logic here
+      break;
+    }
+    
+    default:
+      console.log(`Unhandled event type ${event.type}`);
   }
 
   return NextResponse.json({ received: true });

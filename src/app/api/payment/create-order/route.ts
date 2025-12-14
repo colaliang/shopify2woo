@@ -78,42 +78,41 @@ export async function POST(req: Request) {
     // 4. Initiate Payment
     let paymentUrl = '';
     
+    // Common Stripe Session Params
+    const commonSessionParams = {
+        line_items: [
+        {
+            price_data: {
+            currency: 'usd',
+            product_data: {
+                name: pkg.name,
+                description: `${pkg.credits} Credits`,
+            },
+            unit_amount: Math.round(pkg.price * 100), // Stripe expects cents
+            },
+            quantity: 1,
+        },
+        ],
+        mode: 'payment' as const,
+        success_url: `${origin}/payment/result?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/payment/result?status=cancel`,
+        client_reference_id: order.id,
+        metadata: {
+        orderId: order.id,
+        userId: user.id,
+        packageId: packageId,
+        credits: pkg.credits,
+        },
+        customer_email: user.email,
+    };
+
     if (paymentMethod === 'stripe') {
       try {
-        // NOTE: 'paypal' and 'alipay' must be enabled in your Stripe Dashboard (Test Mode)
-        // Link: https://dashboard.stripe.com/test/settings/payment_methods
-        // If you see "The payment method type 'paypal' is invalid", it means it's not enabled yet.
-        // We are keeping it enabled here. If it fails, please check the dashboard.
-        // For now, I will remove 'paypal' to ensure the basic flow works, uncomment it when enabled.
-        // const paymentTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = ['card', 'alipay']; 
-        const paymentTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = ['card', 'alipay', 'paypal']; // Uncomment this line after enabling PayPal in Stripe Dashboard
-
+        const paymentTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = ['card', 'alipay']; 
+        
         const session = await stripe.checkout.sessions.create({
           payment_method_types: paymentTypes,
-          line_items: [
-            {
-              price_data: {
-                currency: 'usd',
-                product_data: {
-                  name: pkg.name,
-                  description: `${pkg.credits} Credits`,
-                },
-                unit_amount: Math.round(pkg.price * 100), // Stripe expects cents
-              },
-              quantity: 1,
-            },
-          ],
-          mode: 'payment',
-          success_url: `${origin}/payment/result?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${origin}/payment/result?status=cancel`,
-          client_reference_id: order.id,
-          metadata: {
-            orderId: order.id,
-            userId: user.id,
-            packageId: packageId,
-            credits: pkg.credits,
-          },
-          customer_email: user.email,
+          ...commonSessionParams,
         });
 
         if (session.url) {
@@ -123,13 +122,36 @@ export async function POST(req: Request) {
         }
       } catch (stripeError) {
         console.error('Stripe error details:', JSON.stringify(stripeError, null, 2));
-        // Return detailed error for debugging
         return NextResponse.json({ 
             error: 'Failed to initiate Stripe payment', 
             details: (stripeError as Error).message 
         }, { status: 500 });
       }
 
+    } else if (paymentMethod === 'paypal') {
+       try {
+        const paypalConfigId = process.env.STRIPE_PAYPAL_CONFIG_ID;
+        if (!paypalConfigId) {
+             throw new Error('STRIPE_PAYPAL_CONFIG_ID is not configured');
+        }
+
+        const session = await stripe.checkout.sessions.create({
+          payment_method_configuration: paypalConfigId,
+          ...commonSessionParams,
+        });
+
+        if (session.url) {
+          paymentUrl = session.url;
+        } else {
+          throw new Error('Failed to create PayPal session URL');
+        }
+      } catch (stripeError) {
+        console.error('Stripe PayPal error details:', JSON.stringify(stripeError, null, 2));
+        return NextResponse.json({ 
+            error: 'Failed to initiate PayPal payment', 
+            details: (stripeError as Error).message 
+        }, { status: 500 });
+      }
     } else if (paymentMethod === 'wechat') {
       // MOCK for now
       paymentUrl = `/api/payment/mock-pay?orderId=${order.id}&method=wechat`;
