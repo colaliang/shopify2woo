@@ -52,7 +52,13 @@ export async function POST(req: Request) {
         "title": "Social sharing title",
         "description": "Social sharing description"
       },
-      "tags": ["tag1", "tag2", "tag3"]
+      "tags": ["tag1", "tag2", "tag3"],
+      "suggestedExternalLinks": [
+        { "anchor": "anchor text in body", "url": "https://example.com/relevant-resource", "reason": "Reason for inclusion" }
+      ],
+      "suggestedInternalLinks": [
+        { "anchor": "anchor text in body", "slug": "slug-of-internal-post", "reason": "Reason for inclusion" }
+      ]
     }
 
     Content Guidelines:
@@ -62,6 +68,7 @@ export async function POST(req: Request) {
     - Structure: Use clear H2/H3 headings. Use "Key Takeaways" at the start (in JSON field). Use "FAQ" at the end (in JSON field).
     - Tables: Use responsive Markdown tables where appropriate.
     - Tone: Professional, helpful, authoritative yet accessible.
+    - Linking: Suggest 2-3 external authoritative resources and 2-3 internal conceptual pages that could be linked from the article.
     `;
 
     const userPrompt = `

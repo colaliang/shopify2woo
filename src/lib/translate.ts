@@ -16,6 +16,46 @@ export async function translateText(text: string, targetLang: string) {
   if (deepLLang === 'PT') deepLLang = 'PT-PT';
   // Add other mappings if needed
 
+  // Check for Chinese to Chinese translation (ZH -> ZH-HANS/ZH-HANT)
+  // DeepL often fails to convert simplified <-> traditional directly, so use DeepSeek instead
+  const isTargetChinese = deepLLang === 'ZH-HANS' || deepLLang === 'ZH-HANT';
+  // Simple check for Chinese characters
+  const isSourceChinese = /[\u4e00-\u9fa5]/.test(text);
+
+  if (isTargetChinese && isSourceChinese) {
+      try {
+          // Use DeepSeek for Chinese -> Chinese translation
+          const deepSeekApiKey = process.env.DEEPSEEK_API_KEY;
+          if (deepSeekApiKey) {
+              const response = await fetch('https://api.deepseek.com/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                      'Authorization': `Bearer ${deepSeekApiKey}`,
+                      'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                      model: "deepseek-chat",
+                      messages: [
+                          { role: "system", content: "You are a professional translator. Translate the following text to Traditional Chinese (Taiwan). Only return the translated text." },
+                          { role: "user", content: text }
+                      ],
+                      stream: false
+                  }),
+              });
+
+              if (response.ok) {
+                  const data = await response.json();
+                  const translatedText = data.choices?.[0]?.message?.content?.trim();
+                  if (translatedText) return translatedText;
+              } else {
+                  console.warn(`DeepSeek API Error: ${response.status} ${response.statusText}`);
+              }
+          }
+      } catch (e) {
+          console.warn('DeepSeek translation failed, falling back to DeepL', e);
+      }
+  }
+
   try {
     const response = await fetch(DEEPL_API_URL, {
         method: 'POST',

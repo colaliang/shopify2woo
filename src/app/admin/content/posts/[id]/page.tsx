@@ -39,6 +39,8 @@ interface AiResult {
   tags?: string[]
   keyTakeaways?: string[]
   faq?: { question: string; answer: string }[]
+  suggestedExternalLinks?: { anchor: string; url: string; reason: string }[]
+  suggestedInternalLinks?: { anchor: string; slug: string; reason: string }[]
   seo?: {
     metaTitle?: string
     metaDescription?: string
@@ -150,6 +152,7 @@ export default function EditPostPage() {
   const [aiConfig, setAiConfig] = useState({
       requirements: ''
   })
+  const [aiLang, setAiLang] = useState('en')
   const [aiResult, setAiResult] = useState<AiResult | null>(null)
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiSeoGenerating, setAiSeoGenerating] = useState(false)
@@ -411,6 +414,22 @@ export default function EditPostPage() {
     return data.url
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleNestedChange = (parent: 'seo' | 'openGraph', field: string, value: any) => {
+    setFormData(prev => ({
+        ...prev,
+        [parent]: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ...(prev as any)[parent],
+            [field]: {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ...((prev as any)[parent][field] || {}),
+                [contentLang]: value
+            }
+        }
+    }))
+  }
+
   async function handleAiSeo() {
       if (!formData.body[contentLang]) {
           alert(`Please write some content in ${contentLang} first.`)
@@ -476,8 +495,16 @@ export default function EditPostPage() {
   }
 
   async function handleAiOptimize() {
-      if (!formData.title.en) {
-          setAiError('English Title is required for optimization')
+      const lang = aiLang
+      const langTitle = languages.find(l => l.id === lang)?.title || lang
+
+      if (!formData.title[lang]) {
+          setAiError(`Title in ${langTitle} is required for optimization`)
+          return
+      }
+      
+      if (!formData.body[lang]) {
+          setAiError(`Body in ${langTitle} is required for optimization`)
           return
       }
       
@@ -497,11 +524,11 @@ export default function EditPostPage() {
                   ...(token ? { 'Authorization': `Bearer ${token}` } : {})
               },
               body: JSON.stringify({
-                  title: formData.title.en,
-                  body: formData.body.en,
-                  keywords: formData.seo.keywords,
+                  title: formData.title[lang],
+                  body: formData.body[lang],
+                  keywords: formData.seo.keywords[lang] || formData.seo.keywords.en || [],
                   requirements: aiConfig.requirements,
-                  language: 'en'
+                  language: lang
               })
           })
 
@@ -548,30 +575,31 @@ export default function EditPostPage() {
       
       const content = aiResult || { body: aiOutput };
       const body = content.body || aiOutput;
+      const lang = aiLang
 
       setFormData(prev => ({
           ...prev,
-          title: { ...prev.title, en: content.title || prev.title.en },
-          slug: content.slug || prev.slug,
-          body: { ...prev.body, en: body },
-          excerpt: { ...prev.excerpt, en: content.excerpt || prev.excerpt.en },
+          title: { ...prev.title, [lang]: content.title || prev.title[lang] },
+          slug: lang === 'en' ? (content.slug || prev.slug) : prev.slug,
+          body: { ...prev.body, [lang]: body },
+          excerpt: { ...prev.excerpt, [lang]: content.excerpt || prev.excerpt[lang] },
           tags: content.tags || prev.tags,
-          keyTakeaways: { ...prev.keyTakeaways, en: content.keyTakeaways || prev.keyTakeaways.en },
-          faq: { ...prev.faq, en: content.faq || prev.faq.en },
+          keyTakeaways: { ...prev.keyTakeaways, [lang]: content.keyTakeaways || prev.keyTakeaways[lang] },
+          faq: { ...prev.faq, [lang]: content.faq || prev.faq[lang] },
           schemaType: content.seo?.schemaType || prev.schemaType,
           seo: {
               ...prev.seo,
-              metaTitle: { ...prev.seo.metaTitle, en: content.seo?.metaTitle || prev.seo.metaTitle.en },
-              metaDescription: { ...prev.seo.metaDescription, en: content.seo?.metaDescription || prev.seo.metaDescription.en },
+              metaTitle: { ...prev.seo.metaTitle, [lang]: content.seo?.metaTitle || prev.seo.metaTitle[lang] },
+              metaDescription: { ...prev.seo.metaDescription, [lang]: content.seo?.metaDescription || prev.seo.metaDescription[lang] },
               focusKeyword: content.seo?.focusKeyword || prev.seo.focusKeyword,
-              keywords: content.seo?.keywords ? { ...prev.seo.keywords, en: content.seo.keywords } : prev.seo.keywords,
+              keywords: content.seo?.keywords ? { ...prev.seo.keywords, [lang]: content.seo.keywords } : prev.seo.keywords,
               noIndex: content.seo?.noIndex !== undefined ? content.seo.noIndex : prev.seo.noIndex,
               noFollow: content.seo?.noFollow !== undefined ? content.seo.noFollow : prev.seo.noFollow,
           },
           openGraph: {
               ...prev.openGraph,
-              title: { ...prev.openGraph.title, en: content.openGraph?.title || prev.openGraph.title.en },
-              description: { ...prev.openGraph.description, en: content.openGraph?.description || prev.openGraph.description.en }
+              title: { ...prev.openGraph.title, [lang]: content.openGraph?.title || prev.openGraph.title[lang] },
+              description: { ...prev.openGraph.description, [lang]: content.openGraph?.description || prev.openGraph.description[lang] }
           }
       }))
       
@@ -584,8 +612,9 @@ export default function EditPostPage() {
   }
 
   async function handleTranslate(targetLangs: string[], selectedFields?: string[]) {
-      if (!formData.title.en || !formData.body.en) {
-          alert('Please enter English title and content first.')
+      const sourceLang = contentLang;
+      if (!formData.title[sourceLang] || !formData.body[sourceLang]) {
+          alert(`Please enter ${sourceLang} title and content first.`)
           return
       }
       
@@ -604,19 +633,19 @@ export default function EditPostPage() {
           const shouldInclude = (field: string) => !selectedFields || selectedFields.includes(field)
 
           // Content Fields
-          if (shouldInclude('title')) contentToTranslate.title = formData.title.en
-          if (shouldInclude('body')) contentToTranslate.body = formData.body.en
-          if (shouldInclude('excerpt')) contentToTranslate.excerpt = formData.excerpt.en
-          if (shouldInclude('keyTakeaways')) contentToTranslate.keyTakeaways = formData.keyTakeaways.en
-          if (shouldInclude('faq')) contentToTranslate.faq = formData.faq.en
-          if (shouldInclude('alt')) contentToTranslate.alt = formData.alt.en
+          if (shouldInclude('title')) contentToTranslate.title = formData.title[sourceLang]
+          if (shouldInclude('body')) contentToTranslate.body = formData.body[sourceLang]
+          if (shouldInclude('excerpt')) contentToTranslate.excerpt = formData.excerpt[sourceLang]
+          if (shouldInclude('keyTakeaways')) contentToTranslate.keyTakeaways = formData.keyTakeaways[sourceLang]
+          if (shouldInclude('faq')) contentToTranslate.faq = formData.faq[sourceLang]
+          if (shouldInclude('alt')) contentToTranslate.alt = formData.alt[sourceLang]
 
-          // SEO Fields (Use fallbacks if English SEO fields are empty)
-          if (shouldInclude('metaTitle')) contentToTranslate.metaTitle = formData.seo.metaTitle.en || formData.title.en
-          if (shouldInclude('metaDescription')) contentToTranslate.metaDescription = formData.seo.metaDescription.en || formData.excerpt.en
-          if (shouldInclude('keywords')) contentToTranslate.keywords = formData.seo.keywords.en
-          if (shouldInclude('ogTitle')) contentToTranslate.ogTitle = formData.openGraph.title.en || formData.seo.metaTitle.en || formData.title.en
-          if (shouldInclude('ogDescription')) contentToTranslate.ogDescription = formData.openGraph.description.en || formData.seo.metaDescription.en || formData.excerpt.en
+          // SEO Fields (Use fallbacks if source SEO fields are empty)
+          if (shouldInclude('metaTitle')) contentToTranslate.metaTitle = formData.seo.metaTitle[sourceLang] || formData.title[sourceLang]
+          if (shouldInclude('metaDescription')) contentToTranslate.metaDescription = formData.seo.metaDescription[sourceLang] || formData.excerpt[sourceLang]
+          if (shouldInclude('keywords')) contentToTranslate.keywords = formData.seo.keywords[sourceLang]
+          if (shouldInclude('ogTitle')) contentToTranslate.ogTitle = formData.openGraph.title[sourceLang] || formData.seo.metaTitle[sourceLang] || formData.title[sourceLang]
+          if (shouldInclude('ogDescription')) contentToTranslate.ogDescription = formData.openGraph.description[sourceLang] || formData.seo.metaDescription[sourceLang] || formData.excerpt[sourceLang]
 
           const res = await fetch('/api/admin/ai/translate', {
               method: 'POST',
@@ -626,7 +655,7 @@ export default function EditPostPage() {
               },
               body: JSON.stringify({
                   content: contentToTranslate,
-                  sourceLang: 'en',
+                  sourceLang: sourceLang,
                   targetLangs
               })
           })
@@ -634,7 +663,7 @@ export default function EditPostPage() {
           if (res.ok) {
               const { translations } = await res.json()
               
-              const newFormData = { ...formData }
+              const newFormData = JSON.parse(JSON.stringify(formData))
               
               // Merge translations
               targetLangs.forEach(lang => {
@@ -642,19 +671,19 @@ export default function EditPostPage() {
                       const t = translations[lang]
                       
                       // Content Fields
-                      if (t.title) newFormData.title[lang] = t.title
-                      if (t.body) newFormData.body[lang] = t.body
-                      if (t.excerpt) newFormData.excerpt[lang] = t.excerpt
-                      if (t.keyTakeaways) newFormData.keyTakeaways[lang] = t.keyTakeaways
-                      if (t.faq) newFormData.faq[lang] = t.faq
-                      if (t.alt) newFormData.alt[lang] = t.alt
+                      if (shouldInclude('title') && t.title !== undefined) newFormData.title[lang] = t.title
+                      if (shouldInclude('body') && t.body !== undefined) newFormData.body[lang] = t.body
+                      if (shouldInclude('excerpt') && t.excerpt !== undefined) newFormData.excerpt[lang] = t.excerpt
+                      if (shouldInclude('keyTakeaways') && t.keyTakeaways !== undefined) newFormData.keyTakeaways[lang] = t.keyTakeaways
+                      if (shouldInclude('faq') && t.faq !== undefined) newFormData.faq[lang] = t.faq
+                      if (shouldInclude('alt') && t.alt !== undefined) newFormData.alt[lang] = t.alt
 
                       // SEO Fields
-                      if (t.metaTitle) newFormData.seo.metaTitle[lang] = t.metaTitle
-                      if (t.metaDescription) newFormData.seo.metaDescription[lang] = t.metaDescription
-                      if (t.keywords) newFormData.seo.keywords[lang] = t.keywords
-                      if (t.ogTitle) newFormData.openGraph.title[lang] = t.ogTitle
-                      if (t.ogDescription) newFormData.openGraph.description[lang] = t.ogDescription
+                      if (shouldInclude('metaTitle') && t.metaTitle !== undefined) newFormData.seo.metaTitle[lang] = t.metaTitle
+                      if (shouldInclude('metaDescription') && t.metaDescription !== undefined) newFormData.seo.metaDescription[lang] = t.metaDescription
+                      if (shouldInclude('keywords') && t.keywords !== undefined) newFormData.seo.keywords[lang] = t.keywords
+                      if (shouldInclude('ogTitle') && t.ogTitle !== undefined) newFormData.openGraph.title[lang] = t.ogTitle
+                      if (shouldInclude('ogDescription') && t.ogDescription !== undefined) newFormData.openGraph.description[lang] = t.ogDescription
                   }
               })
               
@@ -682,6 +711,12 @@ export default function EditPostPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    if (!formData.slug) {
+        alert('Slug is required.')
+        return
+    }
+
     setLoading(true)
 
     try {
@@ -690,6 +725,10 @@ export default function EditPostPage() {
 
       const finalFormData = { ...formData }
 
+      // Update publishedAt to current time
+      const now = new Date()
+      finalFormData.publishedAt = now.toISOString().slice(0, 16)
+
       // 1. Clean Data
       // Filter out empty key takeaways
       const cleanKeyTakeaways = { ...finalFormData.keyTakeaways }
@@ -697,6 +736,15 @@ export default function EditPostPage() {
           cleanKeyTakeaways[lang] = cleanKeyTakeaways[lang].filter(k => k && k.trim() !== '')
       })
       finalFormData.keyTakeaways = cleanKeyTakeaways
+
+      // Filter out incomplete FAQ items
+      const cleanFaq = { ...finalFormData.faq }
+      Object.keys(cleanFaq).forEach(lang => {
+          if (cleanFaq[lang]) {
+              cleanFaq[lang] = cleanFaq[lang].filter(item => item.question && item.question.trim() !== '' && item.answer && item.answer.trim() !== '')
+          }
+      })
+      finalFormData.faq = cleanFaq
 
       // 2. Prepare Payload
       const toSanityKey = (lang: string) => lang.replace(/-/g, '_')
@@ -723,7 +771,7 @@ export default function EditPostPage() {
         localizedBodyMarkdown: localize(finalFormData.body),
         localizedExcerpt: localize(finalFormData.excerpt),
         
-        publishedAt: new Date(finalFormData.publishedAt).toISOString(),
+        publishedAt: now.toISOString(),
         tags: finalFormData.tags,
         
         localizedKeyTakeaways: localize(finalFormData.keyTakeaways),
@@ -795,6 +843,7 @@ export default function EditPostPage() {
       router.refresh()
       router.push('/admin/content') 
     } catch (e) {
+      console.error('Failed to update post:', e)
       alert(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
@@ -812,6 +861,7 @@ export default function EditPostPage() {
         onConfirm={handleTranslate}
         isTranslating={translating}
         availableFields={availableFields}
+        sourceLang={contentLang}
       />
       
       <div className="mb-6 flex items-center justify-between">
@@ -923,18 +973,17 @@ export default function EditPostPage() {
                     />
                 </div>
 
-                {contentLang === 'en' && (
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
-                        <input 
-                            type="text" 
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-mono text-sm"
-                            value={formData.slug}
-                            onChange={e => setFormData({ ...formData, slug: e.target.value })}
-                        />
-                    </div>
-                )}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
+                    <input 
+                        type="text" 
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-mono text-sm"
+                        value={formData.slug}
+                        onChange={e => setFormData({ ...formData, slug: e.target.value })}
+                    />
+                    {contentLang !== 'en' && <p className="text-xs text-gray-500 mt-1">Slug is global for all languages.</p>}
+                </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt (Markdown supported)</label>
@@ -950,21 +999,20 @@ export default function EditPostPage() {
                     />
                 </div>
 
-                {contentLang === 'en' && (
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                        <select 
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            value={formData.categoryId}
-                            onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
-                        >
-                            <option value="">Select a category...</option>
-                            {categories.map(c => (
-                                <option key={c._id} value={c._id}>{c.title}</option>
-                            ))}
-                        </select>
-                    </div>
-                )}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        value={formData.categoryId}
+                        onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                    >
+                        <option value="">Select a category...</option>
+                        {categories.map(c => (
+                            <option key={c._id} value={c._id}>{c.title}</option>
+                        ))}
+                    </select>
+                    {contentLang !== 'en' && <p className="text-xs text-gray-500 mt-1">Category is global for all languages.</p>}
+                </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Content (Markdown)</label>
@@ -977,6 +1025,127 @@ export default function EditPostPage() {
                         }))}
                         onImageUpload={handleEditorImageUpload}
                     />
+                </div>
+
+                <div className="pt-4 border-t mt-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Structured Data ({languages.find(l => l.id === contentLang)?.title})</h3>
+                    <div className="space-y-6">
+                        {/* Key Takeaways */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Key Takeaways</label>
+                            <div className="space-y-2">
+                                {(formData.keyTakeaways[contentLang] || []).map((item, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                        <input 
+                                            type="text"
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                                            value={item}
+                                            onChange={e => {
+                                                const newItems = [...(formData.keyTakeaways[contentLang] || [])];
+                                                newItems[idx] = e.target.value;
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    keyTakeaways: { ...prev.keyTakeaways, [contentLang]: newItems }
+                                                }));
+                                            }}
+                                            placeholder="Enter a key takeaway..."
+                                        />
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const newItems = (formData.keyTakeaways[contentLang] || []).filter((_, i) => i !== idx);
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    keyTakeaways: { ...prev.keyTakeaways, [contentLang]: newItems }
+                                                }));
+                                            }}
+                                            className="p-2 text-red-500 hover:bg-red-50 rounded"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <button 
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({
+                                        ...prev,
+                                        keyTakeaways: { ...prev.keyTakeaways, [contentLang]: [...(prev.keyTakeaways[contentLang] || []), ''] }
+                                    }))}
+                                    className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                                >
+                                    <Sparkles className="w-3 h-3" /> Add Takeaway
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* FAQ */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">FAQ Items</label>
+                            <div className="space-y-4">
+                                {(formData.faq[contentLang] || []).map((item, idx) => (
+                                    <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-gray-50 relative group">
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const newItems = (formData.faq[contentLang] || []).filter((_, i) => i !== idx);
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    faq: { ...prev.faq, [contentLang]: newItems }
+                                                }));
+                                            }}
+                                            className="absolute top-2 right-2 text-gray-400 hover:text-red-500 p-1"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-500 mb-1">Question</label>
+                                                <input 
+                                                    type="text"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                                    value={item.question}
+                                                    onChange={e => {
+                                                        const newItems = [...(formData.faq[contentLang] || [])];
+                                                        newItems[idx] = { ...newItems[idx], question: e.target.value };
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            faq: { ...prev.faq, [contentLang]: newItems }
+                                                        }));
+                                                    }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-500 mb-1">Answer</label>
+                                                <textarea 
+                                                    rows={2}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                                    value={item.answer}
+                                                    onChange={e => {
+                                                        const newItems = [...(formData.faq[contentLang] || [])];
+                                                        newItems[idx] = { ...newItems[idx], answer: e.target.value };
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            faq: { ...prev.faq, [contentLang]: newItems }
+                                                        }));
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button 
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({
+                                        ...prev,
+                                        faq: { ...prev.faq, [contentLang]: [...(prev.faq[contentLang] || []), { question: '', answer: '' }] }
+                                    }))}
+                                    className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                                >
+                                    <Sparkles className="w-3 h-3" /> Add FAQ Item
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         )}
@@ -1033,51 +1202,28 @@ export default function EditPostPage() {
                     />
                 </div>
 
-                <div className="pt-4 border-t">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Structured Data ({languages.find(l => l.id === contentLang)?.title})</h3>
+                <div className="pt-4 border-t mt-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Open Graph (Social Media)</h3>
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Key Takeaways</label>
-                            {(formData.keyTakeaways[contentLang] || []).map((item, idx) => (
-                                <div key={idx} className="flex gap-2 mb-2">
-                                    <input 
-                                        type="text"
-                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
-                                        value={item}
-                                        onChange={e => {
-                                            const newItems = [...(formData.keyTakeaways[contentLang] || [])];
-                                            newItems[idx] = e.target.value;
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                keyTakeaways: { ...prev.keyTakeaways, [contentLang]: newItems }
-                                            }));
-                                        }}
-                                    />
-                                    <button 
-                                        type="button"
-                                        onClick={() => {
-                                            const newItems = (formData.keyTakeaways[contentLang] || []).filter((_, i) => i !== idx);
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                keyTakeaways: { ...prev.keyTakeaways, [contentLang]: newItems }
-                                            }));
-                                        }}
-                                        className="p-2 text-red-500 hover:bg-red-50 rounded"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))}
-                            <button 
-                                type="button"
-                                onClick={() => setFormData(prev => ({
-                                    ...prev,
-                                    keyTakeaways: { ...prev.keyTakeaways, [contentLang]: [...(prev.keyTakeaways[contentLang] || []), ''] }
-                                }))}
-                                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                            >
-                                + Add Takeaway
-                            </button>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">OG Title</label>
+                            <input 
+                                type="text" 
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                placeholder={formData.seo.metaTitle[contentLang] || formData.title[contentLang]}
+                                value={formData.openGraph.title[contentLang] || ''}
+                                onChange={e => handleNestedChange('openGraph', 'title', e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">OG Description</label>
+                            <textarea 
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                placeholder={formData.seo.metaDescription[contentLang] || ''}
+                                value={formData.openGraph.description[contentLang] || ''}
+                                onChange={e => handleNestedChange('openGraph', 'description', e.target.value)}
+                            ></textarea>
                         </div>
                     </div>
                 </div>
@@ -1111,6 +1257,27 @@ export default function EditPostPage() {
                         <p className="text-sm text-gray-500 mb-4">
                             Improve your existing content, generate SEO metadata, and add structured data automatically.
                         </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Optimize Language</label>
+                        <div className="flex flex-wrap gap-2">
+                            {languages.map(lang => (
+                                <button
+                                    key={lang.id}
+                                    type="button"
+                                    onClick={() => setAiLang(lang.id)}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                                        aiLang === lang.id
+                                        ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-500'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {lang.title}
+                                    {lang.id === 'en' && ' (Default)'}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     <div>
@@ -1158,6 +1325,42 @@ export default function EditPostPage() {
                         onUseContent={applyAiContent}
                         isGenerating={aiGenerating}
                     />
+                    {aiResult && (aiResult.suggestedExternalLinks?.length || aiResult.suggestedInternalLinks?.length) ? (
+                        <div className="space-y-4">
+                            {aiResult.suggestedExternalLinks && aiResult.suggestedExternalLinks.length > 0 && (
+                                <div className="border border-gray-200 rounded-lg p-3">
+                                    <h4 className="text-sm font-semibold text-gray-800 mb-2">Suggested External Links</h4>
+                                    <ul className="space-y-2 text-sm text-gray-700">
+                                        {aiResult.suggestedExternalLinks.map((link, idx) => (
+                                            <li key={idx} className="border-b border-dashed border-gray-200 pb-2 last:border-b-0 last:pb-0">
+                                                <div className="font-medium text-blue-700">{link.anchor}</div>
+                                                <div className="text-xs text-gray-500 break-all">{link.url}</div>
+                                                {link.reason && (
+                                                    <div className="text-xs text-gray-500 mt-1">{link.reason}</div>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {aiResult.suggestedInternalLinks && aiResult.suggestedInternalLinks.length > 0 && (
+                                <div className="border border-gray-200 rounded-lg p-3">
+                                    <h4 className="text-sm font-semibold text-gray-800 mb-2">Suggested Internal Links</h4>
+                                    <ul className="space-y-2 text-sm text-gray-700">
+                                        {aiResult.suggestedInternalLinks.map((link, idx) => (
+                                            <li key={idx} className="border-b border-dashed border-gray-200 pb-2 last:border-b-0 last:pb-0">
+                                                <div className="font-medium text-blue-700">{link.anchor}</div>
+                                                <div className="text-xs text-gray-500 break-all">{link.slug}</div>
+                                                {link.reason && (
+                                                    <div className="text-xs text-gray-500 mt-1">{link.reason}</div>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    ) : null}
                 </div>
             </div>
         )}

@@ -61,7 +61,82 @@ function reconstructContent(originalContent: any, translations: string[], map: a
     return newContent;
 }
 
-async function translateBatch(texts: string[], targetLang: string): Promise<string[]> {
+// Helper to translate batch with DeepSeek
+async function translateBatchWithDeepSeek(texts: string[], _targetLang: string): Promise<string[]> {
+    const deepSeekApiKey = process.env.DEEPSEEK_API_KEY;
+    if (!deepSeekApiKey) throw new Error('DeepSeek API Key not configured');
+
+    const results: string[] = [];
+    
+    // Process in smaller batches for DeepSeek to avoid context limits and ensure reliability
+    const BATCH_SIZE = 10; 
+    
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+        const batch = texts.slice(i, i + BATCH_SIZE);
+        
+        try {
+            const response = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${deepSeekApiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: "deepseek-chat",
+                    messages: [
+                        { 
+                            role: "system", 
+                            content: `You are a professional translator. Translate the following array of texts to Traditional Chinese (Taiwan). 
+                            Return ONLY a JSON array of strings, ensuring the order matches the input. 
+                            Do not include any other text or markdown formatting. 
+                            Example input: ["你好", "世界"] 
+                            Example output: ["你好", "世界"]` 
+                        },
+                        { role: "user", content: JSON.stringify(batch) }
+                    ],
+                    stream: false,
+                    temperature: 0.1
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`DeepSeek API Error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            let content = data.choices?.[0]?.message?.content?.trim();
+            
+            // Remove markdown code blocks if present
+            if (content.startsWith('```json')) {
+                content = content.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+            } else if (content.startsWith('```')) {
+                content = content.replace(/^```\s*/, '').replace(/\s*```$/, '');
+            }
+
+            const translatedBatch = JSON.parse(content);
+            if (Array.isArray(translatedBatch)) {
+                results.push(...translatedBatch);
+            } else {
+                 // Fallback if not array
+                 console.error('DeepSeek returned non-array:', content);
+                 results.push(...batch); // Keep original as fallback
+            }
+
+        } catch (e) {
+            console.error('DeepSeek batch translation failed', e);
+            results.push(...batch); // Keep original as fallback
+        }
+    }
+    
+    // Pad if results length mismatch (shouldn't happen if logic is correct but safety first)
+    while (results.length < texts.length) {
+        results.push(texts[results.length]);
+    }
+    
+    return results;
+}
+
+async function translateBatch(texts: string[], targetLang: string, sourceLang?: string): Promise<string[]> {
     if (texts.length === 0) return [];
 
     // DeepL limits: 50 texts per request, 128KB total request size.
@@ -76,18 +151,40 @@ async function translateBatch(texts: string[], targetLang: string): Promise<stri
     const processBatch = async (batch: { text: string, index: number }[]) => {
         if (batch.length === 0) return;
         
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`[DEV] Processing batch of ${batch.length} segments for ${targetLang}. Total chars: ${batch.reduce((acc, b) => acc + b.text.length, 0)}`);
+        }
+
         try {
+            const body: { text: string[], target_lang: string, source_lang?: string } = {
+                text: batch.map(b => b.text),
+                target_lang: targetLang,
+            };
+
+            if (sourceLang) {
+                // Map source lang if needed
+                let sLang = sourceLang.toUpperCase();
+                if (sLang === 'EN') sLang = 'EN'; // DeepL uses EN for source, but EN-US/EN-GB for target. EN is fine.
+                // DeepL source_lang doesn't support EN-US/EN-GB, just EN.
+                // We might need to map 'zh-CN' -> 'ZH' or leave it for auto-detect if unsure.
+                // DeepL supports ZH.
+                if (sLang === 'ZH-CN' || sLang === 'ZH-TW') sLang = 'ZH';
+                if (sLang === 'PT-PT' || sLang === 'PT-BR') sLang = 'PT';
+                
+                body.source_lang = sLang;
+            }
+
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`[DEV] DeepL Request Body for ${targetLang}:`, JSON.stringify(body, null, 2));
+            }
+
             const response = await fetch(DEEPL_API_URL, {
                 method: 'POST',
                 headers: {
                     'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    text: batch.map(b => b.text),
-                    target_lang: targetLang,
-                    // tag_handling: 'xml' // Optional: if we want to protect tags more strictly
-                }),
+                body: JSON.stringify(body),
             });
 
             if (!response.ok) {
@@ -144,7 +241,7 @@ export async function POST(req: Request) {
     }
 
     try {
-        const { content, targetLangs } = await req.json(); // sourceLang is optional for DeepL
+        const { content, targetLangs, sourceLang } = await req.json();
 
         if (!content) {
             return NextResponse.json({ error: 'Content is required' }, { status: 400 });
@@ -153,7 +250,16 @@ export async function POST(req: Request) {
         // 2. Flatten Content
         const { texts, map } = flattenContent(content);
         
-        console.log(`Translating ${texts.length} segments to ${targetLangs.length} languages.`);
+        console.log(`Translating ${texts.length} segments to ${targetLangs.length} languages (Source: ${sourceLang || 'Auto'}).`);
+
+        if (process.env.NODE_ENV === 'development') {
+            const totalLength = texts.reduce((acc, t) => acc + t.length, 0);
+            console.log(`[DEV] Total characters to translate: ${totalLength}`);
+            console.log(`[DEV] Segments preview (first 5):`, texts.slice(0, 5));
+            if (texts.length > 20) {
+                 console.log(`[DEV] ... and ${texts.length - 5} more segments.`);
+            }
+        }
 
         if (texts.length === 0) {
              return NextResponse.json({ translations: {} });
@@ -174,8 +280,38 @@ export async function POST(req: Request) {
             if (deepLLang === 'PT') deepLLang = 'PT-PT';
             
             try {
-                const translatedTexts = await translateBatch(texts, deepLLang);
-                translations[lang] = reconstructContent(content, translatedTexts, map);
+                // Check if we should use DeepSeek for Chinese -> Chinese translation
+                // Trigger only if target is Traditional Chinese (ZH-HANT/ZH-TW) 
+                // and source is explicitly Simplified Chinese (ZH-CN) or we detect Chinese content
+                const isTargetTradChinese = deepLLang === 'ZH-HANT';
+                // Note: DeepL maps ZH-TW to ZH-HANT in our logic above
+                
+                let shouldUseDeepSeek = false;
+                
+                if (isTargetTradChinese) {
+                    // Check source lang
+                    if (sourceLang && (sourceLang.toUpperCase() === 'ZH-CN' || sourceLang.toUpperCase() === 'ZH')) {
+                        shouldUseDeepSeek = true;
+                    } else if (!sourceLang) {
+                        // If no source lang, check if content looks like Chinese
+                        // Sample first few texts
+                        const sampleText = texts.slice(0, 5).join('');
+                        if (/[\u4e00-\u9fa5]/.test(sampleText)) {
+                            shouldUseDeepSeek = true;
+                        }
+                    }
+                }
+
+                if (shouldUseDeepSeek && process.env.DEEPSEEK_API_KEY) {
+                     if (process.env.NODE_ENV === 'development') {
+                         console.log(`[Translate] Using DeepSeek for ${lang} (ZH->ZH-TW) translation.`);
+                     }
+                     const translatedTexts = await translateBatchWithDeepSeek(texts, lang);
+                     translations[lang] = reconstructContent(content, translatedTexts, map);
+                } else {
+                    const translatedTexts = await translateBatch(texts, deepLLang, sourceLang);
+                    translations[lang] = reconstructContent(content, translatedTexts, map);
+                }
             } catch (e) {
                 console.error(`Failed to translate to ${lang}`, e);
                 // Return null or partial error for this lang?

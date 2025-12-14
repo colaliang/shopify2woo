@@ -15,9 +15,10 @@ interface LanguageSelectorProps {
     onConfirm: (selectedLangs: string[], selectedFields?: string[]) => void
     isTranslating: boolean
     availableFields?: FieldOption[]
+    sourceLang?: string
 }
 
-export default function LanguageSelector({ isOpen, onClose, onConfirm, isTranslating, availableFields }: LanguageSelectorProps) {
+export default function LanguageSelector({ isOpen, onClose, onConfirm, isTranslating, availableFields, sourceLang = 'en' }: LanguageSelectorProps) {
     const [selected, setSelected] = useState<string[]>([])
     const [selectedFields, setSelectedFields] = useState<string[]>([])
     
@@ -31,9 +32,9 @@ export default function LanguageSelector({ isOpen, onClose, onConfirm, isTransla
                 setSelected(parsed)
             } catch (e) { console.error(e) }
         } else {
-            setSelected(languages.filter(l => l.id !== 'en').map(l => l.id))
+            setSelected(languages.filter(l => l.id !== sourceLang).map(l => l.id))
         }
-    }, []) 
+    }, [sourceLang]) 
 
     // Initialize selected fields when availableFields changes
     useEffect(() => {
@@ -58,7 +59,7 @@ export default function LanguageSelector({ isOpen, onClose, onConfirm, isTransla
     }
 
     const selectAll = () => {
-        const all = languages.filter(l => l.id !== 'en').map(l => l.id)
+        const all = languages.filter(l => l.id !== sourceLang).map(l => l.id)
         setSelected(all)
         localStorage.setItem('admin_translation_preference', JSON.stringify(all))
     }
@@ -177,7 +178,7 @@ export default function LanguageSelector({ isOpen, onClose, onConfirm, isTransla
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                            {languages.filter(l => l.id !== 'en').map(lang => (
+                            {languages.filter(l => l.id !== sourceLang).map(lang => (
                                 <label 
                                     key={lang.id} 
                                     className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all select-none ${

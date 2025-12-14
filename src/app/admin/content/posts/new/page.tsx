@@ -19,6 +19,8 @@ interface AiResult {
   tags?: string[]
   keyTakeaways?: string[]
   faq?: { question: string; answer: string }[]
+  suggestedExternalLinks?: { anchor: string; url: string; reason: string }[]
+  suggestedInternalLinks?: { anchor: string; slug: string; reason: string }[]
   seo?: {
     metaTitle?: string
     metaDescription?: string
@@ -136,10 +138,11 @@ export default function NewPostPage() {
   }, [])
 
   function generateSlug(title: string) {
-    return title
+    const slug = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '')
+    return slug || `post-${Date.now()}`
   }
 
   // When changing language, update cover image preview if available
@@ -406,8 +409,9 @@ export default function NewPostPage() {
   }
 
   async function handleTranslate(targetLangs: string[]) {
-      if (!formData.title.en || !formData.body.en) {
-          alert('Please enter English title and content first.')
+      const sourceLang = contentLang;
+      if (!formData.title[sourceLang] || !formData.body[sourceLang]) {
+          alert(`Please enter ${sourceLang} title and content first.`)
           return
       }
       
@@ -428,15 +432,15 @@ export default function NewPostPage() {
               },
               body: JSON.stringify({
                   content: {
-                      title: formData.title.en,
-                      body: formData.body.en,
-                      excerpt: formData.excerpt.en,
-                      keyTakeaways: formData.keyTakeaways.en,
-                      faq: formData.faq.en,
+                      title: formData.title[sourceLang],
+                      body: formData.body[sourceLang],
+                      excerpt: formData.excerpt[sourceLang],
+                      keyTakeaways: formData.keyTakeaways[sourceLang],
+                      faq: formData.faq[sourceLang],
                       // Also translate keywords
-                      keywords: formData.seo.keywords.en
+                      keywords: formData.seo.keywords[sourceLang]
                   },
-                  sourceLang: 'en',
+                  sourceLang: sourceLang,
                   targetLangs
               })
           })
@@ -491,6 +495,17 @@ export default function NewPostPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    if (!formData.slug) {
+        alert('Slug is required. Please enter a slug for the URL.')
+        return
+    }
+
+    if (!formData.title.en && !Object.values(formData.title).some(t => !!t)) {
+        alert('Title is required.')
+        return
+    }
+
     setLoading(true)
 
     try {
@@ -498,6 +513,23 @@ export default function NewPostPage() {
       const token = session?.access_token
 
       const finalFormData = { ...formData }
+
+      // 1. Clean Data
+      // Filter out empty key takeaways
+      const cleanKeyTakeaways = { ...finalFormData.keyTakeaways }
+      Object.keys(cleanKeyTakeaways).forEach(lang => {
+          cleanKeyTakeaways[lang] = cleanKeyTakeaways[lang].filter(k => k && k.trim() !== '')
+      })
+      finalFormData.keyTakeaways = cleanKeyTakeaways
+
+      // Filter out incomplete FAQ items
+      const cleanFaq = { ...finalFormData.faq }
+      Object.keys(cleanFaq).forEach(lang => {
+          if (cleanFaq[lang]) {
+              cleanFaq[lang] = cleanFaq[lang].filter(item => item.question && item.question.trim() !== '' && item.answer && item.answer.trim() !== '')
+          }
+      })
+      finalFormData.faq = cleanFaq
 
       // 2. Prepare Payload
       // Sanity expects localized fields as: { en: "...", zh_CN: "..." }
@@ -600,6 +632,7 @@ export default function NewPostPage() {
       router.refresh()
       router.push('/admin/content')
     } catch (e) {
+      console.error('Failed to publish post:', e)
       alert(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
@@ -633,6 +666,7 @@ export default function NewPostPage() {
         onClose={() => setShowTranslateModal(false)}
         onConfirm={handleTranslate}
         isTranslating={translating}
+        sourceLang={contentLang}
       />
 
       <div className="mb-6 flex items-center justify-between">
@@ -721,60 +755,57 @@ export default function NewPostPage() {
                     />
                 </div>
 
-                {contentLang === 'en' && (
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
-                        <input 
-                            type="text" 
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-mono text-sm"
-                            value={formData.slug}
-                            onChange={e => setFormData({ ...formData, slug: e.target.value })}
-                        />
-                    </div>
-                )}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
+                    <input 
+                        type="text" 
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-mono text-sm"
+                        value={formData.slug}
+                        onChange={e => setFormData({ ...formData, slug: e.target.value })}
+                    />
+                    {contentLang !== 'en' && <p className="text-xs text-gray-500 mt-1">Slug is global for all languages.</p>}
+                </div>
 
-                {contentLang === 'en' && (
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Main Image</label>
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
-                            {previewImage ? (
-                                <div className="relative">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={previewImage} alt="Preview" className="max-h-64 mx-auto rounded" />
-                                    <button 
-                                        type="button"
-                                        onClick={() => { setPreviewImage(null); setFormData(prev => ({ ...prev, mainImageAssetId: '' })) }}
-                                        className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ) : (
-                                <label className="cursor-pointer block">
-                                    <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                                    <span className="text-blue-600 hover:underline">Upload an image</span>
-                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                                </label>
-                            )}
-                        </div>
-                        <div className="mt-2">
-                             <label className="block text-xs font-medium text-gray-500 mb-1">
-                                 Alt Text ({languages.find(l => l.id === contentLang)?.title})
-                             </label>
-                             <input 
-                                 type="text" 
-                                 className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm"
-                                 placeholder="Describe image for SEO"
-                                 value={formData.alt[contentLang] || ''}
-                                 onChange={e => setFormData(prev => ({
-                                     ...prev,
-                                     alt: { ...prev.alt, [contentLang]: e.target.value }
-                                 }))}
-                             />
-                        </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Main Image</label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+                        {previewImage ? (
+                            <div className="relative">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={previewImage} alt="Preview" className="max-h-64 mx-auto rounded" />
+                                <button 
+                                    type="button"
+                                    onClick={() => { setPreviewImage(null); setFormData(prev => ({ ...prev, mainImageAssetId: '' })) }}
+                                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <label className="cursor-pointer block">
+                                <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                                <span className="text-blue-600 hover:underline">Upload an image</span>
+                                <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                            </label>
+                        )}
                     </div>
-                )}
+                    <div className="mt-2">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">
+                                Alt Text ({languages.find(l => l.id === contentLang)?.title})
+                            </label>
+                            <input 
+                                type="text" 
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm"
+                                placeholder="Describe image for SEO"
+                                value={formData.alt[contentLang] || ''}
+                                onChange={e => setFormData(prev => ({
+                                    ...prev,
+                                    alt: { ...prev.alt, [contentLang]: e.target.value }
+                                }))}
+                            />
+                    </div>
+                </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -792,21 +823,20 @@ export default function NewPostPage() {
                     />
                 </div>
 
-                {contentLang === 'en' && (
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                        <select 
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            value={formData.categoryId}
-                            onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
-                        >
-                            <option value="">Select a category...</option>
-                            {categories.map(c => (
-                                <option key={c._id} value={c._id}>{c.title}</option>
-                            ))}
-                        </select>
-                    </div>
-                )}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        value={formData.categoryId}
+                        onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                    >
+                        <option value="">Select a category...</option>
+                        {categories.map(c => (
+                            <option key={c._id} value={c._id}>{c.title}</option>
+                        ))}
+                    </select>
+                    {contentLang !== 'en' && <p className="text-xs text-gray-500 mt-1">Category is global for all languages.</p>}
+                </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -820,6 +850,127 @@ export default function NewPostPage() {
                         }))}
                         onImageUpload={handleEditorImageUpload}
                     />
+                </div>
+
+                <div className="pt-4 border-t mt-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Structured Data ({languages.find(l => l.id === contentLang)?.title})</h3>
+                    <div className="space-y-6">
+                        {/* Key Takeaways */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Key Takeaways</label>
+                            <div className="space-y-2">
+                                {(formData.keyTakeaways[contentLang] || []).map((item, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                        <input 
+                                            type="text"
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                                            value={item}
+                                            onChange={e => {
+                                                const newItems = [...(formData.keyTakeaways[contentLang] || [])];
+                                                newItems[idx] = e.target.value;
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    keyTakeaways: { ...prev.keyTakeaways, [contentLang]: newItems }
+                                                }));
+                                            }}
+                                            placeholder="Enter a key takeaway..."
+                                        />
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const newItems = (formData.keyTakeaways[contentLang] || []).filter((_, i) => i !== idx);
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    keyTakeaways: { ...prev.keyTakeaways, [contentLang]: newItems }
+                                                }));
+                                            }}
+                                            className="p-2 text-red-500 hover:bg-red-50 rounded"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <button 
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({
+                                        ...prev,
+                                        keyTakeaways: { ...prev.keyTakeaways, [contentLang]: [...(prev.keyTakeaways[contentLang] || []), ''] }
+                                    }))}
+                                    className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                                >
+                                    <Sparkles className="w-3 h-3" /> Add Takeaway
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* FAQ */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">FAQ Items</label>
+                            <div className="space-y-4">
+                                {(formData.faq[contentLang] || []).map((item, idx) => (
+                                    <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-gray-50 relative group">
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const newItems = (formData.faq[contentLang] || []).filter((_, i) => i !== idx);
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    faq: { ...prev.faq, [contentLang]: newItems }
+                                                }));
+                                            }}
+                                            className="absolute top-2 right-2 text-gray-400 hover:text-red-500 p-1"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-500 mb-1">Question</label>
+                                                <input 
+                                                    type="text"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                                    value={item.question}
+                                                    onChange={e => {
+                                                        const newItems = [...(formData.faq[contentLang] || [])];
+                                                        newItems[idx] = { ...newItems[idx], question: e.target.value };
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            faq: { ...prev.faq, [contentLang]: newItems }
+                                                        }));
+                                                    }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-500 mb-1">Answer</label>
+                                                <textarea 
+                                                    rows={2}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                                    value={item.answer}
+                                                    onChange={e => {
+                                                        const newItems = [...(formData.faq[contentLang] || [])];
+                                                        newItems[idx] = { ...newItems[idx], answer: e.target.value };
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            faq: { ...prev.faq, [contentLang]: newItems }
+                                                        }));
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button 
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({
+                                        ...prev,
+                                        faq: { ...prev.faq, [contentLang]: [...(prev.faq[contentLang] || []), { question: '', answer: '' }] }
+                                    }))}
+                                    className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                                >
+                                    <Sparkles className="w-3 h-3" /> Add FAQ Item
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         )}
@@ -886,6 +1037,32 @@ export default function NewPostPage() {
                             } 
                         }))}
                     />
+                </div>
+
+                <div className="pt-4 border-t mt-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Open Graph (Social Media)</h3>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">OG Title</label>
+                            <input 
+                                type="text" 
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                placeholder={formData.seo.metaTitle[contentLang] || formData.title[contentLang]}
+                                value={formData.openGraph.title[contentLang] || ''}
+                                onChange={e => handleNestedChange('openGraph', 'title', e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">OG Description</label>
+                            <textarea 
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                placeholder={formData.seo.metaDescription[contentLang] || ''}
+                                value={formData.openGraph.description[contentLang] || ''}
+                                onChange={e => handleNestedChange('openGraph', 'description', e.target.value)}
+                            ></textarea>
+                        </div>
+                    </div>
                 </div>
             </div>
         )}
@@ -980,6 +1157,42 @@ export default function NewPostPage() {
                         onUseContent={applyAiContent}
                         isGenerating={aiGenerating}
                     />
+                    {aiResult && (aiResult.suggestedExternalLinks?.length || aiResult.suggestedInternalLinks?.length) ? (
+                        <div className="space-y-4">
+                            {aiResult.suggestedExternalLinks && aiResult.suggestedExternalLinks.length > 0 && (
+                                <div className="border border-gray-200 rounded-lg p-3">
+                                    <h4 className="text-sm font-semibold text-gray-800 mb-2">Suggested External Links</h4>
+                                    <ul className="space-y-2 text-sm text-gray-700">
+                                        {aiResult.suggestedExternalLinks.map((link, idx) => (
+                                            <li key={idx} className="border-b border-dashed border-gray-200 pb-2 last:border-b-0 last:pb-0">
+                                                <div className="font-medium text-blue-700">{link.anchor}</div>
+                                                <div className="text-xs text-gray-500 break-all">{link.url}</div>
+                                                {link.reason && (
+                                                    <div className="text-xs text-gray-500 mt-1">{link.reason}</div>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {aiResult.suggestedInternalLinks && aiResult.suggestedInternalLinks.length > 0 && (
+                                <div className="border border-gray-200 rounded-lg p-3">
+                                    <h4 className="text-sm font-semibold text-gray-800 mb-2">Suggested Internal Links</h4>
+                                    <ul className="space-y-2 text-sm text-gray-700">
+                                        {aiResult.suggestedInternalLinks.map((link, idx) => (
+                                            <li key={idx} className="border-b border-dashed border-gray-200 pb-2 last:border-b-0 last:pb-0">
+                                                <div className="font-medium text-blue-700">{link.anchor}</div>
+                                                <div className="text-xs text-gray-500 break-all">{link.slug}</div>
+                                                {link.reason && (
+                                                    <div className="text-xs text-gray-500 mt-1">{link.reason}</div>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    ) : null}
                 </div>
             </div>
         )}

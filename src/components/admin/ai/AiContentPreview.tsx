@@ -83,6 +83,7 @@ export default function AiContentPreview({
         <div className="flex items-center gap-1">
           <div className="flex bg-gray-200 rounded-lg p-1 mr-4">
             <button
+              type="button"
               onClick={() => setViewMode('code')}
               className={`p-1.5 rounded transition-colors ${viewMode === 'code' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
               title="Code View"
@@ -90,6 +91,7 @@ export default function AiContentPreview({
               <Code className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('preview')}
               className={`p-1.5 rounded transition-colors ${viewMode === 'preview' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
               title="Preview View"
@@ -97,6 +99,7 @@ export default function AiContentPreview({
               <Eye className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('split')}
               className={`p-1.5 rounded transition-colors ${viewMode === 'split' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
               title="Split View"
@@ -107,6 +110,7 @@ export default function AiContentPreview({
 
           <div className="flex items-center gap-1 border-l pl-4 border-gray-300">
             <button
+              type="button"
               onClick={() => adjustZoom(-10)}
               className="p-1.5 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
               title="Zoom Out"
@@ -115,6 +119,7 @@ export default function AiContentPreview({
             </button>
             <span className="text-xs font-medium w-12 text-center text-gray-600">{zoom}%</span>
             <button
+              type="button"
               onClick={() => adjustZoom(10)}
               className="p-1.5 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
               title="Zoom In"
@@ -127,7 +132,8 @@ export default function AiContentPreview({
         <div className="flex items-center gap-2">
           {content && (
             <>
-               <button
+              <button
+                type="button"
                 onClick={onRegenerate}
                 disabled={isGenerating}
                 className="p-1.5 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200 mr-2"
@@ -137,6 +143,7 @@ export default function AiContentPreview({
               </button>
               
               <button
+                type="button"
                 onClick={handleCopy}
                 className="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
               >
@@ -146,6 +153,7 @@ export default function AiContentPreview({
               
               {onUseContent && (
                 <button
+                  type="button"
                   onClick={onUseContent}
                   className="flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
                 >
