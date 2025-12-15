@@ -77,6 +77,11 @@
 2. **Paypal支付接入**
    -- 不通过stripe中转，直接在Admin后台做管理授权
    https://developer.paypal.com/dashboard/
+   - Callback
+   https://www.ydplus.net/admin/payment/callback
+   
+   - Webhook
+   https://www.ydplus.net/api/payment/webhook/paypal
 
 
 ## [Latest] - 2025-12-11/2025-12-12
