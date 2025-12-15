@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, ShoppingCart, FileText, AlertOctagon, LogOut, MessageSquare, PenTool } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, FileText, AlertOctagon, LogOut, MessageSquare, PenTool, Settings } from 'lucide-react';
 import { useUserStore } from '@/stores/userStore';
 import supabase from '@/lib/supabase';
 
@@ -67,6 +67,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Messages', href: '/admin/contacts', icon: MessageSquare },
     { name: 'Reconciliation', href: '/admin/reconciliation', icon: AlertOctagon },
     { name: 'Content Management', href: '/admin/content', icon: PenTool },
+    { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
 
   return (

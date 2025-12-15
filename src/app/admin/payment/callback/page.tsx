@@ -42,7 +42,7 @@ function CallbackContent() {
           setStatus('success');
           setMessage('PayPal connected successfully! Redirecting...');
           setTimeout(() => {
-            router.push('/admin/content/settings');
+            router.push('/admin/settings');
           }, 2000);
         } else {
           setStatus('error');
@@ -86,7 +86,7 @@ function CallbackContent() {
             </svg>
             <p className="mb-4">{message}</p>
             <button 
-              onClick={() => router.push('/admin/content/settings')}
+              onClick={() => router.push('/admin/settings')}
               className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
             >
               Back to Settings
