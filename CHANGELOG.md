@@ -74,6 +74,10 @@
    - 集成：将微信支付的相关代码集成到项目中，包括支付页面的生成、支付结果的处理等。
    https://pay.weixin.qq.com/index.php/apply/applyment4normal_progress
 
+2. **Paypal支付接入**
+   -- 不通过stripe中转，直接在Admin后台做管理授权
+   https://developer.paypal.com/dashboard/
+
 
 ## [Latest] - 2025-12-11/2025-12-12
 

@@ -126,7 +126,7 @@
     "balance": "Aktuelles Guthaben: {{credits}} Credits",
     "select_method": "Zahlungsmethode wählen",
     "wechat_pay": "WeChat Pay",
-    "credit_card": "Kreditkarte / PayPal (Stripe)",
+    "credit_card": "Kreditkarte",
     "packages": {
       "basic": {
         "name": "Basis",

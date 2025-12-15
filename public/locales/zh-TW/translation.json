@@ -126,7 +126,7 @@
     "balance": "當前餘額：{{credits}} 點數",
     "select_method": "選擇支付方式",
     "wechat_pay": "微信支付",
-    "credit_card": "信用卡 / PayPal (Stripe)",
+    "credit_card": "信用卡",
     "packages": {
       "basic": {
         "name": "基礎版",

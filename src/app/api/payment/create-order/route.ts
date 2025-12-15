@@ -11,7 +11,15 @@ const PACKAGES = {
   'max': { credits: 10000, price: 39.99, name: 'Enterprise Package' },
 };
 
+// CNY Prices for WeChat Pay
+const CNY_PRICES = {
+  'basic': 19.8,
+  'pro': 69.8,
+  'max': 298.8,
+};
+
 import Stripe from 'stripe';
+import { createPayPalOrder } from '@/lib/paypal';
 
 export async function POST(req: Request) {
   try {
@@ -78,17 +86,34 @@ export async function POST(req: Request) {
     // 4. Initiate Payment
     let paymentUrl = '';
     
+    // Determine Currency and Amount based on Payment Method
+    let currency = 'usd';
+    let unitAmount = Math.round(pkg.price * 100); // cents
+
+    // Special handling for WeChat Pay: Use specific CNY pricing
+    if (paymentMethod === 'wechat') {
+        currency = 'cny';
+        // Get CNY price from the mapping
+        const cnyPrice = CNY_PRICES[packageId as keyof typeof CNY_PRICES] || 0;
+        if (cnyPrice <= 0) {
+           return NextResponse.json({ error: 'Invalid CNY price for package' }, { status: 400 });
+        }
+        unitAmount = Math.round(cnyPrice * 100); // fen
+    }
+    // Stripe (Card/Alipay) and PayPal remain in USD as per requirement
+    // No exchange rate logic for them.
+
     // Common Stripe Session Params
     const commonSessionParams = {
         line_items: [
         {
             price_data: {
-            currency: 'usd',
+            currency: currency,
             product_data: {
                 name: pkg.name,
                 description: `${pkg.credits} Credits`,
             },
-            unit_amount: Math.round(pkg.price * 100), // Stripe expects cents
+            unit_amount: unitAmount,
             },
             quantity: 1,
         },
@@ -129,22 +154,56 @@ export async function POST(req: Request) {
       }
 
     } else if (paymentMethod === 'paypal') {
-       try {
-        const paypalConfigId = process.env.STRIPE_PAYPAL_CONFIG_ID;
-        if (!paypalConfigId) {
-             throw new Error('STRIPE_PAYPAL_CONFIG_ID is not configured');
+        let directPayPalSuccess = false;
+        
+        try {
+            // Attempt Direct PayPal Integration
+            const returnUrl = `${origin}/api/payment/paypal/return?orderId=${order.id}`;
+            const cancelUrl = `${origin}/payment/result?status=cancel`;
+            
+            const paypalOrder = await createPayPalOrder(order.id, pkg.price, 'USD', returnUrl, cancelUrl);
+            
+            const approveLink = paypalOrder.links?.find((l: any) => l.rel === 'approve')?.href;
+            
+            if (approveLink) {
+                paymentUrl = approveLink;
+                // Update order with external ID
+                await supabase.from('payment_orders').update({ external_id: paypalOrder.id }).eq('id', order.id);
+                directPayPalSuccess = true;
+            }
+        } catch (directError) {
+            console.warn('Direct PayPal attempt failed, falling back to Stripe:', directError);
         }
 
-        const session = await stripe.checkout.sessions.create({
-          payment_method_configuration: paypalConfigId,
-          ...commonSessionParams,
-        });
+        if (!directPayPalSuccess) {
+           try {
+            const paypalConfigId = process.env.STRIPE_PAYPAL_CONFIG_ID;
+        let session;
 
-        if (session.url) {
-          paymentUrl = session.url;
+        try {
+            if (paypalConfigId) {
+                session = await stripe.checkout.sessions.create({
+                    payment_method_configuration: paypalConfigId,
+                    ...commonSessionParams,
+                });
+            } else {
+                throw new Error('No config ID');
+            }
+        } catch (configError) {
+            console.warn('Failed to use PayPal Config ID, falling back to manual type:', configError);
+            // Fallback to manual 'paypal' type
+            session = await stripe.checkout.sessions.create({
+                payment_method_types: ['paypal'],
+                ...commonSessionParams,
+            });
+        }
+
+        if (session && session.url) {
+            paymentUrl = session.url;
         } else {
-          throw new Error('Failed to create PayPal session URL');
+            throw new Error('Failed to create PayPal session URL');
         }
+
       } catch (stripeError) {
         console.error('Stripe PayPal error details:', JSON.stringify(stripeError, null, 2));
         return NextResponse.json({ 
@@ -152,9 +211,30 @@ export async function POST(req: Request) {
             details: (stripeError as Error).message 
         }, { status: 500 });
       }
+    }
     } else if (paymentMethod === 'wechat') {
-      // MOCK for now
-      paymentUrl = `/api/payment/mock-pay?orderId=${order.id}&method=wechat`;
+        try {
+            // Using Stripe WeChat Pay (Requires CNY currency, handled above)
+            const session = await stripe.checkout.sessions.create({
+                payment_method_types: ['wechat_pay'],
+                payment_method_options: {
+                    wechat_pay: { client: 'web' }, // 'web' is default, implies QR code
+                },
+                ...commonSessionParams,
+            });
+
+            if (session.url) {
+                paymentUrl = session.url;
+            } else {
+                throw new Error('Failed to create WeChat Pay session URL');
+            }
+        } catch (stripeError) {
+            console.error('Stripe WeChat Pay error details:', JSON.stringify(stripeError, null, 2));
+            return NextResponse.json({ 
+                error: 'Failed to initiate WeChat Pay', 
+                details: (stripeError as Error).message 
+            }, { status: 500 });
+        }
     } else {
         return NextResponse.json({ error: 'Invalid payment method' }, { status: 400 });
     }

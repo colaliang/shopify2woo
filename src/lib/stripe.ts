@@ -4,7 +4,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('STRIPE_SECRET_KEY is missing. Please set it in your .env.local file.');
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY.trim(), {
   apiVersion: '2025-11-17.clover',
   appInfo: {
     name: 'shopify2woo-web',

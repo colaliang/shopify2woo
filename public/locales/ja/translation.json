@@ -126,7 +126,7 @@
     "balance": "現在の残高: {{credits}} クレジット",
     "select_method": "支払い方法を選択",
     "wechat_pay": "WeChat Pay",
-    "credit_card": "クレジットカード / PayPal (Stripe)",
+    "credit_card": "クレジットカード",
     "packages": {
       "basic": {
         "name": "ベーシック",

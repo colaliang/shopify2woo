@@ -126,7 +126,7 @@
     "balance": "الرصيد الحالي: {{credits}} رصيد",
     "select_method": "اختر طريقة الدفع",
     "wechat_pay": "WeChat Pay",
-    "credit_card": "بطاقة ائتمان / PayPal (Stripe)",
+    "credit_card": "بطاقة ائتمان",
     "packages": {
       "basic": {
         "name": "أساسي",

@@ -126,7 +126,7 @@
     "balance": "Текущий баланс: {{credits}} кредитов",
     "select_method": "Выберите способ оплаты",
     "wechat_pay": "WeChat Pay",
-    "credit_card": "Кредитная карта / PayPal (Stripe)",
+    "credit_card": "Кредитная карта",
     "packages": {
       "basic": {
         "name": "Базовый",
