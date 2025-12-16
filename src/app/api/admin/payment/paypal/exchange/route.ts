@@ -43,6 +43,27 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: tokenData.error_description || 'Failed to exchange token' }, { status: 400 });
       }
       
+      // Fetch User Info (Identity API) immediately to store merchant details
+      let merchantInfo = {};
+      try {
+          const profileRes = await fetch(`${baseUrl}/v1/identity/oauth2/userinfo?schema=paypalv1.1`, {
+              headers: {
+                  'Authorization': `Bearer ${tokenData.access_token}`,
+                  'Content-Type': 'application/json'
+              }
+          });
+
+          if (profileRes.ok) {
+              const profile = await profileRes.json();
+              merchantInfo = {
+                  merchantName: profile.name || '',
+                  merchantEmail: profile.email || ''
+              };
+          }
+      } catch (profileErr) {
+          console.warn('Failed to fetch PayPal profile during exchange:', profileErr);
+      }
+
       // Save to DB
       const { supabase } = auth;
       if (!supabase) {
@@ -53,7 +74,7 @@ export async function POST(req: Request) {
         .from('system_configs')
         .upsert({
             key: 'paypal_token',
-            value: tokenData,
+            value: { ...tokenData, ...merchantInfo }, // Merge merchant info into stored value
             is_secret: true,
             updated_at: new Date().toISOString()
         });
