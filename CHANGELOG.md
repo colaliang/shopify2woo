@@ -84,6 +84,10 @@
    https://www.ydplus.net/api/payment/webhook/paypal
 
 
+3. **改stripe支付为授方式**
+- 登录 Stripe Dashboard -> Settings -> Connect -> Settings。在 "Redirects" 部分，添加你的回调地址：
+https://你的域名.com/admin/payment/stripe/callback
+
 ## [Latest] - 2025-12-11/2025-12-12
 
 ### ✨ 新增功能 (Features)

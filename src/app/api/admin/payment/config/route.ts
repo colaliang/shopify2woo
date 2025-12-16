@@ -25,7 +25,33 @@ export async function GET(req: Request) {
         .single();
 
       if (!data || !data.value) {
-          return NextResponse.json({ connected: false });
+           // Try fetching Stripe even if PayPal is missing
+           const { data: stripeData } = await supabase
+             .from('system_configs')
+             .select('value, updated_at')
+             .eq('key', 'stripe_token')
+             .single();
+
+             const { data: wechatData } = await supabase
+             .from('system_configs')
+             .select('value, updated_at')
+             .eq('key', 'wechat_pay_config')
+             .single();
+ 
+            return NextResponse.json({ 
+              connected: false, // PayPal
+              stripe: {
+                 connected: !!(stripeData?.value?.stripe_user_id),
+                 connectedAt: stripeData?.updated_at,
+                 merchantName: stripeData?.value?.merchantName || '',
+                 merchantEmail: stripeData?.value?.merchantEmail || ''
+              },
+              wechat: {
+                 connected: !!(wechatData?.value?.appId && wechatData?.value?.mchId),
+                 connectedAt: wechatData?.updated_at,
+                 mchId: wechatData?.value?.mchId || ''
+              }
+            });
       }
 
       // 2. Read Merchant Info from stored config
@@ -35,11 +61,43 @@ export async function GET(req: Request) {
 
       // Optional: Refresh if empty? For now, just rely on what's stored.
       
+      // 3. Fetch Stripe Status
+      const { data: stripeData } = await supabase
+        .from('system_configs')
+        .select('value, updated_at')
+        .eq('key', 'stripe_token')
+        .single();
+      
+      const stripeStatus = {
+          connected: !!(stripeData?.value?.stripe_user_id),
+          connectedAt: stripeData?.updated_at,
+          merchantName: stripeData?.value?.merchantName || '',
+          merchantEmail: stripeData?.value?.merchantEmail || ''
+      };
+
+      // 4. Fetch WeChat Pay Status
+      const { data: wechatData } = await supabase
+        .from('system_configs')
+        .select('value, updated_at')
+        .eq('key', 'wechat_pay_config')
+        .single();
+      
+      const wechatStatus = {
+          connected: !!(wechatData?.value?.appId && wechatData?.value?.mchId),
+          connectedAt: wechatData?.updated_at,
+          mchId: wechatData?.value?.mchId || ''
+      };
+
       return NextResponse.json({ 
+          // PayPal
           connected: true, 
           connectedAt: data.updated_at,
           merchantName,
-          merchantEmail
+          merchantEmail,
+          // Stripe
+          stripe: stripeStatus,
+          // WeChat
+          wechat: wechatStatus
       });
 
   } catch (error) {

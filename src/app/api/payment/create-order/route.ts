@@ -92,13 +92,22 @@ export async function POST(req: Request) {
 
     // Special handling for WeChat Pay: Use specific CNY pricing
     if (paymentMethod === 'wechat') {
-        currency = 'cny';
+        currency = 'CNY';
         // Get CNY price from the mapping
         const cnyPrice = CNY_PRICES[packageId as keyof typeof CNY_PRICES] || 0;
         if (cnyPrice <= 0) {
            return NextResponse.json({ error: 'Invalid CNY price for package' }, { status: 400 });
         }
         unitAmount = Math.round(cnyPrice * 100); // fen
+
+        // For WeChat, we redirect to our internal QR code page
+        // The QR code page will call the actual WeChat API to get the code_url
+        paymentUrl = `${origin}/payment/wechat?orderId=${order.id}`;
+        
+        return NextResponse.json({ 
+            orderId: order.id, 
+            paymentUrl 
+        });
     }
     // Stripe (Card/Alipay) and PayPal remain in USD as per requirement
     // No exchange rate logic for them.
