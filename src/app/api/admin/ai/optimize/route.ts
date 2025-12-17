@@ -46,7 +46,8 @@ export async function POST(req: Request) {
         "metaDescription": "SEO optimized description (max 160 chars)",
         "keywords": ["keyword1", "keyword2", "keyword3"],
         "focusKeyword": "The main keyword",
-        "schemaType": "Article"
+        "schemaType": "Article",
+        "noIndex": false
       },
       "openGraph": {
         "title": "Social sharing title",
@@ -66,6 +67,7 @@ export async function POST(req: Request) {
     2. **Field Completion**: Fill ALL missing fields in the JSON schema based on the content.
     3. **SEO & E-E-A-T**:
        - Integrate keywords naturally (density 3-5%).
+       - Ensure "noIndex" is false.
        - Add "Key Takeaways" and "FAQ" if missing.
        - Ensure meta tags are perfect.
     4. **Linking Strategy**:

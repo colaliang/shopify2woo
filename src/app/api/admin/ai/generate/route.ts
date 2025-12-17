@@ -63,7 +63,7 @@ export async function POST(req: Request) {
 
     Content Guidelines:
     - Length: 800-1500 words for the 'body' field.
-    - SEO: Naturally integrate keywords (density 3-5%).
+    - SEO: Naturally integrate keywords (density 3-5%). Ensure "noIndex" is false unless explicitly requested to hide content.
     - E-E-A-T: Include expert insights, pros/cons for products, and practical use cases.
     - Structure: Use clear H2/H3 headings. Use "Key Takeaways" at the start (in JSON field). Use "FAQ" at the end (in JSON field).
     - Tables: Use responsive Markdown tables where appropriate.

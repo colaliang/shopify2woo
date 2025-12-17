@@ -1,5 +1,6 @@
 import { client, urlFor } from '@/lib/sanity'
 import { getLocalizedTitle } from '@/sanity/lib/languages'
+import { supportedLanguages } from '@/lib/languages'
 import BlogHeader from '../components/BlogHeader'
 import BlogPostContent from './components/BlogPostContent'
 import { Metadata } from 'next'
@@ -219,10 +220,19 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
       }
   }
 
+  const baseUrl = 'https://www.ydplus.net';
+
   return {
     title: post.seo?.metaTitle || post.title,
     description: post.seo?.metaDescription || post.excerpt,
     robots: post.seo?.noIndex ? 'noindex, nofollow' : 'index, follow',
+    alternates: {
+        canonical: `${baseUrl}/blog/${post.slug.current}${lng !== 'en' ? `?lng=${lng}` : ''}`,
+        languages: supportedLanguages.reduce((acc, lang) => {
+            acc[lang] = `${baseUrl}/blog/${post.slug.current}${lang !== 'en' ? `?lng=${lang}` : ''}`;
+            return acc;
+        }, {} as Record<string, string>),
+    },
     openGraph: {
         title: post.seo?.metaTitle || post.title,
         description: post.seo?.metaDescription || post.excerpt,

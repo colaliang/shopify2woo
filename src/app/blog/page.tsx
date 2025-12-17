@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { Metadata } from 'next'
 import MarkdownIt from 'markdown-it'
 import { getTranslations } from '@/lib/i18nServer'
+import { supportedLanguages } from '@/lib/languages'
 
 const md = new MarkdownIt({ html: true, breaks: true })
 
